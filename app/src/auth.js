@@ -180,9 +180,12 @@ export async function adminMe(env, request) {
 export async function createAdmin(env, request) {
   const count = (await env.DB.prepare('SELECT COUNT(*) AS n FROM admins').first()).n;
   if (count === 0) {
-    const key = request.headers.get('x-setup-key') || '';
-    if (!env.SETUP_KEY || env.SETUP_KEY.length < 16 || !safeEqual(key, env.SETUP_KEY))
-      return fail(403, 'Kunci setup tidak sah.');
+    // Mesej terperinci hanya wujud sebelum admin pertama dicipta, untuk bantu persediaan.
+    const key = (request.headers.get('x-setup-key') || '').trim();
+    const expected = String(env.SETUP_KEY || '').trim();
+    if (!expected) return fail(403, 'SETUP_KEY belum ditetapkan di Cloudflare. Tambah sebagai Secret dalam Settings → Variables and Secrets.');
+    if (expected.length < 16) return fail(403, 'SETUP_KEY di Cloudflare terlalu pendek. Tetapkan semula dengan sekurang-kurangnya 16 aksara.');
+    if (!safeEqual(key, expected)) return fail(403, 'Kunci setup tidak sama dengan SETUP_KEY di Cloudflare.');
   } else {
     await requireAdmin(env, request);
   }

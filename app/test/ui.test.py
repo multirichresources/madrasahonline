@@ -52,7 +52,7 @@ with sync_playwright() as p:
         ad.screenshot(path=f'{OUT}/a1-setup.png')
         ad.fill('#sKey', 'salah-kunci'); ad.fill('#sName', 'Ustaz Imran'); ad.fill('#sEmail', 'admin@contoh.my'); ad.fill('#sPass', 'katalaluan-panjang-1')
         ad.click('#fSetup button[type=submit]'); ad.wait_for_selector('.err')
-        check('Setup ditolak dengan kunci salah', 'tidak sah' in ad.inner_text('.err'))
+        check('Setup ditolak dengan kunci salah', 'tidak sama' in ad.inner_text('.err'))
         ad.fill('#sKey', KEY); ad.fill('#sPass', 'katalaluan-panjang-1')
         ad.click('#fSetup button[type=submit]'); ad.wait_for_selector('#fLogin')
         check('Admin pertama dicipta', True)
