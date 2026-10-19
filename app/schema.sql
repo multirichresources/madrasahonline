@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS videos (
   minutes       INTEGER NOT NULL DEFAULT 0,
   class_month   TEXT,                             -- contoh '2026-10'
   published     INTEGER NOT NULL DEFAULT 0,
+  bunny_status  INTEGER NOT NULL DEFAULT 0,       -- 4 = sedia ditonton (status Bunny)
+  encode_progress INTEGER NOT NULL DEFAULT 0,
   created_at    INTEGER NOT NULL
 );
 

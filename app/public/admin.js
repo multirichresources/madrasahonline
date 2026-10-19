@@ -1,5 +1,5 @@
 // Panel admin Madrasah Online.
-const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null };
+const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null };
 const app = document.getElementById('app');
 
 const toWa = phone => '6' + String(phone).replace(/\D/g, '');
@@ -85,6 +85,100 @@ function tPelajar() {
     </div>`;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+const monthLabel = m => m ? MONTHS[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4) : '';
+
+function videoRow(v) {
+  const pill = v.ready ? (v.published ? '<span class="pill ok">Diterbitkan</span>' : '<span class="pill warn">Sedia, belum terbit</span>')
+    : v.status === 5 || v.status === 6 ? `<span class="pill bad">${esc(v.statusLabel)}</span>`
+    : `<span class="pill warn">${esc(v.statusLabel)}${v.progress ? ' ' + v.progress + '%' : ''}</span>`;
+  return `<div class="q">
+    <div class="top" style="align-items:flex-start"><div style="min-width:0"><b>${esc(v.title)}</b>
+      <p class="muted small">${esc(v.topic)}${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}${v.minutes ? ' · ' + v.minutes + ' minit' : ''}</p></div>${pill}</div>
+    <div class="btn-row">
+      ${v.ready ? `<button class="btn ${v.published ? 'btn-ghost' : 'btn-primary'}" data-a="vPublish" data-v="${v.id}">${v.published ? 'Sembunyikan' : 'Terbitkan'}</button>` : ''}
+      <button class="btn btn-ghost" data-a="vDelete" data-v="${v.id}" style="color:var(--danger)">Padam</button>
+    </div>
+  </div>`;
+}
+
+function tVideo() {
+  const m = A.vmeta;
+  if (!m) return '<div class="loading">Memuatkan video...</div>';
+  const now = new Date(), month = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const up = A.upload;
+  return `${m.bunnyReady ? '' : `<div class="adminnote">${I.shield}<p><b>Bunny Stream belum disambung.</b> Tambah secret <b>BUNNY_API_KEY</b> di Cloudflare untuk upload video.</p></div>`}
+    ${m.bunnyReady && !m.tokenReady ? `<div class="adminnote">${I.shield}<p><b>Perlindungan video belum aktif.</b> Hidupkan Token Authentication di Bunny dan tambah secret <b>BUNNY_TOKEN_KEY</b> di Cloudflare, supaya pautan video tak boleh dikongsi.</p></div>` : ''}
+    <form id="fUpload" class="card" novalidate>
+      <span class="eyebrow">Muat naik rakaman kelas</span>
+      <label class="f" for="vTitle">Tajuk video<input class="input" id="vTitle" maxlength="120" placeholder="Contoh: Hukum Nun Mati & Tanwin"></label>
+      <label class="f" for="vTopic">Topik<select class="input" id="vTopic">${m.topics.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
+      <label class="f" for="vArabic">Label Arab <span class="muted small">(pilihan, untuk gambar kecil)</span><input class="input" id="vArabic" dir="rtl" maxlength="40" placeholder="النون الساكنة" style="font-family:var(--f-ar);font-size:1.2rem"></label>
+      <label class="f" for="vMonth">Bulan kelas<input class="input" id="vMonth" type="month" value="${month}"></label>
+      <label class="f" for="vFile">Fail video<input class="input" id="vFile" type="file" accept="video/*"></label>
+      ${up ? `<div class="ok-box">${esc(up.msg)}${up.pct != null ? ` <b>${up.pct}%</b>` : ''}</div><span class="bar"><i style="width:${up.pct || 0}%"></i></span>` : ''}
+      ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit" ${!m.bunnyReady || (up && up.busy) ? 'disabled' : ''}>Muat naik video</button>
+      <p class="note">Jangan tutup halaman ini semasa muat naik. Selepas siap, Bunny akan proses video beberapa minit sebelum boleh diterbitkan.</p>
+    </form>
+    <div class="card">
+      <div class="top"><span class="eyebrow">Semua video · ${A.videos.length}</span><button class="iconbtn" data-a="vRefresh">Muat semula</button></div>
+      <div class="qa">${A.videos.length ? A.videos.map(videoRow).join('') : '<p class="muted">Belum ada video.</p>'}</div>
+    </div>`;
+}
+
+async function loadVideos() {
+  const r = await api('GET', '/api/admin/videos');
+  if (r.status === 401) return toLogin();
+  if (!r.ok) { toast(r.error); return; }
+  A.videos = r.videos; A.vmeta = { bunnyReady: r.bunnyReady, tokenReady: r.tokenReady, topics: r.topics };
+  render();
+}
+
+let tusLoaded = null;
+function loadTus() {
+  if (window.tus) return Promise.resolve();
+  if (!tusLoaded) tusLoaded = new Promise((ok, bad) => { const sc = document.createElement('script'); sc.src = '/tus.min.js'; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+  return tusLoaded;
+}
+
+async function startUpload(btn) {
+  const file = document.getElementById('vFile').files[0];
+  if (!val('vTitle')) { A.err = 'Sila isi tajuk video.'; render(); return; }
+  if (!file) { A.err = 'Sila pilih fail video.'; render(); return; }
+  A.err = '';
+  const r = await busy(btn, () => api('POST', '/api/admin/videos', { title: val('vTitle'), topic: val('vTopic'), arabicLabel: val('vArabic'), classMonth: val('vMonth') }));
+  if (r.status === 401) return toLogin();
+  if (!r.ok) { A.err = r.error; render(); return; }
+  try { await loadTus(); } catch { A.err = 'Gagal memuatkan alat upload. Semak internet dan cuba lagi.'; render(); return; }
+  const t = r.upload;
+  A.upload = { busy: true, pct: 0, msg: `Memuat naik "${file.name}"...` };
+  forget('vTitle', 'vArabic');
+  render();
+  const up = new tus.Upload(file, {
+    endpoint: t.endpoint,
+    retryDelays: [0, 3000, 5000, 10000, 20000, 60000],
+    chunkSize: 50 * 1024 * 1024,
+    headers: { AuthorizationSignature: t.signature, AuthorizationExpire: String(t.expire), VideoId: t.videoId, LibraryId: t.libraryId },
+    metadata: { filetype: file.type || 'video/mp4', title: r.video.title },
+    onProgress(sent, total) {
+      const pct = Math.floor(sent / total * 100);
+      if (pct !== A.upload.pct) { A.upload.pct = pct; if (A.tab === 'video') render(); }
+    },
+    onError(err) {
+      console.error(err);
+      A.upload = { busy: false, pct: null, msg: 'Muat naik terputus. Video dah didaftarkan; padam dan cuba semula, atau semak sambungan internet.' };
+      render(); loadVideos();
+    },
+    onSuccess() {
+      A.upload = { busy: false, pct: null, msg: 'Muat naik selesai. Bunny sedang memproses video. Tekan "Muat semula" dalam beberapa minit, kemudian Terbitkan.' };
+      toast('Video berjaya dimuat naik.');
+      render(); loadVideos();
+    },
+  });
+  up.start();
+}
+
 function tTetapan() {
   return `<div class="card">
       <span class="eyebrow">Akaun admin</span>
@@ -115,6 +209,14 @@ function modal() {
         <div class="row"><span class="muted">Langganan</span><b>${u.active ? 'Aktif hingga ' + fmtDate(u.paidUntil) : u.paidUntil ? 'Tamat ' + fmtDate(u.paidUntil) : 'Belum bayar'}</b></div>
         <div class="row"><span class="muted">Daftar</span><b>${fmtDate(u.createdAt)}</b></div>
       </div>
+      <span class="eyebrow">Langganan manual</span>
+      <p class="muted small">Untuk pelajar ditaja atau bayaran di luar app.</p>
+      <div class="filter-row">
+        <button class="chip" data-a="sub" data-v="1">+1 bulan</button>
+        <button class="chip" data-a="sub" data-v="3">+3 bulan</button>
+        <button class="chip" data-a="sub" data-v="12">+12 bulan</button>
+        ${u.active ? '<button class="chip" data-a="sub" data-v="tamat" style="color:var(--danger)">Tamatkan</button>' : ''}
+      </div>
       <a class="btn btn-ghost" href="https://wa.me/${toWa(u.phone)}" target="_blank" rel="noopener">WhatsApp pelajar</a>
       ${A.newPin ? `<div class="ok-box">PIN sementara: <span style="font-size:1.3rem;letter-spacing:.2em">${A.newPin}</span></div>
         <a class="btn btn-primary" href="https://wa.me/${toWa(u.phone)}?text=${encodeURIComponent(`Assalamualaikum ${u.name}. PIN sementara Madrasah Online anda: ${A.newPin}. Sila log masuk dan tukar PIN di menu Akaun.`)}" target="_blank" rel="noopener">Hantar PIN melalui WhatsApp</a>`
@@ -122,6 +224,11 @@ function modal() {
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-ghost" data-a="close">Tutup</button>`;
   }
+  if (A.modal === 'vdelete') inner = `<h2 style="font-size:1.25rem">Padam video?</h2>
+      <p><b>${esc(A.delVideo.title)}</b> akan dipadam dari app dan dari Bunny. Tindakan ini tidak boleh dibatalkan.</p>
+      ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+      <button class="btn btn-primary" data-a="vDeleteGo" style="background:var(--danger)">Ya, padam</button>
+      <button class="btn btn-ghost" data-a="close">Batal</button>`;
   if (A.modal === 'password') inner = `<form id="fPass" novalidate style="display:flex;flex-direction:column;gap:.8rem">
       <h2 style="font-size:1.25rem">Tukar kata laluan</h2>
       <label class="f" for="cOld">Kata laluan sekarang<input class="input" id="cOld" type="password" autocomplete="current-password"></label>
@@ -139,11 +246,11 @@ function render() {
   else if (A.view === 'setup') body = vSetup();
   else if (A.view === 'login') body = vLogin();
   else {
-    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['tetapan', 'Tetapan']];
+    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, tetapan: tTetapan }[A.tab]()}`;
+      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, tetapan: tTetapan }[A.tab]()}`;
   }
   app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
   restoreInputs();
@@ -169,6 +276,7 @@ function openTab(t) {
   A.tab = t; window.scrollTo(0, 0); render();
   if (t === 'ringkasan') loadStats();
   if (t === 'pelajar') loadUsers();
+  if (t === 'video') loadVideos();
 }
 
 document.addEventListener('click', async e => {
@@ -191,6 +299,31 @@ document.addEventListener('click', async e => {
       const r = await busy(el, () => api('POST', `/api/admin/users/${A.sel.id}/pin`, { pin }));
       if (r.status === 401) return toLogin();
       if (r.ok) { A.newPin = pin; A.err = ''; } else A.err = r.error;
+      break;
+    }
+    case 'sub': {
+      const body = v === 'tamat' ? { action: 'tamat' } : { months: Number(v) };
+      const r = await busy(el, () => api('POST', `/api/admin/users/${A.sel.id}/subscription`, body));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { A.err = r.error; break; }
+      Object.assign(A.sel, { paidUntil: r.paidUntil, active: r.active });
+      toast(r.active ? 'Langganan aktif hingga ' + fmtDate(r.paidUntil) : 'Langganan ditamatkan.');
+      loadUsers();
+      break;
+    }
+    case 'vRefresh': A.videos = null; A.vmeta = null; render(); loadVideos(); return;
+    case 'vPublish': {
+      const vid = A.videos.find(x => String(x.id) === v);
+      const r = await busy(el, () => api('POST', `/api/admin/videos/${v}`, { published: !vid.published }));
+      if (!r.ok) { toast(r.error); return; }
+      Object.assign(vid, r.video); toast(r.video.published ? 'Video diterbitkan. Pelajar boleh tonton.' : 'Video disembunyikan.');
+      break;
+    }
+    case 'vDelete': A.delVideo = A.videos.find(x => String(x.id) === v); A.modal = 'vdelete'; A.err = ''; break;
+    case 'vDeleteGo': {
+      const r = await busy(el, () => api('POST', `/api/admin/videos/${A.delVideo.id}/delete`, {}));
+      if (!r.ok) { A.err = r.error; break; }
+      A.videos = A.videos.filter(x => x.id !== A.delVideo.id); A.modal = null; toast('Video dipadam.');
       break;
     }
     case 'logout': await api('POST', '/api/admin/logout', {}); toast('Anda telah log keluar.'); return toLogin();
@@ -223,6 +356,7 @@ document.addEventListener('submit', async e => {
     openTab('ringkasan'); return;
   }
   if (f.id === 'fSearch') { A.q = val('q'); loadUsers(); return; }
+  if (f.id === 'fUpload') { await startUpload(btn); return; }
   if (f.id === 'fPass') {
     const r = await busy(btn, () => api('POST', '/api/admin/password', { oldPassword: document.getElementById('cOld').value, newPassword: document.getElementById('cNew').value }));
     if (!r.ok) { A.err = r.error; render(); return; }

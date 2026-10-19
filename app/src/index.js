@@ -6,6 +6,10 @@ import {
   setupStatus, adminChangePassword,
 } from './auth.js';
 import { publicConfig, forgotPin, resetPin, updateEmail } from './reset.js';
+import {
+  adminCreateVideo, adminUploadTicket, adminListVideos, adminUpdateVideo, adminDeleteVideo,
+  listVideos, playVideo, saveProgress, adminSetSubscription,
+} from './videos.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
 function sameOrigin(request) {
@@ -35,6 +39,16 @@ const routes = [
   ['GET', /^\/api\/admin\/stats$/, (env, req) => adminStats(env, req)],
   ['GET', /^\/api\/admin\/users$/, (env, req) => adminUsers(env, req)],
   ['POST', /^\/api\/admin\/users\/(\d+)\/pin$/, (env, req, m) => adminResetPin(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/users\/(\d+)\/subscription$/, (env, req, m) => adminSetSubscription(env, req, Number(m[1]))],
+
+  ['GET', /^\/api\/videos$/, (env, req) => listVideos(env, req)],
+  ['GET', /^\/api\/videos\/(\d+)\/play$/, (env, req, m) => playVideo(env, req, Number(m[1]))],
+  ['POST', /^\/api\/videos\/(\d+)\/progress$/, (env, req, m) => saveProgress(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/videos$/, (env, req) => adminListVideos(env, req)],
+  ['POST', /^\/api\/admin\/videos$/, (env, req) => adminCreateVideo(env, req)],
+  ['POST', /^\/api\/admin\/videos\/(\d+)$/, (env, req, m) => adminUpdateVideo(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/videos\/(\d+)\/delete$/, (env, req, m) => adminDeleteVideo(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/videos\/(\d+)\/upload-ticket$/, (env, req, m) => adminUploadTicket(env, req, Number(m[1]))],
 ];
 
 async function adminStats(env, request) {

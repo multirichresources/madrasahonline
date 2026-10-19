@@ -119,6 +119,38 @@ check('Tukar emel perlu PIN betul', r.status === 401, r.data);
 r = await e.req('POST', '/api/me/email', { email: 'baru@contoh.my', pin: '624813' });
 check('Tukar emel', r.status === 200 && r.data.email === 'baru@contoh.my', r.data);
 
+// ---- video + langganan manual ----
+const { execSync } = await import('node:child_process');
+const t0 = Date.now();
+execSync(`npx wrangler d1 execute madrasah-db --local --command "INSERT INTO videos (title, topic, arabic_label, bunny_id, minutes, class_month, published, bunny_status, created_at) VALUES ('Hukum Nun Mati', 'Tajwid', 'النون الساكنة', 'abc-guid', 60, '2026-10', 1, 4, ${t0}), ('Draf belum terbit', 'Tajwid', NULL, 'def-guid', 30, '2026-10', 0, 4, ${t0})"`, { stdio: 'ignore', cwd: process.cwd() });
+r = await e.req('GET', '/api/videos');
+check('Senarai video: hanya yang diterbitkan', r.status === 200 && r.data.videos.length === 1 && r.data.videos[0].title === 'Hukum Nun Mati', r.data);
+const vid = r.data.videos[0].id;
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Tonton ditolak bila langganan tak aktif', r.status === 402, r.data);
+r = await ad.req('GET', '/api/admin/users?q=Rohana');
+const rid = r.data.users.find(u => u.name === 'Rohana Ismail').id;
+r = await e.req('POST', `/api/admin/users/${rid}/subscription`, { months: 1 });
+check('Pelajar tak boleh aktifkan langganan sendiri', r.status === 401, r.data);
+r = await ad.req('POST', `/api/admin/users/${rid}/subscription`, { months: 1 });
+check('Admin aktifkan langganan 1 bulan', r.status === 200 && r.data.active === true, r.data);
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Tonton dibenarkan bila aktif', r.status === 200 && r.data.embedUrl.includes('player.mediadelivery.net/embed/784074/abc-guid') && r.data.watermark === 'Rohana Ismail', r.data);
+r = await e.req('POST', `/api/videos/${vid}/progress`, { seconds: 754 });
+check('Simpan progres', r.status === 200, r.data);
+r = await e.req('GET', '/api/videos');
+check('Progres & sambung tonton', r.data.videos[0].watchedSeconds === 754 && r.data.continueId === vid, r.data);
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Sambung dari tempat terakhir', r.data.resumeAt === 754, r.data);
+r = await ad.req('GET', '/api/admin/videos');
+check('Admin nampak semua video termasuk draf', r.status === 200 && r.data.videos.length === 2 && r.data.bunnyReady === false, r.data);
+r = await ad.req('POST', '/api/admin/videos', { title: 'Ujian', topic: 'Tajwid' });
+check('Upload ditolak jelas bila Bunny belum disambung', r.status === 503, r.data);
+r = await ad.req('POST', `/api/admin/users/${rid}/subscription`, { action: 'tamat' });
+check('Admin tamatkan langganan', r.status === 200 && r.data.active === false, r.data);
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Tonton ditolak semula selepas tamat', r.status === 402, r.data);
+
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');
 check('Pelajar tanpa sesi admin tak boleh lihat senarai', r.status === 401);

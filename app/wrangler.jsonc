@@ -17,7 +17,9 @@
     }
   ],
   "triggers": { "crons": ["0 19 * * *"] },
-  "vars": { "HASH_ITERATIONS": "10000" }
+  "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074" }
   // Rahsia (tetapkan dengan: npx wrangler secret put NAMA):
-  //   SETUP_KEY  — kunci sekali guna untuk cipta admin pertama (min 16 aksara)
+  //   SETUP_KEY       — kunci sekali guna untuk cipta admin pertama (min 16 aksara)
+  //   BUNNY_API_KEY   — API key library Bunny Stream
+  //   BUNNY_TOKEN_KEY — Token authentication key (Bunny → library → Security)
 }
