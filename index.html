@@ -1,5 +1,23 @@
+<!doctype html>
+<html lang="ms" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Madrasah Online">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; -webkit-tap-highlight-color: transparent; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
 <title>Madrasah Online</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
@@ -188,13 +206,8 @@ textarea.input { min-height: 6rem; resize: vertical; line-height: 1.45; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); max-width: min(420px, calc(100% - 32px)); background: var(--ink); color: var(--bg); padding: .8rem 1.1rem; border-radius: 14px; font-weight: 700; z-index: 20; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 </style>
 
-<div class="demobar">
-  <small>Demo · tukar paparan</small>
-  <div class="seg" role="tablist" aria-label="Pilih paparan">
-    <button id="rolePelajar" data-a="role" data-v="pelajar" class="on">Pelajar</button>
-    <button id="roleAdmin" data-a="role" data-v="admin">Admin</button>
-  </div>
-</div>
+</head>
+<body>
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 
@@ -299,6 +312,7 @@ function pLogin() {
       <button class="btn btn-primary" type="submit">Masuk</button>
     </form>
     <button class="btn btn-line" data-a="toast" data-v="Pendaftaran baharu: isi nama dan no. telefon, kemudian bayar RM10 (demo)">Daftar baharu · RM10 sebulan</button>
+    ${installCard()}
     <p class="note">Demo: tekan Masuk terus. Tak perlu ingat kata laluan, hanya PIN 6 angka.</p>
   </div>`;
 }
@@ -448,6 +462,17 @@ function pKomuniti() {
     </div>`;
 }
 
+let installEvt = null;
+const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('App dah dipasang di skrin utama.'); render(); });
+function installCard() {
+  if (isStandalone()) return '';
+  if (installEvt) return `<button class="btn btn-ghost" data-a="install">${I.home} Pasang app di telefon</button>`;
+  if (isIOS()) return `<p class="note">Untuk pasang di iPhone: tekan butang Share di Safari, kemudian pilih <b>Add to Home Screen</b>.</p>`;
+  return '';
+}
 function pAkaun() {
   const plan = S.pay;
   return `<div class="top"><h1>Akaun Saya</h1></div>
@@ -488,6 +513,7 @@ function pAkaun() {
       <span class="eyebrow">Alat demo</span>
       <button class="btn btn-ghost" data-a="expire">${S.active ? 'Tunjuk paparan bila langganan tamat' : 'Langganan tamat sedang dipaparkan'}</button>
     </div>
+    ${installCard()}
     <button class="btn btn-line" data-a="logout">Log keluar</button>`;
 }
 
@@ -634,8 +660,11 @@ function renderPelajar() {
 function render() {
   document.documentElement.classList.toggle('big', S.big);
   document.documentElement.setAttribute('data-theme', S.theme);
-  document.getElementById('rolePelajar').classList.toggle('on', S.role === 'pelajar');
-  document.getElementById('roleAdmin').classList.toggle('on', S.role === 'admin');
+  const rp = document.getElementById('rolePelajar'), ra = document.getElementById('roleAdmin');
+  if (rp) rp.classList.toggle('on', S.role === 'pelajar');
+  if (ra) ra.classList.toggle('on', S.role === 'admin');
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc) tc.setAttribute('content', S.theme === 'dark' ? '#0a1615' : '#ffffff');
   document.getElementById('app').innerHTML = S.role === 'admin' ? renderAdmin() : renderPelajar();
 }
 
@@ -651,6 +680,7 @@ function act(a, v) {
     case 'play': S.playing = !S.playing; if ((S.progress[S.videoId] || 0) >= vById(S.videoId).min) S.progress[S.videoId] = 0; break;
     case 'speed': S.speed = +v; break;
     case 'big': S.big = !S.big; break;
+    case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } return;
     case 'theme': S.theme = S.theme === 'dark' ? 'light' : 'dark'; saveTheme(); break;
     case 'themeSet': S.theme = v; saveTheme(); break;
     case 'adminOut': S.adminIn = false; S.adminTab = 'ringkasan'; top(); break;
@@ -744,4 +774,7 @@ setInterval(() => {
 }, 1000);
 
 render();
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {})); }
 </script>
+</body>
+</html>
