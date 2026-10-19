@@ -188,3 +188,36 @@ export async function adminSetSubscription(env, request, userId) {
   await env.DB.prepare('UPDATE users SET paid_until = ?, plan = COALESCE(plan, ?) WHERE id = ?').bind(until, 'manual', userId).run();
   return json({ ok: true, paidUntil: until, active: until > now() });
 }
+
+// ---------- import video yang di-upload terus di Bunny ----------
+export async function adminBunnyVideos(env, request) {
+  await requireAdmin(env, request);
+  if (!bunnyReady(env)) return fail(503, 'Bunny Stream belum disambung. Tambah BUNNY_API_KEY di Cloudflare.');
+  const data = await bunny(env, 'GET', '/videos?page=1&itemsPerPage=100&orderBy=date');
+  const { results } = await env.DB.prepare('SELECT bunny_id FROM videos WHERE bunny_id IS NOT NULL').all();
+  const known = new Set(results.map(r => r.bunny_id));
+  const items = (data.items || []).filter(v => !known.has(v.guid)).map(v => ({
+    guid: v.guid, title: v.title, minutes: Math.max(1, Math.round((v.length || 0) / 60)),
+    status: v.status, statusLabel: STATUS_LABEL[v.status] || 'Diproses', progress: v.encodeProgress || 0, ready: v.status === 4,
+  }));
+  return json({ ok: true, items });
+}
+
+export async function adminImportVideo(env, request) {
+  await requireAdmin(env, request);
+  if (!bunnyReady(env)) return fail(503, 'Bunny Stream belum disambung.');
+  const body = await readJson(request);
+  const guid = String(body.guid || '');
+  if (!/^[0-9a-f-]{36}$/i.test(guid)) return fail(400, 'ID video tidak sah.');
+  const exists = await env.DB.prepare('SELECT id FROM videos WHERE bunny_id = ?').bind(guid).first();
+  if (exists) return fail(409, 'Video ini sudah ada dalam app.');
+  let b;
+  try { b = await bunny(env, 'GET', `/videos/${guid}`); } catch { return fail(404, 'Video tidak dijumpai di Bunny.'); }
+  const { title, topic, arabic, month } = readVideoInput({ ...body, title: body.title || b.title });
+  if (title.length < 3) return fail(400, 'Sila isi tajuk video.');
+  const minutes = b.length ? Math.max(1, Math.round(b.length / 60)) : 0;
+  const res = await env.DB.prepare('INSERT INTO videos (title, topic, arabic_label, bunny_id, minutes, class_month, published, bunny_status, encode_progress, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)')
+    .bind(title, topic, arabic || null, guid, minutes, month, b.status, b.encodeProgress || 0, now()).run();
+  const v = await env.DB.prepare('SELECT * FROM videos WHERE id = ?').bind(res.meta.last_row_id).first();
+  return json({ ok: true, video: adminVideo(v) }, 201);
+}

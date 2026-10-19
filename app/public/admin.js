@@ -1,5 +1,5 @@
 // Panel admin Madrasah Online.
-const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null };
+const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null };
 const app = document.getElementById('app');
 
 const toWa = phone => '6' + String(phone).replace(/\D/g, '');
@@ -109,8 +109,14 @@ function tVideo() {
   const up = A.upload;
   return `${m.bunnyReady ? '' : `<div class="adminnote">${I.shield}<p><b>Bunny Stream belum disambung.</b> Tambah secret <b>BUNNY_API_KEY</b> di Cloudflare untuk upload video.</p></div>`}
     ${m.bunnyReady && !m.tokenReady ? `<div class="adminnote">${I.shield}<p><b>Perlindungan video belum aktif.</b> Hidupkan Token Authentication di Bunny dan tambah secret <b>BUNNY_TOKEN_KEY</b> di Cloudflare, supaya pautan video tak boleh dikongsi.</p></div>` : ''}
+    <div class="card">
+      <span class="eyebrow">Import dari Bunny (disyorkan)</span>
+      <p class="small">Upload video terus di Bunny (Stream → library <b>madrasah-online</b> → Upload), kemudian import ke app di sini. Lebih stabil untuk rakaman panjang.</p>
+      ${A.bunnyItems === null ? '' : A.bunnyItems === 'loading' ? '<p class="muted">Menyemak Bunny...</p>' : A.bunnyItems.length ? `<div class="rows">${A.bunnyItems.map(b => `<div class="row"><div style="min-width:0"><b>${esc(b.title)}</b><p class="muted small">${b.ready ? b.minutes + ' minit' : esc(b.statusLabel) + (b.progress ? ' ' + b.progress + '%' : '')}</p></div><button class="iconbtn" data-a="impOpen" data-v="${b.guid}">Import</button></div>`).join('')}</div>` : '<p class="muted small">Tiada video baharu di Bunny untuk diimport.</p>'}
+      <button class="btn btn-primary" data-a="bunnyCheck" ${m.bunnyReady ? '' : 'disabled'}>Semak video baharu di Bunny</button>
+    </div>
     <form id="fUpload" class="card" novalidate>
-      <span class="eyebrow">Muat naik rakaman kelas</span>
+      <span class="eyebrow">Atau muat naik terus dari app</span>
       <label class="f" for="vTitle">Tajuk video<input class="input" id="vTitle" maxlength="120" placeholder="Contoh: Hukum Nun Mati & Tanwin"></label>
       <label class="f" for="vTopic">Topik<select class="input" id="vTopic">${m.topics.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
       <label class="f" for="vArabic">Label Arab <span class="muted small">(pilihan, untuk gambar kecil)</span><input class="input" id="vArabic" dir="rtl" maxlength="40" placeholder="النون الساكنة" style="font-family:var(--f-ar);font-size:1.2rem"></label>
@@ -235,6 +241,19 @@ function modal() {
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-ghost" data-a="close">Tutup</button>`;
   }
+  if (A.modal === 'import') {
+    const b = A.imp, now = new Date(), month = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    inner = `<form id="fImport" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+      <h2 style="font-size:1.25rem">Import video</h2>
+      <label class="f" for="iTitle">Tajuk dalam app<input class="input" id="iTitle" maxlength="120" value="${esc(b.title.replace(/\.[a-z0-9]{2,4}$/i, ''))}"></label>
+      <label class="f" for="iTopic">Topik<select class="input" id="iTopic">${A.vmeta.topics.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
+      <label class="f" for="iArabic">Label Arab <span class="muted small">(pilihan)</span><input class="input" id="iArabic" dir="rtl" maxlength="40" style="font-family:var(--f-ar);font-size:1.2rem"></label>
+      <label class="f" for="iMonth">Bulan kelas<input class="input" id="iMonth" type="month" value="${month}"></label>
+      ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">Import ke app</button>
+      <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+    </form>`;
+  }
   if (A.modal === 'vdelete') inner = `<h2 style="font-size:1.25rem">Padam video?</h2>
       <p><b>${esc(A.delVideo.title)}</b> akan dipadam dari app dan dari Bunny. Tindakan ini tidak boleh dibatalkan.</p>
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
@@ -323,6 +342,15 @@ document.addEventListener('click', async e => {
       break;
     }
     case 'vRefresh': A.videos = null; A.vmeta = null; render(); loadVideos(); return;
+    case 'bunnyCheck': {
+      A.bunnyItems = 'loading'; render();
+      const r = await api('GET', '/api/admin/bunny-videos');
+      if (r.status === 401) return toLogin();
+      A.bunnyItems = r.ok ? r.items : null;
+      if (!r.ok) toast(r.error);
+      break;
+    }
+    case 'impOpen': A.imp = A.bunnyItems.find(b => b.guid === v); A.err = ''; A.modal = 'import'; break;
     case 'vPublish': {
       const vid = A.videos.find(x => String(x.id) === v);
       const r = await busy(el, () => api('POST', `/api/admin/videos/${v}`, { published: !vid.published }));
@@ -368,6 +396,14 @@ document.addEventListener('submit', async e => {
   }
   if (f.id === 'fSearch') { A.q = val('q'); loadUsers(); return; }
   if (f.id === 'fUpload') { await startUpload(btn); return; }
+  if (f.id === 'fImport') {
+    const r = await busy(btn, () => api('POST', '/api/admin/videos/import', { guid: A.imp.guid, title: val('iTitle'), topic: val('iTopic'), arabicLabel: val('iArabic'), classMonth: val('iMonth') }));
+    if (!r.ok) { A.err = r.error; render(); return; }
+    forget('iTitle', 'iArabic');
+    A.bunnyItems = A.bunnyItems.filter(b => b.guid !== A.imp.guid); A.modal = null; A.err = '';
+    A.videos.unshift(r.video);
+    toast(r.video.ready ? 'Video diimport. Tekan Terbitkan bila sedia.' : 'Video diimport. Bunny masih memproses, terbitkan bila status Sedia.');
+  }
   if (f.id === 'fPass') {
     const r = await busy(btn, () => api('POST', '/api/admin/password', { oldPassword: document.getElementById('cOld').value, newPassword: document.getElementById('cNew').value }));
     if (!r.ok) { A.err = r.error; render(); return; }

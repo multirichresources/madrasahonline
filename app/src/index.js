@@ -8,7 +8,7 @@ import {
 import { publicConfig, forgotPin, resetPin, updateEmail } from './reset.js';
 import {
   adminCreateVideo, adminUploadTicket, adminListVideos, adminUpdateVideo, adminDeleteVideo,
-  listVideos, playVideo, saveProgress, adminSetSubscription,
+  listVideos, playVideo, saveProgress, adminSetSubscription, adminBunnyVideos, adminImportVideo,
 } from './videos.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
@@ -45,6 +45,8 @@ const routes = [
   ['GET', /^\/api\/videos\/(\d+)\/play$/, (env, req, m) => playVideo(env, req, Number(m[1]))],
   ['POST', /^\/api\/videos\/(\d+)\/progress$/, (env, req, m) => saveProgress(env, req, Number(m[1]))],
   ['GET', /^\/api\/admin\/videos$/, (env, req) => adminListVideos(env, req)],
+  ['GET', /^\/api\/admin\/bunny-videos$/, (env, req) => adminBunnyVideos(env, req)],
+  ['POST', /^\/api\/admin\/videos\/import$/, (env, req) => adminImportVideo(env, req)],
   ['POST', /^\/api\/admin\/videos$/, (env, req) => adminCreateVideo(env, req)],
   ['POST', /^\/api\/admin\/videos\/(\d+)$/, (env, req, m) => adminUpdateVideo(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/videos\/(\d+)\/delete$/, (env, req, m) => adminDeleteVideo(env, req, Number(m[1]))],
