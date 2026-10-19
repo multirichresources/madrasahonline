@@ -232,3 +232,41 @@ export async function changePin(env, request) {
   await env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?').bind(hash, salt, u.id).run();
   return json({ ok: true });
 }
+
+// Panel admin: adakah admin pertama perlu dicipta?
+export async function setupStatus(env) {
+  const n = (await env.DB.prepare('SELECT COUNT(*) AS n FROM admins').first()).n;
+  return json({ ok: true, needsSetup: n === 0 });
+}
+
+// Pelajar padam akaun sendiri (syarat Play Store / App Store). Sahkan dengan PIN.
+export async function deleteAccount(env, request) {
+  const u = await requireUser(env, request);
+  const body = await readJson(request);
+  const hash = await hashSecret(String(body.pin || ''), u.pin_salt, iterations(env));
+  if (!safeEqual(hash, u.pin_hash)) return fail(401, 'PIN salah. Akaun tidak dipadam.');
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sessions WHERE kind = 'user' AND subject_id = ?").bind(u.id),
+    env.DB.prepare('DELETE FROM watch_progress WHERE user_id = ?').bind(u.id),
+    env.DB.prepare('DELETE FROM questions WHERE user_id = ?').bind(u.id),
+    // Rekod bayaran disimpan untuk akaun kewangan, tetapi tidak lagi dikaitkan dengan pelajar.
+    env.DB.prepare('UPDATE payments SET user_id = NULL WHERE user_id = ?').bind(u.id),
+    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id),
+  ]);
+  return json({ ok: true }, 200, { 'set-cookie': cookie(USER_COOKIE, '', 0, isSecure(request)) });
+}
+
+// Admin tukar kata laluan sendiri.
+export async function adminChangePassword(env, request) {
+  const a = await requireAdmin(env, request);
+  const row = await env.DB.prepare('SELECT pass_hash, pass_salt FROM admins WHERE id = ?').bind(a.id).first();
+  const body = await readJson(request);
+  const oldHash = await hashSecret(String(body.oldPassword || ''), row.pass_salt, iterations(env));
+  if (!safeEqual(oldHash, row.pass_hash)) return fail(401, 'Kata laluan lama salah.');
+  const pw = String(body.newPassword || '');
+  if (pw.length < 10) return fail(400, 'Kata laluan baharu mesti sekurang-kurangnya 10 aksara.');
+  const salt = newSalt();
+  const hash = await hashSecret(pw, salt, iterations(env));
+  await env.DB.prepare('UPDATE admins SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(hash, salt, a.id).run();
+  return json({ ok: true });
+}

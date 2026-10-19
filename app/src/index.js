@@ -1,8 +1,9 @@
 // Madrasah Online — Cloudflare Worker: API + fail statik (public/).
 import { json, fail, HttpError, now } from './util.js';
 import {
-  register, login, logout, me, changePin,
+  register, login, logout, me, changePin, deleteAccount,
   adminLogin, adminMe, createAdmin, adminResetPin, requireAdmin, publicUser,
+  setupStatus, adminChangePassword,
 } from './auth.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
@@ -18,10 +19,13 @@ const routes = [
   ['POST', /^\/api\/logout$/, (env, req) => logout(env, req, 'user')],
   ['GET', /^\/api\/me$/, (env, req) => me(env, req)],
   ['POST', /^\/api\/me\/pin$/, (env, req) => changePin(env, req)],
+  ['POST', /^\/api\/me\/delete$/, (env, req) => deleteAccount(env, req)],
 
   ['POST', /^\/api\/admin\/login$/, (env, req) => adminLogin(env, req)],
   ['POST', /^\/api\/admin\/logout$/, (env, req) => logout(env, req, 'admin')],
   ['GET', /^\/api\/admin\/me$/, (env, req) => adminMe(env, req)],
+  ['GET', /^\/api\/admin\/setup-status$/, (env) => setupStatus(env)],
+  ['POST', /^\/api\/admin\/password$/, (env, req) => adminChangePassword(env, req)],
   ['POST', /^\/api\/admin\/admins$/, (env, req) => createAdmin(env, req)],
   ['GET', /^\/api\/admin\/stats$/, (env, req) => adminStats(env, req)],
   ['GET', /^\/api\/admin\/users$/, (env, req) => adminUsers(env, req)],
