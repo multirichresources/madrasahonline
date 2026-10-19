@@ -5,6 +5,7 @@ import {
   adminLogin, adminMe, createAdmin, adminResetPin, requireAdmin, publicUser,
   setupStatus, adminChangePassword,
 } from './auth.js';
+import { publicConfig, forgotPin, resetPin, updateEmail } from './reset.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
 function sameOrigin(request) {
@@ -20,6 +21,10 @@ const routes = [
   ['GET', /^\/api\/me$/, (env, req) => me(env, req)],
   ['POST', /^\/api\/me\/pin$/, (env, req) => changePin(env, req)],
   ['POST', /^\/api\/me\/delete$/, (env, req) => deleteAccount(env, req)],
+  ['POST', /^\/api\/me\/email$/, (env, req) => updateEmail(env, req)],
+  ['GET', /^\/api\/config$/, (env) => publicConfig(env)],
+  ['POST', /^\/api\/pin\/forgot$/, (env, req) => forgotPin(env, req)],
+  ['POST', /^\/api\/pin\/reset$/, (env, req) => resetPin(env, req)],
 
   ['POST', /^\/api\/admin\/login$/, (env, req) => adminLogin(env, req)],
   ['POST', /^\/api\/admin\/logout$/, (env, req) => logout(env, req, 'admin')],
@@ -102,6 +107,7 @@ export default {
     await env.DB.batch([
       env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(t),
       env.DB.prepare('DELETE FROM rate_limits WHERE window_ends < ?').bind(t),
+      env.DB.prepare('DELETE FROM pin_resets WHERE expires_at < ?').bind(t),
     ]);
   },
 };

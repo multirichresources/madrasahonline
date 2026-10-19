@@ -37,6 +37,16 @@ Fail `.dev.vars` (tidak dimuat naik ke GitHub) perlu ada `SETUP_KEY=...` untuk u
 - **Jangan tukar `HASH_ITERATIONS` selepas ada pelajar berdaftar**, PIN sedia ada akan jadi tidak sah.
 - Pelan percuma Cloudflare hadkan masa CPU 10ms setiap permintaan. Jika login gagal dengan ralat had CPU, naik taraf ke Workers Paid.
 - PIN 6 angka dilindungi oleh had cubaan per IP dan kunci akaun 15 minit selepas 5 PIN salah.
-- Lupa PIN (versi 1): admin tetapkan PIN sementara dari panel admin. Kod WhatsApp automatik akan ditambah kemudian.
+- Lupa PIN: pelajar terima kod 6 angka melalui emel. Aktif bila servis emel dikonfigurasi (lihat bawah). Sebelum itu, admin set PIN sementara dari panel admin.
+
+## Aktifkan emel (Lupa PIN)
+
+Perlu domain sendiri di Cloudflare DNS. Pilih satu:
+
+- **Cloudflare Email Sending** (pelan Workers Paid): onboard domain di Email Service → Email Sending, kemudian tambah dalam `wrangler.jsonc`:
+  `"send_email": [{ "name": "EMAIL" }]` dan var `MAIL_FROM`, contoh `"Madrasah Online <noreply@domainanda.my>"`
+- **Resend**: sahkan domain di Resend, tambah secret `RESEND_API_KEY` dan var `MAIL_FROM`
+
+Ujian tempatan: `MAIL_DEV=1` dalam `.dev.vars` cetak emel ke log, tidak dihantar.
 
 _Deploy: Cloudflare Workers Builds, root directory `app`._

@@ -4,7 +4,7 @@ const CONFIG = {
   adminWhatsApp: '',
 };
 
-const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null };
+const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false }, reset: { step: 1, phone: '', msg: '' } };
 const app = document.getElementById('app');
 
 // ---------- skrin luar (belum log masuk) ----------
@@ -45,9 +45,10 @@ function vDaftar() {
     <label class="f" for="dPhone">No. telefon (WhatsApp)
       <input class="input" id="dPhone" inputmode="tel" autocomplete="tel" placeholder="Contoh: 012-345 6789">
     </label>
-    <label class="f" for="dEmail">Emel <span class="muted small">(pilihan, untuk resit)</span>
-      <input class="input" id="dEmail" type="email" inputmode="email" autocomplete="email">
+    <label class="f" for="dEmail">Emel
+      <input class="input" id="dEmail" type="email" inputmode="email" autocomplete="email" placeholder="Contoh: nama@gmail.com">
     </label>
+    <p class="muted small" style="margin-top:-.4rem">Kod set semula PIN dan resit akan dihantar ke emel ini.</p>
     <label class="f" for="dPin">Cipta PIN 6 angka
       <input class="input pin-input" id="dPin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password">
     </label>
@@ -60,7 +61,30 @@ function vDaftar() {
   </form>`;
 }
 
+function vLupaEmail() {
+  const R = S.reset;
+  const head = `<div class="top"><button class="iconbtn" data-a="go" data-v="login">${I.back} Kembali</button>${themeBtn()}</div>
+  <div class="card"><h1 style="font-size:1.6rem">Lupa PIN</h1>
+    <p class="muted small">${R.step === 1 ? 'Kami akan hantar kod 6 angka ke emel yang anda daftar.' : 'Masukkan kod dari emel dan cipta PIN baharu.'}</p></div>`;
+  if (R.step === 1) return head + `<form id="fForgot" class="card" novalidate>
+      <label class="f" for="fPhone">No. telefon yang didaftar<input class="input" id="fPhone" inputmode="tel" autocomplete="tel" placeholder="Contoh: 012-345 6789"></label>
+      ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">Hantar kod ke emel</button>
+      <button class="link" type="button" data-a="lupaAdmin">Tiada emel? Minta bantuan admin</button>
+    </form>`;
+  return head + `<form id="fReset" class="card" novalidate>
+      <div class="ok-box">${esc(R.msg)}</div>
+      <label class="f" for="rCode">Kod 6 angka dari emel<input class="input pin-input" id="rCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+      <label class="f" for="rPin">PIN baharu<input class="input pin-input" id="rPin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>
+      <label class="f" for="rPin2">PIN baharu sekali lagi<input class="input pin-input" id="rPin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>
+      ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">Simpan PIN baharu</button>
+      <button class="link" type="button" data-a="resendCode">Tak terima kod? Hantar semula</button>
+    </form>`;
+}
+
 function vLupa() {
+  if (S.cfg.emailReset && !S.lupaAdmin) return vLupaEmail();
   const wa = CONFIG.adminWhatsApp;
   return `<div class="top"><button class="iconbtn" data-a="go" data-v="login">${I.back} Kembali</button>${themeBtn()}</div>
   <div class="card">
@@ -155,6 +179,8 @@ function tAkaun() {
     </div>
     <div class="card">
       <span class="eyebrow">Keselamatan</span>
+      <p class="small">${u.email ? `Emel: <b>${esc(u.email)}</b>` : '<b>Tiada emel.</b> Tambah emel supaya boleh set semula PIN sendiri jika terlupa.'}</p>
+      <button class="btn btn-ghost" data-a="modal" data-v="email">${u.email ? 'Tukar emel' : 'Tambah emel'}</button>
       <button class="btn btn-ghost" data-a="modal" data-v="pin">Tukar PIN</button>
     </div>
     ${installCard()}
@@ -177,6 +203,14 @@ function modal() {
       <label class="f" for="pNew2">PIN baharu sekali lagi<input class="input pin-input" id="pNew2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>
       ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
       <button class="btn btn-primary" type="submit">Simpan PIN baharu</button>
+      <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+    </form>`;
+  if (S.modal === 'email') inner = `<form id="fEmail" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+      <h2 style="font-size:1.25rem">${S.user.email ? 'Tukar emel' : 'Tambah emel'}</h2>
+      <label class="f" for="eEmail">Alamat emel<input class="input" id="eEmail" type="email" inputmode="email" autocomplete="email" value="${esc(S.user.email || '')}"></label>
+      <label class="f" for="ePin">PIN untuk sahkan<input class="input pin-input" id="ePin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password"></label>
+      ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">Simpan</button>
       <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
     </form>`;
   if (S.modal === 'delete') inner = `<form id="fDelete" novalidate style="display:flex;flex-direction:column;gap:.8rem">
@@ -212,7 +246,9 @@ document.addEventListener('click', async e => {
   const a = el.dataset.a, v = el.dataset.v;
   if (a === 'backdrop' && e.target !== el) return; // klik dalam modal
   switch (a) {
-    case 'go': S.view = v; S.err = ''; window.scrollTo(0, 0); break;
+    case 'go': S.view = v; S.err = ''; S.lupaAdmin = false; S.reset = { step: 1, phone: '', msg: '' }; window.scrollTo(0, 0); break;
+    case 'lupaAdmin': S.lupaAdmin = true; S.err = ''; break;
+    case 'resendCode': S.reset.step = 1; S.err = ''; break;
     case 'tab': S.tab = v; window.scrollTo(0, 0); break;
     case 'theme': toggleTheme(); break;
     case 'themeSet': Prefs.set('theme', v); applyPrefs(); break;
@@ -248,6 +284,26 @@ document.addEventListener('submit', async e => {
     S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = '';
     toast('Pendaftaran berjaya. Selamat datang!');
   }
+  if (f.id === 'fForgot') {
+    const phone = val('fPhone');
+    const r = await busy(btn, () => api('POST', '/api/pin/forgot', { phone }));
+    if (!r.ok) { S.err = r.error; render(); return; }
+    S.reset = { step: 2, phone, msg: r.hint ? `Kod dihantar ke ${r.hint}. Semak juga folder Spam.` : r.message };
+    S.err = '';
+  }
+  if (f.id === 'fReset') {
+    if (val('rPin') !== val('rPin2')) { S.err = 'PIN baharu tidak sama.'; render(); return; }
+    const r = await busy(btn, () => api('POST', '/api/pin/reset', { phone: S.reset.phone, code: val('rCode'), pin: val('rPin') }));
+    if (!r.ok) { S.err = r.error; render(); return; }
+    S.view = 'login'; S.err = ''; S.reset = { step: 1, phone: '', msg: '' };
+    toast('PIN baharu disimpan. Sila log masuk.');
+  }
+  if (f.id === 'fEmail') {
+    const r = await busy(btn, () => api('POST', '/api/me/email', { email: val('eEmail'), pin: val('ePin') }));
+    if (!r.ok) { S.err = r.error; render(); return; }
+    S.user.email = r.email; S.modal = null; S.err = '';
+    toast('Emel disimpan.');
+  }
   if (f.id === 'fPin') {
     if (val('pNew') !== val('pNew2')) { S.err = 'PIN baharu tidak sama.'; render(); return; }
     const r = await busy(btn, () => api('POST', '/api/me/pin', { oldPin: val('pOld'), newPin: val('pNew') }));
@@ -266,6 +322,7 @@ document.addEventListener('submit', async e => {
 
 
 (async function start() {
+  api('GET', '/api/config').then(c => { if (c.ok) { S.cfg = { emailReset: !!c.emailReset }; if (S.view === 'lupa') render(); } });
   const r = await api('GET', '/api/me');
   if (r.ok) { S.user = r.user; S.view = 'app'; }
   else S.view = 'login';

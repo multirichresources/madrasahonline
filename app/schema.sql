@@ -100,3 +100,12 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count       INTEGER NOT NULL,
   window_ends INTEGER NOT NULL
 );
+
+-- Kod set semula PIN melalui emel (satu kod aktif setiap pelajar)
+CREATE TABLE IF NOT EXISTS pin_resets (
+  user_id     INTEGER PRIMARY KEY,
+  code_hash   TEXT    NOT NULL,
+  tries       INTEGER NOT NULL DEFAULT 0,
+  expires_at  INTEGER NOT NULL,
+  created_at  INTEGER NOT NULL
+);
