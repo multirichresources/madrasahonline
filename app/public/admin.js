@@ -161,13 +161,24 @@ async function startUpload(btn) {
     chunkSize: 50 * 1024 * 1024,
     headers: { AuthorizationSignature: t.signature, AuthorizationExpire: String(t.expire), VideoId: t.videoId, LibraryId: t.libraryId },
     metadata: { filetype: file.type || 'video/mp4', title: r.video.title },
+    // Setiap video Bunny ada rekod upload sendiri, supaya tak tersambung ke upload lama yang dah dipadam
+    fingerprint: f => Promise.resolve(['mo', t.videoId, f.name, f.size, f.lastModified].join('-')),
+    removeFingerprintOnSuccess: true,
+    onShouldRetry(err, attempt) {
+      const st = err.originalResponse ? err.originalResponse.getStatus() : 0;
+      A.upload.msg = `Sambungan ke Bunny gagal${st ? ' (kod ' + st + ')' : ''}. Mencuba semula (${attempt + 1}/6)...`;
+      render();
+      return !(st >= 400 && st < 500 && st !== 409 && st !== 423);
+    },
     onProgress(sent, total) {
       const pct = Math.floor(sent / total * 100);
       if (pct !== A.upload.pct) { A.upload.pct = pct; if (A.tab === 'video') render(); }
     },
     onError(err) {
       console.error(err);
-      A.upload = { busy: false, pct: null, msg: 'Muat naik terputus. Video dah didaftarkan; padam dan cuba semula, atau semak sambungan internet.' };
+      const res = err.originalResponse;
+      const detail = res ? `kod ${res.getStatus()}${res.getBody() ? ': ' + String(res.getBody()).slice(0, 120) : ''}` : String(err.message || err).slice(0, 160);
+      A.upload = { busy: false, pct: null, msg: `Muat naik gagal (${detail}). Padam video ni dan cuba semula. Jika berulang, hantar mesej ini kepada pembangun.` };
       render(); loadVideos();
     },
     onSuccess() {
