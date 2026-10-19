@@ -38,3 +38,5 @@ Fail `.dev.vars` (tidak dimuat naik ke GitHub) perlu ada `SETUP_KEY=...` untuk u
 - Pelan percuma Cloudflare hadkan masa CPU 10ms setiap permintaan. Jika login gagal dengan ralat had CPU, naik taraf ke Workers Paid.
 - PIN 6 angka dilindungi oleh had cubaan per IP dan kunci akaun 15 minit selepas 5 PIN salah.
 - Lupa PIN (versi 1): admin tetapkan PIN sementara dari panel admin. Kod WhatsApp automatik akan ditambah kemudian.
+
+_Deploy: Cloudflare Workers Builds, root directory `app`._
