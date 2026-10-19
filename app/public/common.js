@@ -88,9 +88,9 @@ function doInstall() {
 // Simpan isian borang supaya tak hilang bila skrin dilukis semula (contoh selepas ralat).
 // Kata laluan dan PIN tidak disimpan.
 const keep = {};
-document.addEventListener('input', e => { if (e.target.id && e.target.type !== 'password') keep[e.target.id] = e.target.value; });
+document.addEventListener('input', e => { if (e.target.id && e.target.type !== 'password' && e.target.type !== 'file') keep[e.target.id] = e.target.value; });
 function restoreInputs() {
-  for (const [id, v] of Object.entries(keep)) { const el = document.getElementById(id); if (el && !el.value) el.value = v; }
+  for (const [id, v] of Object.entries(keep)) { const el = document.getElementById(id); if (el && el.type !== 'file' && !el.value) try { el.value = v; } catch {} }
 }
 const forget = (...ids) => ids.forEach(id => delete keep[id]);
 

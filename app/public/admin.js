@@ -123,6 +123,7 @@ function tVideo() {
       <label class="f" for="vMonth">Bulan kelas<input class="input" id="vMonth" type="month" value="${month}"></label>
       <label class="f" for="vFile">Fail video<input class="input" id="vFile" type="file" accept="video/*"></label>
       ${up ? `<div class="ok-box">${esc(up.msg)}${up.pct != null ? ` <b>${up.pct}%</b>` : ''}</div><span class="bar"><i style="width:${up.pct || 0}%"></i></span>` : ''}
+      ${up && up.log && up.log.length ? `<details class="uplog" ${up.busy ? '' : 'open'}><summary>Butiran teknikal (screenshot bahagian ini jika upload bermasalah)</summary><pre>${esc(up.log.join('\n'))}</pre></details>` : ''}
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-primary" type="submit" ${!m.bunnyReady || (up && up.busy) ? 'disabled' : ''}>Muat naik video</button>
       <p class="note">Jangan tutup halaman ini semasa muat naik. Selepas siap, Bunny akan proses video beberapa minit sebelum boleh diterbitkan.</p>
@@ -158,9 +159,26 @@ async function startUpload(btn) {
   if (!r.ok) { A.err = r.error; render(); return; }
   try { await loadTus(); } catch { A.err = 'Gagal memuatkan alat upload. Semak internet dan cuba lagi.'; render(); return; }
   const t = r.upload;
-  A.upload = { busy: true, pct: 0, msg: `Memuat naik "${file.name}"...` };
+  const t0 = Date.now();
+  A.upload = { busy: true, pct: 0, msg: `Memuat naik "${file.name}"...`, log: [] };
+  const log = (line) => {
+    if (!A.upload || !A.upload.log) return;
+    A.upload.log.push(`${((Date.now() - t0) / 1000).toFixed(1)}s  ${line}`);
+    if (A.tab === 'video') render();
+  };
+  log(`Fail: ${file.name} · ${(file.size / 1048576).toFixed(1)} MB · ${file.type || 'jenis tak diketahui'}`);
+  log(`Video Bunny: ${t.videoId} · library ${t.libraryId}`);
+  log(`Pelayar: ${navigator.userAgent.slice(0, 110)}`);
   forget('vTitle', 'vArabic');
   render();
+  let gotResponse = false;
+  // Jika 30 saat tiada apa-apa jawapan dari Bunny, beritahu (bukannya diam di 0%)
+  const watchdog = setTimeout(() => {
+    if (A.upload && A.upload.busy && !gotResponse) {
+      A.upload.msg = 'Tiada jawapan dari Bunny selepas 30 saat. Sambungan mungkin disekat. Screenshot butiran teknikal di bawah.';
+      log('AMARAN: tiada jawapan dari server Bunny dalam 30 saat');
+    }
+  }, 30000);
   const up = new tus.Upload(file, {
     endpoint: t.endpoint,
     retryDelays: [0, 3000, 5000, 10000, 20000, 60000],
@@ -170,30 +188,46 @@ async function startUpload(btn) {
     // Setiap video Bunny ada rekod upload sendiri, supaya tak tersambung ke upload lama yang dah dipadam
     fingerprint: f => Promise.resolve(['mo', t.videoId, f.name, f.size, f.lastModified].join('-')),
     removeFingerprintOnSuccess: true,
+    onBeforeRequest(req) {
+      log(`→ ${req.getMethod()} ${req.getURL().replace(/^https:\/\//, '').slice(0, 70)}`);
+    },
+    onAfterResponse(req, res) {
+      gotResponse = true;
+      const body = res.getBody ? String(res.getBody() || '').slice(0, 100) : '';
+      log(`← ${req.getMethod()} kod ${res.getStatus()}${body ? ' · ' + body : ''}`);
+    },
     onShouldRetry(err, attempt) {
       const st = err.originalResponse ? err.originalResponse.getStatus() : 0;
+      log(`Ralat: ${String(err.message || err).slice(0, 160)}`);
       A.upload.msg = `Sambungan ke Bunny gagal${st ? ' (kod ' + st + ')' : ''}. Mencuba semula (${attempt + 1}/6)...`;
       render();
       return !(st >= 400 && st < 500 && st !== 409 && st !== 423);
     },
     onProgress(sent, total) {
       const pct = Math.floor(sent / total * 100);
-      if (pct !== A.upload.pct) { A.upload.pct = pct; if (A.tab === 'video') render(); }
+      if (pct !== A.upload.pct) {
+        if (A.upload.pct === 0) log('Data mula dihantar');
+        A.upload.pct = pct; if (A.tab === 'video') render();
+      }
     },
     onError(err) {
       console.error(err);
+      clearTimeout(watchdog);
       const res = err.originalResponse;
       const detail = res ? `kod ${res.getStatus()}${res.getBody() ? ': ' + String(res.getBody()).slice(0, 120) : ''}` : String(err.message || err).slice(0, 160);
-      A.upload = { busy: false, pct: null, msg: `Muat naik gagal (${detail}). Padam video ni dan cuba semula. Jika berulang, hantar mesej ini kepada pembangun.` };
+      log(`GAGAL: ${String(err.message || err).slice(0, 200)}`);
+      A.upload = { busy: false, pct: null, log: A.upload.log, msg: `Muat naik gagal (${detail}). Padam video ni dan cuba semula. Jika berulang, screenshot butiran teknikal di bawah.` };
       render(); loadVideos();
     },
     onSuccess() {
+      clearTimeout(watchdog);
       A.upload = { busy: false, pct: null, msg: 'Muat naik selesai. Bunny sedang memproses video. Tekan "Muat semula" dalam beberapa minit, kemudian Terbitkan.' };
       toast('Video berjaya dimuat naik.');
       render(); loadVideos();
     },
   });
-  up.start();
+  try { up.start(); log('Upload dimulakan'); }
+  catch (e) { clearTimeout(watchdog); log('GAGAL mula: ' + String(e.message || e)); A.upload.busy = false; A.upload.msg = 'Upload tak dapat dimulakan.'; render(); }
 }
 
 function tTetapan() {
