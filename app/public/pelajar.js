@@ -148,7 +148,8 @@ const monthLabel = m => m ? MONTHS[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0,
 function vItem(v) {
   const total = Math.max(1, v.minutes * 60), pct = Math.min(100, Math.round(v.watchedSeconds / total * 100));
   return `<button class="vitem" data-a="play" data-v="${v.id}">
-    <span class="thumb">${v.arabicLabel ? esc(v.arabicLabel) : `<span style="font-family:var(--f-body);font-size:.8rem;direction:ltr">${esc(v.topic)}</span>`}</span>
+    ${v.thumbUrl ? `<span class="thumb-img"><img src="${esc(v.thumbUrl)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('noimg');this.remove()">${v.arabicLabel ? `<span class="thumb-ar">${esc(v.arabicLabel)}</span>` : ''}</span>`
+      : `<span class="thumb">${v.arabicLabel ? esc(v.arabicLabel) : `<span style="font-family:var(--f-body);font-size:.8rem;direction:ltr">${esc(v.topic)}</span>`}</span>`}
     <span class="vinfo">
       <b>${esc(v.title)}</b>
       <span class="muted small">${esc(v.topic)} · ${v.minutes} minit${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}</span>

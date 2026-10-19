@@ -38,8 +38,14 @@ function adminVideo(v) {
     id: v.id, title: v.title, topic: v.topic, arabicLabel: v.arabic_label || '', classMonth: v.class_month || '',
     minutes: v.minutes, published: !!v.published, bunnyId: v.bunny_id,
     status: v.bunny_status ?? 0, statusLabel: STATUS_LABEL[v.bunny_status ?? 0] || 'Diproses', progress: v.encode_progress ?? 0,
-    ready: v.bunny_status === 4, createdAt: v.created_at,
+    ready: v.bunny_status === 4, thumbUrl: v.thumb_url || null, createdAt: v.created_at,
   };
+}
+
+// URL gambar kecil dari jawapan Bunny (hanya bila video dah siap diproses)
+function thumbFrom(b) {
+  const u = b && b.status === 4 && typeof b.thumbnailUrl === 'string' ? b.thumbnailUrl : '';
+  return /^https:\/\//.test(u) ? u : null;
 }
 
 async function refreshFromBunny(env, v) {
@@ -47,9 +53,10 @@ async function refreshFromBunny(env, v) {
   try {
     const b = await bunny(env, 'GET', `/videos/${v.bunny_id}`);
     const minutes = Math.max(1, Math.round((b.length || 0) / 60));
-    await env.DB.prepare('UPDATE videos SET bunny_status = ?, encode_progress = ?, minutes = ? WHERE id = ?')
-      .bind(b.status, b.encodeProgress || 0, b.length ? minutes : v.minutes, v.id).run();
-    return { ...v, bunny_status: b.status, encode_progress: b.encodeProgress || 0, minutes: b.length ? minutes : v.minutes };
+    const thumb = thumbFrom(b) || v.thumb_url || null;
+    await env.DB.prepare('UPDATE videos SET bunny_status = ?, encode_progress = ?, minutes = ?, thumb_url = ? WHERE id = ?')
+      .bind(b.status, b.encodeProgress || 0, b.length ? minutes : v.minutes, thumb, v.id).run();
+    return { ...v, bunny_status: b.status, encode_progress: b.encodeProgress || 0, minutes: b.length ? minutes : v.minutes, thumb_url: thumb };
   } catch (e) {
     console.error(e);
     return v;
@@ -91,7 +98,7 @@ export async function adminListVideos(env, request) {
   let n = 0;
   const out = [];
   for (const v of results) {
-    if (bunnyReady(env) && v.bunny_status !== 4 && v.bunny_status !== 5 && n < 8) { n++; out.push(await refreshFromBunny(env, v)); }
+    if (bunnyReady(env) && ((v.bunny_status !== 4 && v.bunny_status !== 5) || (v.bunny_status === 4 && !v.thumb_url)) && n < 8) { n++; out.push(await refreshFromBunny(env, v)); }
     else out.push(v);
   }
   return json({ ok: true, videos: out.map(adminVideo), topics: TOPICS, bunnyReady: bunnyReady(env), tokenReady: !!env.BUNNY_TOKEN_KEY });
@@ -131,12 +138,12 @@ export async function adminDeleteVideo(env, request, id) {
 export async function listVideos(env, request) {
   const u = await requireUser(env, request);
   const { results } = await env.DB.prepare(
-    `SELECT v.id, v.title, v.topic, v.arabic_label, v.minutes, v.class_month, v.created_at,
+    `SELECT v.id, v.title, v.topic, v.arabic_label, v.minutes, v.class_month, v.created_at, v.thumb_url,
             p.seconds AS watched, p.updated_at AS watched_at
        FROM videos v LEFT JOIN watch_progress p ON p.video_id = v.id AND p.user_id = ?
       WHERE v.published = 1 ORDER BY COALESCE(v.class_month, '') DESC, v.created_at DESC`).bind(u.id).all();
   const videos = results.map(v => ({
-    id: v.id, title: v.title, topic: v.topic, arabicLabel: v.arabic_label || '', minutes: v.minutes, classMonth: v.class_month,
+    id: v.id, title: v.title, topic: v.topic, arabicLabel: v.arabic_label || '', minutes: v.minutes, classMonth: v.class_month, thumbUrl: v.thumb_url || null,
     watchedSeconds: v.watched || 0, watchedAt: v.watched_at || null,
   }));
   const last = videos.filter(v => v.watchedAt && v.watchedSeconds < v.minutes * 60 - 30).sort((a, b) => b.watchedAt - a.watchedAt)[0] || null;
@@ -216,8 +223,8 @@ export async function adminImportVideo(env, request) {
   const { title, topic, arabic, month } = readVideoInput({ ...body, title: body.title || b.title });
   if (title.length < 3) return fail(400, 'Sila isi tajuk video.');
   const minutes = b.length ? Math.max(1, Math.round(b.length / 60)) : 0;
-  const res = await env.DB.prepare('INSERT INTO videos (title, topic, arabic_label, bunny_id, minutes, class_month, published, bunny_status, encode_progress, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)')
-    .bind(title, topic, arabic || null, guid, minutes, month, b.status, b.encodeProgress || 0, now()).run();
+  const res = await env.DB.prepare('INSERT INTO videos (title, topic, arabic_label, bunny_id, minutes, class_month, published, bunny_status, encode_progress, thumb_url, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)')
+    .bind(title, topic, arabic || null, guid, minutes, month, b.status, b.encodeProgress || 0, thumbFrom(b), now()).run();
   const v = await env.DB.prepare('SELECT * FROM videos WHERE id = ?').bind(res.meta.last_row_id).first();
   return json({ ok: true, video: adminVideo(v) }, 201);
 }

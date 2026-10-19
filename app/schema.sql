@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS videos (
   published     INTEGER NOT NULL DEFAULT 0,
   bunny_status  INTEGER NOT NULL DEFAULT 0,       -- 4 = sedia ditonton (status Bunny)
   encode_progress INTEGER NOT NULL DEFAULT 0,
+  thumb_url     TEXT,                             -- gambar kecil dari Bunny
   created_at    INTEGER NOT NULL
 );
 
