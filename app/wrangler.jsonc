@@ -13,8 +13,7 @@
     {
       "binding": "DB",
       "database_name": "madrasah-db",
-      // Tukar kepada ID sebenar selepas: npx wrangler d1 create madrasah-db
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "854d1695-7144-46f6-a73f-a2c577d4feab"
     }
   ],
   "triggers": { "crons": ["0 19 * * *"] },
