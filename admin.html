@@ -93,6 +93,16 @@ h1 { font-family: var(--f-display); font-weight: 700; letter-spacing: .005em; }
 .logo { display: block; max-width: 100%; height: auto; }
 .logo-lg { width: 15rem; }
 .logo-sm { display: block; height: 3rem; width: auto; background: var(--plate); border-radius: 10px; padding: 2px 4px; }
+.opt { display: flex; flex-direction: column; gap: .15rem; text-align: left; width: 100%; border: 2px solid var(--line); background: var(--bg); border-radius: 14px; padding: .8rem .95rem; cursor: pointer; color: var(--ink); }
+.opt b { font-size: 1rem; }
+.opt span { font-size: .85rem; color: var(--muted); }
+.opt.on { border-color: var(--green); background: var(--green-soft); }
+.donstats { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.donstats div { display: flex; flex-direction: column; }
+.donstats b { font-size: 1.45rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.donstats span { font-size: .85rem; color: var(--muted); }
+.thanks { text-align: center; align-items: center; }
+.thanks svg { width: 2.6rem; height: 2.6rem; color: var(--gold); }
 .adminnote { display: flex; gap: .6rem; align-items: flex-start; background: var(--gold-soft); color: var(--ink); border-radius: 14px; padding: .8rem .9rem; font-size: .85rem; }
 .adminnote svg { width: 1.2rem; height: 1.2rem; flex: none; color: var(--gold); margin-top: .1rem; }
 p { margin: 0; }
@@ -276,6 +286,7 @@ const blastHistory = [
 const S = {
   role: 'admin', loggedIn: false, tab: 'utama', videoId: null, filter: 'Semua',
   active: true, expiry: new Date(2026, 10, 18), big: false, theme: 'light', adminIn: false,
+  don: { open: false, type: 'bulanan', amt: 50, purpose: 'taja', hamba: false, method: 'kad', step: 'form' },
   progress: { 2: 38, 1: 100 }, playing: false, speed: 1, pay: null,
   adminTab: 'ringkasan', blastTarget: 'aktif', wa: true, app: true, blastConfirm: false,
   drafts: { blastText: "Assalamualaikum. Kelas Zoom bulan November: Hukum Ra'. Ahad 15 Nov, 9:00 malam. Tekan butang Masuk Kelas dalam app Madrasah Online." }
@@ -312,6 +323,7 @@ function pLogin() {
       <button class="btn btn-primary" type="submit">Masuk</button>
     </form>
     <button class="btn btn-line" data-a="toast" data-v="Pendaftaran baharu: isi nama dan no. telefon, kemudian bayar RM10 (demo)">Daftar baharu · RM10 sebulan</button>
+    <button class="btn btn-ghost" data-a="donOpen">Sumbang tanpa daftar</button>
     ${installCard()}
     <p class="note">Demo: tekan Masuk terus. Tak perlu ingat kata laluan, hanya PIN 6 angka.</p>
   </div>`;
@@ -367,6 +379,11 @@ function pUtama() {
         <div><h2 style="font-size:1.1rem">Hukum Ra' (Tafkhim & Tarqiq)</h2><p class="muted small">Ahad · 9:00 malam · 1 jam 30 minit</p></div>
       </div>
       <button class="btn btn-primary" data-a="toast" data-v="Butang ni buka Zoom terus pada hari kelas (demo)">${I.cam} Masuk Kelas Zoom</button>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Sumbang & taja pelajar</span>
+      <p>RM10 menaja seorang pelajar belajar mengaji selama sebulan.</p>
+      <button class="btn btn-line" data-a="donOpen">Sumbang sekarang</button>
     </div>
     <div class="card">
       <span class="eyebrow">Sambung tonton</span>
@@ -495,6 +512,11 @@ function pAkaun() {
       <button class="btn btn-line" data-a="pay" data-v="y">Bayar RM100 · 12 bulan (jimat RM20)</button>`}
     </div>
     <div class="card">
+      <span class="eyebrow">Sumbangan</span>
+      <p class="small">Taja pelajar lain atau sumbang kepada tabung madrasah, sekali atau setiap bulan.</p>
+      <button class="btn btn-line" data-a="donOpen">Sumbang & taja pelajar</button>
+    </div>
+    <div class="card">
       <span class="eyebrow">Saiz tulisan</span>
       <div class="btn-row">
         <button class="btn ${S.big ? 'btn-ghost' : 'btn-primary'}" data-a="bigSet" data-v="0">Biasa</button>
@@ -621,7 +643,7 @@ function aSoalan() {
 }
 
 function renderAdmin() {
-  const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', 'Soalan']];
+  const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', 'Soalan'], ['sumbangan', 'Sumbangan']];
   const note = `<div class="adminnote">${I.shield}<p>Panel ini aplikasi berasingan di alamat sendiri (contoh <b>admin.madrasahonline.my</b>). Pelajar tak nampak dan tak boleh masuk.</p></div>`;
   if (!S.adminIn) return `<div class="shell admin">
     <div class="toolbar">${themeBtn()}</div>
@@ -641,7 +663,7 @@ function renderAdmin() {
       <p class="note">Demo: tekan Masuk terus.</p>
     </div>
   </div>`;
-  const body = { ringkasan: aRingkasan, pelajar: aPelajar, video: aVideo, hebahan: aHebahan, soalan: aSoalan }[S.adminTab]();
+  const body = { ringkasan: aRingkasan, pelajar: aPelajar, video: aVideo, hebahan: aHebahan, soalan: aSoalan, sumbangan: aSumbangan }[S.adminTab]();
   return `<div class="shell admin">
     <div class="top"><div style="display:flex;align-items:center;gap:.7rem"><img class="logo-sm" src="${LOGO}" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
       <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="adminOut">Keluar</button></div></div>
@@ -651,7 +673,87 @@ function renderAdmin() {
   </div>`;
 }
 
+const rm = n => 'RM' + (Number.isInteger(n) ? n.toLocaleString('en-MY') : n.toFixed(2));
+const donAmt = () => S.don.amt === 'lain' ? Math.floor(Number(S.drafts.dAmt || 0)) : S.don.amt;
+const donFee = (a) => Math.round((S.don.type === 'bulanan' ? a * 0.014 + 1 : S.don.method === 'kad' ? a * 0.012 + 1 : a * 0.018 + 0.40) * 100) / 100;
+
+function pSumbang() {
+  const D = S.don, a = donAmt(), fee = a ? donFee(a) : 0, every = D.type === 'bulanan' ? ' setiap bulan' : '';
+  const head = `<div class="top"><button class="iconbtn" data-a="donClose">${I.back} Kembali</button>${themeBtn()}</div>
+    <div class="hero">
+      ${pattern('patDon')}
+      <p class="bism">صدقة جارية</p>
+      <h1>Sumbang & Taja Pelajar</h1>
+      <p class="muted">Bantu lebih ramai orang dewasa belajar mengaji</p>
+      ${orn()}
+    </div>
+    <div class="card">
+      <span class="eyebrow">Bulan ini · contoh</span>
+      <div class="donstats"><div><b>25</b><span>pelajar ditaja</span></div><div><b>RM1,240</b><span>sumbangan terkumpul</span></div></div>
+      <span class="bar" aria-label="25 daripada 40 pelajar"><i style="width:62%"></i></span>
+      <p class="muted small">Sasaran: taja 40 pelajar dalam senarai menunggu</p>
+    </div>`;
+  if (D.step === 'done') return head + `<div class="card thanks">${I.star}
+      <h2 style="font-size:1.3rem">Jazakallahu khairan</h2>
+      <p>Sumbangan ${rm(a)}${every} ${D.hamba ? 'sebagai Hamba Allah ' : ''}telah diterima.</p>
+      <p class="muted small">Resit dihantar ke WhatsApp dan emel anda (demo).${D.type === 'bulanan' ? ' Sumbangan bulanan boleh dihentikan bila-bila masa dalam menu Akaun.' : ''}</p>
+      <button class="btn btn-primary" data-a="donClose">Kembali</button>
+    </div>`;
+  if (D.step === 'pay') return head + `<div class="card">
+      <span class="eyebrow">Cara bayar</span>
+      ${D.type === 'bulanan'
+        ? `<div class="opt on"><b>Kad debit / kredit</b><span>Potongan automatik ${rm(a)} setiap bulan. Boleh hentikan bila-bila masa.</span></div>`
+        : `<button class="opt ${D.method === 'fpx' ? 'on' : ''}" data-a="donMethod" data-v="fpx"><b>FPX (perbankan online)</b><span>Semua bank Malaysia</span></button>
+           <button class="opt ${D.method === 'kad' ? 'on' : ''}" data-a="donMethod" data-v="kad"><b>Kad debit / kredit</b><span>Visa, Mastercard</span></button>`}
+      <div class="confirm"><b>${rm(a)}${every}</b><p class="small">Caj bayaran ${rm(fee)} ditolak dari sumbangan. Madrasah terima ${rm(Math.round((a - fee) * 100) / 100)}.</p></div>
+      <button class="btn btn-primary" data-a="donGo">Bayar ${rm(a)} (demo)</button>
+      <button class="btn btn-ghost" data-a="donBack">Ubah sumbangan</button>
+    </div>`;
+  const taja = D.purpose === 'taja' && a >= 10 ? `Menaja ${Math.floor(a / 10)} pelajar${D.type === 'bulanan' ? ' setiap bulan' : ' selama sebulan'}` : D.purpose === 'taja' ? 'RM10 menaja seorang pelajar sebulan' : 'Untuk kos operasi dan pembangunan madrasah';
+  return head + `<div class="card">
+      <span class="eyebrow">Jenis sumbangan</span>
+      <div class="btn-row">
+        <button class="btn ${D.type === 'sekali' ? 'btn-primary' : 'btn-ghost'}" data-a="donType" data-v="sekali">Sekali sahaja</button>
+        <button class="btn ${D.type === 'bulanan' ? 'btn-primary' : 'btn-ghost'}" data-a="donType" data-v="bulanan">Setiap bulan</button>
+      </div>
+      <span class="eyebrow">Jumlah</span>
+      <div class="chips" style="flex-wrap:wrap">${[10, 30, 50, 100].map(v => `<button class="chip ${D.amt === v ? 'on' : ''}" data-a="donAmt" data-v="${v}">RM${v}</button>`).join('')}<button class="chip ${D.amt === 'lain' ? 'on' : ''}" data-a="donAmt" data-v="lain">Jumlah lain</button></div>
+      ${D.amt === 'lain' ? `<label class="f" for="dAmt">Jumlah (RM)<input class="input" id="dAmt" inputmode="numeric" placeholder="Contoh: 20" value="${draft('dAmt')}"></label>` : ''}
+      <span class="eyebrow">Tujuan</span>
+      <button class="opt ${D.purpose === 'taja' ? 'on' : ''}" data-a="donPurpose" data-v="taja"><b>Taja pelajar</b><span>RM10 = seorang pelajar belajar sebulan</span></button>
+      <button class="opt ${D.purpose === 'umum' ? 'on' : ''}" data-a="donPurpose" data-v="umum"><b>Tabung madrasah</b><span>Kos operasi, video dan pembangunan</span></button>
+      <span class="eyebrow">Nama penderma</span>
+      ${D.hamba ? '' : `<input class="input" id="dNama" aria-label="Nama penderma" placeholder="Nama anda" value="${draft('dNama')}">`}
+      <div class="chips"><button class="chip ${D.hamba ? 'on' : ''}" data-a="donHamba">Hamba Allah (tanpa nama)</button></div>
+      <div class="confirm"><b>${a ? rm(a) + every : 'Pilih jumlah'}</b><p class="small">${taja}</p></div>
+      <button class="btn btn-primary" data-a="donPay">Teruskan ke bayaran</button>
+      <p class="note">Sumbangan ini tidak layak untuk potongan cukai.</p>
+    </div>`;
+}
+
+function aSumbangan() {
+  const rows = [['Hamba Allah', 'RM50', 'Bulanan', 'Taja pelajar'], ['Puan Faridah', 'RM100', 'Sekali', 'Tabung madrasah'], ['Hamba Allah', 'RM10', 'Bulanan', 'Taja pelajar'], ['Encik Kamal', 'RM30', 'Bulanan', 'Taja pelajar'], ['Hamba Allah', 'RM200', 'Sekali', 'Taja pelajar']];
+  return `<div class="stats">
+      <div class="stat"><b>RM1,240</b><span>Sumbangan Oktober</span></div>
+      <div class="stat"><b>18</b><span>Penderma bulanan</span></div>
+      <div class="stat"><b>25</b><span>Pelajar ditaja</span></div>
+      <div class="stat"><b>32</b><span>Sumbangan sekali</span></div>
+    </div>
+    <div class="adminnote">${I.shield}<p>Kutipan sumbangan disimpan dalam akaun berasingan daripada kutipan langganan.</p></div>
+    <div class="card">
+      <span class="eyebrow">Sumbangan terkini · contoh</span>
+      <div class="rows">${rows.map(([n, a, t, u]) => `<div class="row"><div><b>${n}</b><p class="muted small">${u}</p></div><div style="text-align:right"><b>${a}</b><p class="small"><span class="pill ${t === 'Bulanan' ? 'ok' : 'warn'}">${t}</span></p></div></div>`).join('')}</div>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Pelajar ditaja</span>
+      <p>25 daripada 40 pelajar dalam senarai menunggu sudah ditaja bulan ini.</p>
+      <button class="btn btn-primary" data-a="toast" data-v="Pilih pelajar dari senarai menunggu untuk ditaja (demo)">Pilih pelajar untuk ditaja</button>
+      <button class="btn btn-ghost" data-a="toast" data-v="Laporan bulanan dihantar kepada semua penderma (demo)">Kongsi laporan kepada penderma</button>
+    </div>`;
+}
+
 function renderPelajar() {
+  if (S.don.open) return `<div class="shell">${pSumbang()}</div>${S.loggedIn ? pNav() : ''}`;
   if (!S.loggedIn) return `<div class="shell">${pLogin()}</div>`;
   const body = S.videoId ? pPlayer() : { utama: pUtama, video: pVideo, komuniti: pKomuniti, akaun: pAkaun }[S.tab]();
   return `<div class="shell">${body}</div>${pNav()}`;
@@ -696,6 +798,20 @@ function act(a, v) {
       break;
     }
     case 'expire': if (S.active) { S.active = false; S.expiry = new Date(2026, 9, 12); toast('Paparan langganan tamat. Cuba buka menu Video.'); } break;
+    case 'donOpen': S.don = { open: true, type: 'bulanan', amt: 50, purpose: 'taja', hamba: false, method: 'kad', step: 'form' }; S.videoId = null; S.playing = false; top(); break;
+    case 'donClose': S.don.open = false; top(); break;
+    case 'donType': S.don.type = v; S.don.method = v === 'bulanan' ? 'kad' : 'fpx'; break;
+    case 'donAmt': S.don.amt = v === 'lain' ? 'lain' : Number(v); break;
+    case 'donPurpose': S.don.purpose = v; break;
+    case 'donHamba': S.don.hamba = !S.don.hamba; break;
+    case 'donMethod': S.don.method = v; break;
+    case 'donBack': S.don.step = 'form'; break;
+    case 'donPay': {
+      const a = donAmt();
+      if (!a || a < 5) { toast('Jumlah minimum sumbangan ialah RM5.'); return; }
+      S.don.step = 'pay'; top(); break;
+    }
+    case 'donGo': S.don.step = 'done'; toast('Sumbangan diterima. Jazakallahu khairan (demo)'); top(); break;
     case 'logout': S.loggedIn = false; S.tab = 'utama'; S.videoId = null; top(); break;
     case 'toast': toast(v); return;
     case 'atab': S.adminTab = v; S.blastConfirm = false; top(); break;
