@@ -65,7 +65,16 @@ CREATE TABLE IF NOT EXISTS announcements (
   body        TEXT    NOT NULL,
   zoom_url    TEXT,
   class_at    INTEGER,                            -- epoch ms, untuk butang Masuk Kelas
+  members_only INTEGER NOT NULL DEFAULT 0,        -- 1 = pautan Zoom untuk pelajar yang melanggan sahaja
   created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_announcements_class ON announcements(class_at);
+
+-- Tetapan umum (maklumat pengendali untuk halaman polisi, no. WhatsApp admin, dll.)
+CREATE TABLE IF NOT EXISTS settings (
+  key         TEXT    PRIMARY KEY,
+  value       TEXT,
+  updated_at  INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS questions (

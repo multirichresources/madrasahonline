@@ -18,6 +18,25 @@ const orn = () => `<div class="orn" aria-hidden="true">${I.star}</div>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const BLN = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 const fmtDate = ms => { const d = new Date(ms); return d.getDate() + ' ' + BLN[d.getMonth()] + ' ' + d.getFullYear(); };
+const HARI = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+// 9.00 malam, 10.30 pagi
+const fmtTime = ms => { const d = new Date(ms), h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
+  const part = h < 12 ? 'pagi' : h < 14 ? 'tengah hari' : h < 19 ? 'petang' : 'malam';
+  return `${h % 12 || 12}.${m} ${part}`; };
+const fmtClass = ms => `${HARI[new Date(ms).getDay()]}, ${fmtDate(ms)} · ${fmtTime(ms)}`;
+// "Lagi 3 hari", "Lagi 2 jam 15 minit", "Sedang berlangsung"
+function countdown(ms, nowMs = Date.now()) {
+  const diff = ms - nowMs;
+  if (diff <= 0) return 'Sedang berlangsung';
+  const min = Math.ceil(diff / 6e4);
+  if (min < 60) return `Lagi ${min} minit`;
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h < 24) return `Lagi ${h} jam${m ? ' ' + m + ' minit' : ''}`;
+  const sameDayTomorrow = new Date(nowMs); sameDayTomorrow.setDate(sameDayTomorrow.getDate() + 1);
+  if (new Date(ms).toDateString() === sameDayTomorrow.toDateString()) return 'Esok';
+  return `Lagi ${Math.ceil(diff / 864e5)} hari`;
+}
+const legalLinks = () => '<nav class="legal-links" aria-label="Polisi"><a href="/terma">Terma</a><a href="/privasi">Privasi</a><a href="/bayaran-balik">Bayaran Balik</a></nav>';
 const rm = sen => 'RM' + (sen / 100).toLocaleString('en-MY', { minimumFractionDigits: sen % 100 ? 2 : 0, maximumFractionDigits: 2 });
 
 // ---------- tetapan paparan (disimpan dalam pelayar) ----------

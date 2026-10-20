@@ -223,3 +223,31 @@ textarea.input { min-height: 6rem; resize: vertical; line-height: 1.45; }
 .uplog{margin:10px 0;font-size:.85rem}
 .uplog summary{cursor:pointer;color:var(--muted);padding:6px 0}
 .uplog pre{white-space:pre-wrap;word-break:break-all;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px;max-height:260px;overflow:auto;font-size:.78rem;line-height:1.45;margin:6px 0 0}
+
+/* ---- halaman polisi ---- */
+.legal { padding-bottom: 48px; }
+.legal .iconbtn { text-decoration: none; }
+.legal article h1 { font-size: 1.7rem; }
+.legal article h2 { font-family: var(--f-body); font-size: 1.05rem; margin-top: .5rem; }
+.legal article ol, .legal article ul { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .4rem; }
+.legal article a { color: var(--green); font-weight: 700; }
+.legal .contact { list-style: none; padding-left: 0; }
+.legal-nav { display: flex; gap: .4rem; flex-wrap: wrap; }
+.legal-nav a { border: 2px solid var(--line); border-radius: 99px; padding: .35rem .85rem; font-weight: 700; font-size: .85rem; color: var(--ink); text-decoration: none; background: var(--bg); }
+.legal-nav a[aria-current="page"] { background: var(--green); border-color: var(--green); color: var(--green-ink); }
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem 1rem; font-size: .85rem; }
+.legal-links a { color: var(--muted); font-weight: 700; }
+.agree { font-size: .85rem; color: var(--muted); text-align: center; }
+.agree a { color: var(--green); font-weight: 700; }
+
+/* ---- pengumuman & kelas Zoom ---- */
+.ann { white-space: pre-line; overflow-wrap: anywhere; }
+.ann-meta { font-size: .85rem; color: var(--muted); }
+.classcard { border: 2px solid var(--green); }
+.classcard .when b { display: block; font-size: 1.05rem; }
+.btn-join { font-size: 1.15rem; min-height: 3.6rem; }
+.btn-join[aria-disabled="true"] { opacity: .55; pointer-events: none; }
+.kind-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.check { display: flex; gap: .6rem; align-items: flex-start; font-weight: 700; }
+.check input { width: 1.4rem; height: 1.4rem; flex: none; margin-top: .1rem; accent-color: var(--green); }
+.shell.admin .tabs { flex-wrap: wrap; overflow: visible; }

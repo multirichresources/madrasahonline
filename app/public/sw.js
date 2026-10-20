@@ -1,5 +1,5 @@
 // Service worker: simpan fail app untuk buka pantas. API tidak pernah disimpan.
-const CACHE = 'madrasah-app-v6';
+const CACHE = 'madrasah-app-v7';
 const SHELL = ['/', '/admin', '/app.css', '/common.js', '/pelajar.js', '/admin.js', '/tus.min.js', '/logo.png', '/icon-192.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); });
 self.addEventListener('activate', e => {

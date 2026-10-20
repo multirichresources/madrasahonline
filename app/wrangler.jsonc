@@ -6,7 +6,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": ["/api/*", "/terma", "/terma/", "/privasi", "/privasi/", "/bayaran-balik", "/bayaran-balik/"],
     "not_found_handling": "single-page-application"
   },
   "d1_databases": [

@@ -1,5 +1,9 @@
 // Panel admin Madrasah Online.
-const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null };
+const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null };
+const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true });
+A.annForm = blankAnn();
+// ms → nilai untuk <input type="datetime-local"> (waktu tempatan)
+const toLocalInput = ms => { if (!ms) return ''; const d = new Date(ms), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const app = document.getElementById('app');
 
 const toWa = phone => '6' + String(phone).replace(/\D/g, '');
@@ -230,8 +234,66 @@ async function startUpload(btn) {
   catch (e) { clearTimeout(watchdog); log('GAGAL mula: ' + String(e.message || e)); A.upload.busy = false; A.upload.msg = 'Upload tak dapat dimulakan.'; render(); }
 }
 
+function annShareText(a) {
+  return `*${a.title}*\n\n${a.classAt ? `Kelas Zoom: ${fmtClass(a.classAt)}\n\n` : ''}${a.body}\n\n${a.classAt ? 'Butang *Masuk Kelas* akan dibuka dalam app 30 minit sebelum kelas bermula.\n' : ''}Buka app Madrasah Online: ${location.origin}`;
+}
+
+function annRow(a) {
+  const past = a.classAt && Date.now() > a.classAt + 3 * 3600e3;
+  return `<div class="q">
+    <b>${esc(a.title)}</b>
+    <p class="muted small">${a.classAt ? 'Kelas Zoom · ' + fmtClass(a.classAt) : 'Pengumuman'} · dihebah ${fmtDate(a.createdAt)}</p>
+    ${a.classAt ? `<div>${past ? '<span class="pill bad">Sudah lepas</span>' : a.membersOnly ? '<span class="pill ok">Pelanggan sahaja</span>' : '<span class="pill warn">Terbuka untuk semua</span>'}</div>` : ''}
+    <p class="ann small">${esc(a.body.length > 160 ? a.body.slice(0, 160) + '…' : a.body)}</p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" data-a="annEdit" data-v="${a.id}">Edit</button>
+      <a class="btn btn-ghost" href="https://wa.me/?text=${encodeURIComponent(annShareText(a))}" target="_blank" rel="noopener">Kongsi WhatsApp</a>
+    </div>
+    <button class="link" data-a="annDelete" data-v="${a.id}" style="color:var(--danger);align-self:flex-start">Padam</button>
+  </div>`;
+}
+
+function tHebahan() {
+  const f = A.annForm, editing = !!f.id;
+  return `<form id="fAnn" class="card" novalidate>
+      <span class="eyebrow">${editing ? 'Edit hebahan' : 'Hebahan baharu'}</span>
+      <div class="kind-row" role="radiogroup" aria-label="Jenis hebahan">
+        <button type="button" class="opt ${f.isClass ? 'on' : ''}" role="radio" aria-checked="${f.isClass}" data-a="annKind" data-v="kelas"><b>Kelas Zoom</b><span>Ada tarikh & butang Masuk Kelas</span></button>
+        <button type="button" class="opt ${f.isClass ? '' : 'on'}" role="radio" aria-checked="${!f.isClass}" data-a="annKind" data-v="biasa"><b>Pengumuman</b><span>Makluman biasa</span></button>
+      </div>
+      <label class="f" for="hTitle">Tajuk<input class="input" id="hTitle" maxlength="120" value="${esc(f.title)}" placeholder="${f.isClass ? 'Contoh: Kelas Tajwid November' : 'Contoh: Video baharu sudah dimuat naik'}"></label>
+      ${f.isClass ? `
+      <label class="f" for="hWhen">Tarikh & masa kelas<input class="input" id="hWhen" type="datetime-local" value="${toLocalInput(f.classAt)}"></label>
+      <label class="f" for="hZoom">Pautan Zoom<input class="input" id="hZoom" type="url" inputmode="url" value="${esc(f.zoomUrl)}" placeholder="https://us06web.zoom.us/j/..."></label>
+      <label class="check" for="hMembers"><input type="checkbox" id="hMembers" ${f.membersOnly ? 'checked' : ''}><span>Pautan Zoom untuk pelajar yang melanggan sahaja<br><span class="muted small" style="font-weight:400">Buang tanda jika kelas ini terbuka untuk semua yang berdaftar.</span></span></label>` : ''}
+      <label class="f" for="hBody">Mesej<textarea class="input" id="hBody" maxlength="2000" rows="5" placeholder="${f.isClass ? 'Contoh: Sediakan al-Quran dan masuk 5 minit awal. Kita sambung bab Mad Asli.' : 'Tulis makluman untuk pelajar...'}">${esc(f.body)}</textarea></label>
+      ${f.isClass ? '<p class="muted small">Pautan Zoom tak dipaparkan awal. Pelajar nampak butang <b>Masuk Kelas</b> 30 minit sebelum kelas bermula.</p>' : ''}
+      ${A.err && A.modal === null ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">${editing ? 'Simpan perubahan' : 'Terbitkan hebahan'}</button>
+      ${editing ? '<button class="btn btn-ghost" type="button" data-a="annCancel">Batal edit</button>' : ''}
+    </form>
+    <div class="card">
+      <div class="top"><span class="eyebrow">Semua hebahan${A.anns ? ' · ' + A.anns.length : ''}</span><button class="iconbtn" data-a="annRefresh">Muat semula</button></div>
+      <p class="muted small">Tekan <b>Kongsi WhatsApp</b> untuk hantar hebahan ke group kelas.</p>
+      <div class="qa">${!A.anns ? '<p class="muted">Memuatkan...</p>' : A.anns.length ? A.anns.map(annRow).join('') : '<p class="muted">Belum ada hebahan.</p>'}</div>
+    </div>`;
+}
+
 function tTetapan() {
-  return `<div class="card">
+  const o = A.org;
+  return `<form id="fOrg" class="card" novalidate>
+      <span class="eyebrow">Maklumat pengendali</span>
+      <p class="muted small">Dipaparkan dalam halaman Terma, Privasi & Bayaran Balik, skrin Lupa PIN dan menu Akaun pelajar. Payment gateway biasanya semak maklumat ini.</p>
+      ${!o ? '<p class="muted">Memuatkan...</p>' : `
+      <label class="f" for="oName">Nama syarikat / pertubuhan<input class="input" id="oName" maxlength="120" value="${esc(o.name)}" placeholder="Nama seperti dalam SSM / ROS"></label>
+      <label class="f" for="oReg">No. pendaftaran (SSM / ROS)<input class="input" id="oReg" maxlength="60" value="${esc(o.reg)}" placeholder="Contoh: 202401012345 (1234567-X)"></label>
+      <label class="f" for="oEmail">Emel hubungan<input class="input" id="oEmail" type="email" inputmode="email" value="${esc(o.email)}"></label>
+      <label class="f" for="oWa">No. WhatsApp admin<input class="input" id="oWa" inputmode="tel" value="${o.whatsapp ? '0' + esc(o.whatsapp.slice(2)) : ''}" placeholder="Contoh: 012-345 6789"></label>
+      <label class="f" for="oAddr">Alamat perniagaan<textarea class="input" id="oAddr" maxlength="300" rows="3">${esc(o.address)}</textarea></label>
+      <button class="btn btn-primary" type="submit">Simpan maklumat</button>
+      <div class="legal-links"><a href="/terma" target="_blank" rel="noopener">Lihat Terma</a><a href="/privasi" target="_blank" rel="noopener">Lihat Privasi</a><a href="/bayaran-balik" target="_blank" rel="noopener">Lihat Bayaran Balik</a></div>`}
+    </form>
+    <div class="card">
       <span class="eyebrow">Akaun admin</span>
       <p><b>${esc(A.admin.name)}</b><br><span class="muted small">${esc(A.admin.email)}</span></p>
       <button class="btn btn-ghost" data-a="modal" data-v="password">Tukar kata laluan</button>
@@ -293,6 +355,11 @@ function modal() {
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-primary" data-a="vDeleteGo" style="background:var(--danger)">Ya, padam</button>
       <button class="btn btn-ghost" data-a="close">Batal</button>`;
+  if (A.modal === 'adelete') inner = `<h2 style="font-size:1.25rem">Padam hebahan?</h2>
+      <p><b>${esc(A.delAnn.title)}</b> akan dipadam dan tidak lagi dipaparkan kepada pelajar.</p>
+      ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+      <button class="btn btn-primary" data-a="annDeleteGo" style="background:var(--danger)">Ya, padam</button>
+      <button class="btn btn-ghost" data-a="close">Batal</button>`;
   if (A.modal === 'password') inner = `<form id="fPass" novalidate style="display:flex;flex-direction:column;gap:.8rem">
       <h2 style="font-size:1.25rem">Tukar kata laluan</h2>
       <label class="f" for="cOld">Kata laluan sekarang<input class="input" id="cOld" type="password" autocomplete="current-password"></label>
@@ -310,11 +377,11 @@ function render() {
   else if (A.view === 'setup') body = vSetup();
   else if (A.view === 'login') body = vLogin();
   else {
-    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['tetapan', 'Tetapan']];
+    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, tetapan: tTetapan }[A.tab]()}`;
+      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, tetapan: tTetapan }[A.tab]()}`;
   }
   app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
   restoreInputs();
@@ -335,12 +402,39 @@ async function loadUsers() {
   if (!r.ok) toast(r.error);
   render();
 }
+async function loadAnns() {
+  const r = await api('GET', '/api/admin/announcements');
+  if (r.status === 401) return toLogin();
+  A.anns = r.ok ? r.announcements : [];
+  if (!r.ok) toast(r.error);
+  render();
+}
+async function loadOrg() {
+  const r = await api('GET', '/api/admin/settings');
+  if (r.status === 401) return toLogin();
+  if (r.ok) { A.org = r.org; forget('oName', 'oReg', 'oEmail', 'oWa', 'oAddr'); } else toast(r.error);
+  render();
+}
+// Simpan isian borang hebahan ke A.annForm sebelum lukis semula (contoh bila tukar jenis)
+function readAnnForm() {
+  const f = A.annForm, el = id => document.getElementById(id);
+  if (el('hTitle')) f.title = el('hTitle').value;
+  if (el('hBody')) f.body = el('hBody').value;
+  if (el('hWhen')) f.classAt = el('hWhen').value ? new Date(el('hWhen').value).getTime() : null;
+  if (el('hZoom')) f.zoomUrl = el('hZoom').value;
+  if (el('hMembers')) f.membersOnly = el('hMembers').checked;
+}
+const ANN_IDS = ['hTitle', 'hBody', 'hWhen', 'hZoom'];
+// Borang hebahan sentiasa disalin ke A.annForm supaya isian tak hilang bila skrin dilukis semula
+['input', 'change'].forEach(ev => document.addEventListener(ev, e => { if (e.target.closest && e.target.closest('#fAnn')) readAnnForm(); }));
 function toLogin() { A.admin = null; A.view = 'login'; A.modal = null; render(); }
 function openTab(t) {
-  A.tab = t; window.scrollTo(0, 0); render();
+  A.tab = t; A.err = ''; window.scrollTo(0, 0); render();
   if (t === 'ringkasan') loadStats();
   if (t === 'pelajar') loadUsers();
   if (t === 'video') loadVideos();
+  if (t === 'hebahan') loadAnns();
+  if (t === 'tetapan') loadOrg();
 }
 
 document.addEventListener('click', async e => {
@@ -399,6 +493,25 @@ document.addEventListener('click', async e => {
       A.videos = A.videos.filter(x => x.id !== A.delVideo.id); A.modal = null; toast('Video dipadam.');
       break;
     }
+    case 'annKind': readAnnForm(); A.annForm.isClass = v === 'kelas'; forget(...ANN_IDS); A.err = ''; break;
+    case 'annRefresh': A.anns = null; render(); loadAnns(); return;
+    case 'annEdit': {
+      const a = A.anns.find(x => String(x.id) === v);
+      A.annForm = { id: a.id, isClass: !!a.classAt, title: a.title, body: a.body, classAt: a.classAt, zoomUrl: a.zoomUrl, membersOnly: a.classAt ? a.membersOnly : true };
+      forget(...ANN_IDS); A.err = ''; window.scrollTo(0, 0);
+      break;
+    }
+    case 'annCancel': A.annForm = blankAnn(); forget(...ANN_IDS); A.err = ''; break;
+    case 'annDelete': A.delAnn = A.anns.find(x => String(x.id) === v); A.modal = 'adelete'; A.err = ''; break;
+    case 'annDeleteGo': {
+      const r = await busy(el, () => api('POST', `/api/admin/announcements/${A.delAnn.id}/delete`, {}));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { A.err = r.error; break; }
+      A.anns = A.anns.filter(x => x.id !== A.delAnn.id);
+      if (A.annForm.id === A.delAnn.id) A.annForm = blankAnn();
+      A.modal = null; toast('Hebahan dipadam.');
+      break;
+    }
     case 'logout': await api('POST', '/api/admin/logout', {}); toast('Anda telah log keluar.'); return toLogin();
     default: return;
   }
@@ -442,6 +555,27 @@ document.addEventListener('submit', async e => {
     const r = await busy(btn, () => api('POST', '/api/admin/password', { oldPassword: document.getElementById('cOld').value, newPassword: document.getElementById('cNew').value }));
     if (!r.ok) { A.err = r.error; render(); return; }
     A.modal = null; A.err = ''; toast('Kata laluan ditukar.');
+  }
+  if (f.id === 'fAnn') {
+    readAnnForm();
+    const F = A.annForm;
+    const body = { title: F.title, body: F.body, isClass: F.isClass, classAt: F.classAt, zoomUrl: F.zoomUrl, membersOnly: F.membersOnly };
+    if (F.isClass && F.classAt && F.classAt < Date.now() - 3 * 3600e3 && !F.id) { A.err = 'Tarikh kelas sudah lepas. Sila semak tarikh dan masa.'; render(); return; }
+    const r = await busy(btn, () => api('POST', F.id ? `/api/admin/announcements/${F.id}` : '/api/admin/announcements', body));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { A.err = r.error; render(); return; }
+    A.err = '';
+    if (F.id) A.anns = A.anns.map(x => x.id === F.id ? r.announcement : x);
+    else A.anns = [r.announcement, ...(A.anns || [])];
+    A.annForm = blankAnn(); forget(...ANN_IDS);
+    toast(F.id ? 'Hebahan dikemas kini.' : 'Hebahan diterbitkan. Pelajar boleh lihat dalam app.');
+  }
+  if (f.id === 'fOrg') {
+    const r = await busy(btn, () => api('POST', '/api/admin/settings', { name: val('oName'), reg: val('oReg'), email: val('oEmail'), whatsapp: val('oWa'), address: document.getElementById('oAddr').value }));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { toast(r.error); return; }
+    A.org = r.org; forget('oName', 'oReg', 'oEmail', 'oWa', 'oAddr');
+    toast('Maklumat disimpan.');
   }
   if (f.id === 'fNewAdmin') {
     const r = await busy(btn, () => api('POST', '/api/admin/admins', { name: val('nName'), email: val('nEmail'), password: val('nPass') }));

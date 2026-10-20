@@ -1,10 +1,6 @@
 // App pelajar Madrasah Online.
-const CONFIG = {
-  // No. WhatsApp admin untuk bantuan lupa PIN, format 60123456789. Kosongkan jika belum ada.
-  adminWhatsApp: '',
-};
-
-const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false }, reset: { step: 1, phone: '', msg: '' }, videos: null, continueId: null, filter: 'Semua', playing: null };
+// No. WhatsApp admin & maklumat hubungan datang dari Tetapan admin (/api/config).
+const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false, org: {} }, reset: { step: 1, phone: '', msg: '' }, videos: null, continueId: null, filter: 'Semua', playing: null, ann: null };
 const app = document.getElementById('app');
 
 // ---------- skrin luar (belum log masuk) ----------
@@ -29,6 +25,7 @@ function vLogin() {
     </form>
     <button class="btn btn-line" data-a="go" data-v="daftar">Daftar akaun baharu</button>
     ${installCard()}
+    ${legalLinks()}
   </div>`;
 }
 
@@ -57,6 +54,7 @@ function vDaftar() {
     </label>
     <p class="muted small">Ingat PIN ini. Ia digunakan setiap kali log masuk. Elakkan PIN mudah seperti 123456.</p>
     ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+    <p class="agree">Dengan mendaftar, anda bersetuju dengan <a href="/terma" target="_blank" rel="noopener">Terma Penggunaan</a> dan <a href="/privasi" target="_blank" rel="noopener">Polisi Privasi</a>.</p>
     <button class="btn btn-primary" type="submit">Daftar</button>
   </form>`;
 }
@@ -85,7 +83,7 @@ function vLupaEmail() {
 
 function vLupa() {
   if (S.cfg.emailReset && !S.lupaAdmin) return vLupaEmail();
-  const wa = CONFIG.adminWhatsApp;
+  const wa = (S.cfg.org && S.cfg.org.whatsapp) || '';
   return `<div class="top"><button class="iconbtn" data-a="go" data-v="login">${I.back} Kembali</button>${themeBtn()}</div>
   <div class="card">
     <h1 style="font-size:1.6rem">Lupa PIN</h1>
@@ -135,12 +133,78 @@ function tUtama() {
     ${statusCard()}
     ${(() => { const c = S.videos && S.continueId && S.videos.find(v => v.id === S.continueId); return c && S.user.active ? `<div class="card"><span class="eyebrow">Sambung tonton</span><div class="vlist">${vItem(c)}</div></div>` : ''; })()}
     ${S.videos && S.videos.length && !S.continueId ? `<div class="card"><span class="eyebrow">Video kelas</span><p>${S.videos.length} rakaman kelas sedia ditonton.</p><button class="btn btn-ghost" data-a="tab" data-v="video">Lihat video</button></div>` : ''}
-    <div class="card">
-      <span class="eyebrow">Kelas Zoom bulanan</span>
-      <p>Jadual kelas dan butang <b>Masuk Kelas</b> akan dipaparkan di sini bila admin umumkan kelas seterusnya.</p>
-    </div>
+    ${classCard()}
+    ${latestAnnCard()}
     ${installCard()}`;
 }
+
+// ---------- kelas Zoom & pengumuman ----------
+function joinButton(a) {
+  if (a.locked) return `<p class="small"><b>Kelas ini untuk pelajar yang melanggan.</b></p><button class="btn btn-primary" data-a="subscribe">Langgan sekarang</button>`;
+  if (a.zoomUrl) return `<a class="btn btn-primary btn-join" href="${esc(a.zoomUrl)}" target="_blank" rel="noopener">${I.video} Masuk Kelas</a>
+    <p class="note">Aplikasi Zoom akan dibuka. Jika diminta, pilih <b>Join</b>.</p>`;
+  if (!a.hasZoom) return '';
+  if (Date.now() > a.classAt + 3 * 3600e3) return '';
+  return `<span class="btn btn-ghost btn-join" aria-disabled="true">${I.video} Masuk Kelas</span>
+    <p class="note">Butang dibuka 30 minit sebelum kelas, iaitu pada ${fmtTime(a.joinOpensAt)}.</p>`;
+}
+
+function classCard() {
+  if (!S.ann) return '';
+  const n = S.ann.nextClass;
+  if (!n) return `<div class="card"><span class="eyebrow">Kelas Zoom bulanan</span>
+    <p>Belum ada kelas dijadualkan. Tarikh dan butang <b>Masuk Kelas</b> akan dipaparkan di sini bila admin umumkan kelas seterusnya.</p></div>`;
+  const d = new Date(n.classAt), live = Date.now() >= n.classAt;
+  return `<div class="card classcard">
+    <div class="top"><span class="eyebrow">Kelas Zoom seterusnya</span><span class="pill ${live ? 'warn' : 'ok'}">${countdown(n.classAt)}</span></div>
+    <div class="zoom-date">
+      <div class="datebox"><b>${d.getDate()}</b><span>${BLN[d.getMonth()]}</span></div>
+      <div class="when" style="min-width:0"><b>${esc(n.title)}</b><span class="muted small">${HARI[d.getDay()]}, ${fmtTime(n.classAt)}</span></div>
+    </div>
+    ${n.body ? `<p class="ann small">${esc(n.body)}</p>` : ''}
+    ${joinButton(n)}
+  </div>`;
+}
+
+function latestAnnCard() {
+  if (!S.ann) return '';
+  const nextId = S.ann.nextClass && S.ann.nextClass.id;
+  const a = S.ann.announcements.find(x => x.id !== nextId && Date.now() - x.createdAt < 14 * 864e5);
+  if (!a) return '';
+  const body = a.body.length > 220 ? a.body.slice(0, 220).trimEnd() + '…' : a.body;
+  return `<div class="card">
+    <span class="eyebrow">Pengumuman terkini</span>
+    <b>${esc(a.title)}</b>
+    <span class="ann-meta">${fmtDate(a.createdAt)}</span>
+    <p class="ann">${esc(body)}</p>
+    <button class="btn btn-ghost" data-a="tab" data-v="komuniti">Lihat semua pengumuman</button>
+  </div>`;
+}
+
+function annItem(a) {
+  return `<article class="card">
+    <b style="font-size:1.1rem">${esc(a.title)}</b>
+    <span class="ann-meta">Dihebahkan ${fmtDate(a.createdAt)}</span>
+    ${a.classAt ? `<div class="ok-box">Kelas Zoom: ${fmtClass(a.classAt)}</div>` : ''}
+    <p class="ann">${esc(a.body)}</p>
+    ${a.classAt ? joinButton(a) : ''}
+  </article>`;
+}
+
+async function loadAnn() {
+  const r = await api('GET', '/api/announcements');
+  if (r.status === 401) return;
+  if (r.ok) { S.ann = { nextClass: r.nextClass, announcements: r.announcements }; if (S.view === 'app' && !S.playing) render(); }
+}
+
+// Kemas kini kiraan masa setiap 30 saat; ambil pautan Zoom bila butang patut dibuka.
+setInterval(() => {
+  if (S.view !== 'app' || S.modal || S.playing || !S.ann || !['utama', 'komuniti'].includes(S.tab)) return;
+  if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  const n = S.ann.nextClass;
+  if (n && n.hasZoom && !n.locked && !n.zoomUrl && Date.now() >= n.joinOpensAt && Date.now() <= n.classAt + 3 * 3600e3) { loadAnn(); return; }
+  if (n && S.tab === 'utama') render();
+}, 30000);
 
 const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 const monthLabel = m => m ? MONTHS[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4) : '';
@@ -191,8 +255,16 @@ function vPlayer() {
 }
 
 function tKomuniti() {
+  const list = S.ann ? S.ann.announcements : null;
   return `<div class="top"><h1>Komuniti</h1></div>
-    <div class="card empty">${I.users}<h2 style="font-size:1.15rem">Belum ada pengumuman</h2><p class="muted">Pengumuman kelas dan soal jawab dengan ustaz akan dipaparkan di sini.</p></div>`;
+    <span class="eyebrow">Pengumuman</span>
+    ${!list ? '<div class="loading">Memuatkan pengumuman...</div>'
+      : list.length ? list.map(annItem).join('')
+      : `<div class="card empty">${I.users}<h2 style="font-size:1.15rem">Belum ada pengumuman</h2><p class="muted">Pengumuman dan jadual kelas Zoom akan dipaparkan di sini.</p></div>`}
+    <div class="card">
+      <span class="eyebrow">Soal jawab dengan ustaz</span>
+      <p class="muted">Ruang untuk bertanya soalan kepada ustaz akan dibuka tidak lama lagi, insya-Allah.</p>
+    </div>`;
 }
 
 function tAkaun() {
@@ -226,6 +298,11 @@ function tAkaun() {
       <p class="small">${u.email ? `Emel: <b>${esc(u.email)}</b>` : '<b>Tiada emel.</b> Tambah emel supaya boleh set semula PIN sendiri jika terlupa.'}</p>
       <button class="btn btn-ghost" data-a="modal" data-v="email">${u.email ? 'Tukar emel' : 'Tambah emel'}</button>
       <button class="btn btn-ghost" data-a="modal" data-v="pin">Tukar PIN</button>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Maklumat & bantuan</span>
+      ${S.cfg.org && S.cfg.org.whatsapp ? `<a class="btn btn-ghost" href="https://wa.me/${esc(S.cfg.org.whatsapp)}" target="_blank" rel="noopener">WhatsApp admin</a>` : ''}
+      ${legalLinks()}
     </div>
     ${installCard()}
     <button class="btn btn-line" data-a="logout">Log keluar</button>
@@ -343,7 +420,7 @@ document.addEventListener('click', async e => {
     case 'go': S.view = v; S.err = ''; S.lupaAdmin = false; S.reset = { step: 1, phone: '', msg: '' }; window.scrollTo(0, 0); break;
     case 'lupaAdmin': S.lupaAdmin = true; S.err = ''; break;
     case 'resendCode': S.reset.step = 1; S.err = ''; break;
-    case 'tab': await stopPlayer(); S.tab = v; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); break;
+    case 'tab': await stopPlayer(); S.tab = v; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); break;
     case 'vfilter': S.filter = v; break;
     case 'play': openVideo(Number(v)); return;
     case 'stopPlay': await stopPlayer(); window.scrollTo(0, 0); loadVideos(); break;
@@ -356,7 +433,7 @@ document.addEventListener('click', async e => {
     case 'subscribe': S.modal = 'subscribe'; break;
     case 'close': case 'backdrop': S.modal = null; S.err = ''; break;
     case 'logout':
-      await stopPlayer(); S.videos = null; S.continueId = null;
+      await stopPlayer(); S.videos = null; S.continueId = null; S.ann = null;
       await api('POST', '/api/logout', {});
       S.user = null; S.view = 'login'; S.tab = 'utama';
       toast('Anda telah log keluar.');
@@ -372,14 +449,14 @@ document.addEventListener('submit', async e => {
   if (f.id === 'fLogin') {
     const r = await busy(btn, () => api('POST', '/api/login', { phone: val('lPhone'), pin: val('lPin') }));
     if (!r.ok) { S.err = r.error; render(); return; }
-    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadVideos();
+    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadVideos(); loadAnn();
     toast('Assalamualaikum, ' + r.user.name);
   }
   if (f.id === 'fDaftar') {
     if (val('dPin') !== val('dPin2')) { S.err = 'PIN tidak sama. Sila masukkan semula.'; render(); return; }
     const r = await busy(btn, () => api('POST', '/api/register', { name: val('dName'), phone: val('dPhone'), email: val('dEmail'), pin: val('dPin') }));
     if (!r.ok) { S.err = r.error; render(); return; }
-    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = '';
+    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadAnn();
     toast('Pendaftaran berjaya. Selamat datang!');
   }
   if (f.id === 'fForgot') {
@@ -420,9 +497,9 @@ document.addEventListener('submit', async e => {
 
 
 (async function start() {
-  api('GET', '/api/config').then(c => { if (c.ok) { S.cfg = { emailReset: !!c.emailReset }; if (S.view === 'lupa') render(); } });
+  api('GET', '/api/config').then(c => { if (c.ok) { S.cfg = { emailReset: !!c.emailReset, org: c.org || {} }; if (S.view === 'lupa' || (S.view === 'app' && S.tab === 'akaun')) render(); } });
   const r = await api('GET', '/api/me');
-  if (r.ok) { S.user = r.user; S.view = 'app'; loadVideos(); }
+  if (r.ok) { S.user = r.user; S.view = 'app'; loadVideos(); loadAnn(); }
   else S.view = 'login';
   render();
 })();

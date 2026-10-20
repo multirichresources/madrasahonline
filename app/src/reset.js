@@ -2,6 +2,7 @@
 import { now, json, fail, readJson, sha256Hex, hashSecret, newSalt, safeEqual, normalizePhone, checkPin, cleanText, validEmail, rateLimit, clientIp } from './util.js';
 import { mailReady, sendMail, resetCodeEmail } from './mail.js';
 import { requireUser } from './auth.js';
+import { getOrg } from './content.js';
 
 const CODE_TTL = 15 * 60 * 1000;
 const MAX_CODE_TRIES = 5;
@@ -17,8 +18,10 @@ function maskEmail(e) {
   return u.slice(0, 2) + '****@' + d;
 }
 
-export function publicConfig(env) {
-  return json({ ok: true, emailReset: mailReady(env) });
+export async function publicConfig(env) {
+  const o = await getOrg(env);
+  // Hanya maklumat hubungan awam; dipaparkan di skrin Lupa PIN dan halaman polisi
+  return json({ ok: true, emailReset: mailReady(env), org: { name: o.name, email: o.email, whatsapp: o.whatsapp } });
 }
 
 // Langkah 1: minta kod. Jawapan sentiasa sama sama ada akaun wujud atau tidak,

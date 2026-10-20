@@ -10,6 +10,11 @@ import {
   adminCreateVideo, adminUploadTicket, adminListVideos, adminUpdateVideo, adminDeleteVideo,
   listVideos, playVideo, saveProgress, adminSetSubscription, adminBunnyVideos, adminImportVideo,
 } from './videos.js';
+import {
+  adminGetSettings, adminSaveSettings, listAnnouncements,
+  adminListAnnouncements, adminCreateAnnouncement, adminUpdateAnnouncement, adminDeleteAnnouncement,
+} from './content.js';
+import { legalPaths, renderLegal } from './legal.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
 function sameOrigin(request) {
@@ -51,6 +56,14 @@ const routes = [
   ['POST', /^\/api\/admin\/videos\/(\d+)$/, (env, req, m) => adminUpdateVideo(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/videos\/(\d+)\/delete$/, (env, req, m) => adminDeleteVideo(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/videos\/(\d+)\/upload-ticket$/, (env, req, m) => adminUploadTicket(env, req, Number(m[1]))],
+
+  ['GET', /^\/api\/announcements$/, (env, req) => listAnnouncements(env, req)],
+  ['GET', /^\/api\/admin\/announcements$/, (env, req) => adminListAnnouncements(env, req)],
+  ['POST', /^\/api\/admin\/announcements$/, (env, req) => adminCreateAnnouncement(env, req)],
+  ['POST', /^\/api\/admin\/announcements\/(\d+)$/, (env, req, m) => adminUpdateAnnouncement(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/announcements\/(\d+)\/delete$/, (env, req, m) => adminDeleteAnnouncement(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/settings$/, (env, req) => adminGetSettings(env, req)],
+  ['POST', /^\/api\/admin\/settings$/, (env, req) => adminSaveSettings(env, req)],
 ];
 
 async function adminStats(env, request) {
@@ -101,6 +114,11 @@ async function adminUsers(env, request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname.replace(/\/$/, '');
+    if (legalPaths.includes(path) && request.method === 'GET') {
+      try { return await renderLegal(env, path); }
+      catch (err) { console.error(err); return new Response('Ralat sistem. Sila cuba sebentar lagi.', { status: 500 }); }
+    }
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
