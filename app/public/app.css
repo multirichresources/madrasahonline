@@ -281,3 +281,4 @@ textarea.input { min-height: 6rem; resize: vertical; line-height: 1.45; }
 .qstatus { text-align: center; font-size: 1.25rem; font-weight: 700; min-height: 1.6em; }
 .qbox.aligned + .qstatus, .aligned ~ .qstatus { color: var(--green); }
 @media (prefers-reduced-motion: reduce) { .qdial { transition: none; } }
+.qdebug{white-space:pre-wrap;word-break:break-all;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:.75rem;line-height:1.45;margin:0}

@@ -385,13 +385,15 @@ window.EN_DICT = {
  "Kiblat: {d}° dari arah Utara": "Qibla: {d}° from North",
  "Mulakan kompas": "Start compass",
  "Menunggu kompas telefon...": "Waiting for the phone's compass...",
- "Pegang telefon rata (mendatar) dan pusing badan perlahan-lahan sehingga ikon Kaabah berada di atas.": "Hold your phone flat and turn slowly until the Kaaba icon is at the top.",
  "Akses kompas tidak dibenarkan.": "Compass access was not allowed.",
  "Telefon ini tidak mempunyai kompas, atau kompas tidak dapat dibaca.": "This phone has no compass, or the compass can't be read.",
  "Gunakan app Kompas telefon dan hadap <b>{d}°</b> (arah barat laut).": "Use your phone's Compass app and face <b>{d}°</b> (north-west).",
  "Lokasi tidak dapat dikesan, jadi arah dikira dari Kuala Lumpur. Bezanya kecil untuk seluruh Malaysia.": "Your location couldn't be found, so the direction is calculated from Kuala Lumpur. The difference is small anywhere in Malaysia.",
  "Jarak ke Kaabah: {km} km": "Distance to the Kaaba: {km} km",
- "Jauhkan telefon daripada besi atau magnet. Jika arah kelihatan salah, gerakkan telefon membentuk angka 8 untuk kalibrasi kompas. Lokasi anda tidak dihantar ke server.": "Keep your phone away from metal or magnets. If the direction looks wrong, move your phone in a figure-8 to calibrate the compass. Your location is not sent to our server."
+ "Jauhkan telefon daripada besi atau magnet. Jika arah kelihatan salah, gerakkan telefon membentuk angka 8 untuk kalibrasi kompas. Lokasi anda tidak dihantar ke server.": "Keep your phone away from metal or magnets. If the direction looks wrong, move your phone in a figure-8 to calibrate the compass. Your location is not sent to our server.",
+ "Pegang telefon di hadapan anda dan pusing badan perlahan-lahan sehingga ikon Kaabah berada di atas.": "Hold your phone in front of you and turn slowly until the Kaaba icon is at the top.",
+ "Kompas telefon belum dikalibrasi. Gerakkan telefon membentuk angka 8 beberapa kali.": "Your phone's compass needs calibrating. Move your phone in a figure-8 a few times.",
+ "Arah tak tepat? Lihat butiran teknikal": "Direction looks wrong? See technical details"
 };
 // Mesej ralat server yang mengandungi nombor
 window.EN_PATTERNS = [
