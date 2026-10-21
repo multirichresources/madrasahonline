@@ -15,7 +15,7 @@ import {
   adminListAnnouncements, adminCreateAnnouncement, adminUpdateAnnouncement, adminDeleteAnnouncement,
 } from './content.js';
 import { legalPaths, renderLegal } from './legal.js';
-import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, processJobs, sendClassReminders } from './push.js';
+import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, dispatchPush, internalPush, sendClassReminders } from './push.js';
 import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myPayments, runBilling, adminGetPlans, adminSavePlans, adminPayments } from './billing.js';
 import { adminInsights, adminExportUsers } from './insights.js';
 import { listZones, solatToday, saveSolatPrefs, sendAzan, cleanAzan } from './solat.js';
@@ -109,6 +109,7 @@ const routes = [
   ['POST', /^\/api\/push\/unsubscribe$/, (env, req) => pushUnsubscribe(env, req)],
   ['POST', /^\/api\/push\/test$/, (env, req) => pushTest(env, req)],
   ['GET', /^\/api\/push\/inbox$/, (env, req) => pushInbox(env, req)],
+  ['POST', /^\/api\/internal\/push$/, (env, req) => internalPush(env, req)],
 ];
 
 async function adminStats(env, request) {
@@ -172,7 +173,7 @@ export default {
 
     try {
       // Callback CHIP datang dari server CHIP (bukan pelayar), jadi dikecualikan; ia hanya mencetuskan semakan status.
-      if (request.method !== 'GET' && url.pathname !== '/api/pay/callback' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
+      if (request.method !== 'GET' && url.pathname !== '/api/pay/callback' && url.pathname !== '/api/internal/push' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
       for (const [method, pattern, handler] of routes) {
         const m = url.pathname.match(pattern);
         if (m && request.method === method) return await handler(env, request, m, ctx);
@@ -196,7 +197,7 @@ export default {
       try { await sendClassReminders(env); } catch (e) { console.error('peringatan', e); }
       try { await runBilling(env); } catch (e) { console.error('bayaran', e); }
     }
-    try { await processJobs(env); } catch (e) { console.error('push', e); }
+    try { await dispatchPush(env); } catch (e) { console.error('push', e); }
     if (d.getUTCHours() === 19 && d.getUTCMinutes() === 0) {
       await env.DB.batch([
         env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(t),

@@ -84,7 +84,8 @@ export async function requireAdmin(env, request) {
 
 // ---------- pelajar ----------
 export async function register(env, request) {
-  if (!(await rateLimit(env.DB, 'reg:' + clientIp(request), 10, 3600 * 1000)))
+  // Had per IP longgar kerana ramai pengguna berkongsi IP (WiFi dewan launch, CGNAT telco).
+  if (!(await rateLimit(env.DB, 'reg:' + clientIp(request), 300, 3600 * 1000)))
     return fail(429, 'Terlalu banyak cubaan. Cuba lagi dalam sejam.');
   const body = await readJson(request);
   const name = cleanText(body.name, 80);
@@ -111,7 +112,8 @@ export async function register(env, request) {
 }
 
 export async function login(env, request) {
-  if (!(await rateLimit(env.DB, 'login:' + clientIp(request), 20, 15 * 60 * 1000)))
+  // Perlindungan utama tekaan PIN = kunci akaun selepas 5 PIN salah; had IP hanya untuk serangan besar.
+  if (!(await rateLimit(env.DB, 'login:' + clientIp(request), 300, 15 * 60 * 1000)))
     return fail(429, 'Terlalu banyak cubaan. Cuba lagi dalam 15 minit.');
   const body = await readJson(request);
   const phone = normalizePhone(body.phone);

@@ -1,7 +1,7 @@
 // Maklumat pengendali (untuk halaman polisi & bantuan) dan pengumuman / kelas Zoom.
 import { now, json, fail, readJson, cleanText, cleanMultiline as cleanBody, validEmail, normalizePhone } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
-import { notify, processJobs, classWhen } from './push.js';
+import { notify, dispatchPush, classWhen } from './push.js';
 
 // ---------- maklumat pengendali ----------
 const ORG_KEYS = ['org_name', 'org_reg', 'contact_email', 'contact_whatsapp', 'address'];
@@ -133,7 +133,7 @@ export async function adminCreateAnnouncement(env, request, ctx) {
       ? { ms: { title: `Kelas Zoom: ${a.title}`, body: `${classWhen(a.classAt)}. Butang Masuk Kelas dibuka 30 minit sebelum kelas.` },
           en: { title: `Zoom class: ${a.title}`, body: `${classWhen(a.classAt, 'en')}. The Join Class button opens 30 minutes before class.` }, url: '/' }
       : { title: a.title, body: a.body.replace(/\s+/g, ' ').slice(0, 140), url: '/?k=pengumuman' });
-    if (notified && ctx) ctx.waitUntil(processJobs(env));
+    if (notified && ctx) ctx.waitUntil(dispatchPush(env));
   }
   return json({ ok: true, announcement: adminShape(row), notified }, 201);
 }

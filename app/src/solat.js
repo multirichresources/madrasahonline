@@ -6,7 +6,7 @@
 import { now, json, fail, readJson } from './util.js';
 import { requireUser } from './auth.js';
 import { ZONES, DEFAULT_ZONE, zoneInfo, zoneShort } from './zones.js';
-import { notify, processJobs } from './push.js';
+import { notify } from './push.js';
 
 export const PRAYERS = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
 const NAMES = {

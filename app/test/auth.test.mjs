@@ -209,6 +209,7 @@ await new Promise(ok => mock.listen(8799, '127.0.0.1', ok));
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 // Cron tempatan. at5=true: minit gandaan 5 (peringatan kelas & bayaran berjalan); false: azan sahaja
 const d1 = sql => execSync(`npx wrangler d1 execute madrasah-db --local --command "${sql}"`, { stdio: 'ignore', cwd: process.cwd() });
+const plain0 = async (method, path, body) => { const res = await fetch(BASE + path, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }); let data = null; try { data = await res.json(); } catch {} return { status: res.status, data }; };
 const cron = (at5 = true) => fetch(BASE + `/cdn-cgi/handler/scheduled?cron=*+*+*+*+*&time=${Math.floor(Date.now() / 300000) * 300000 + (at5 ? 0 : 60000)}`);
 const waitPing = async (path, n = 1) => { for (let i = 0; i < 40 && pings.filter(p => p.path === path).length < n; i++) await sleep(100); return pings.filter(p => p.path === path); };
 
@@ -386,6 +387,19 @@ html = await (await fetch(BASE + '/privasi')).text();
 check('Halaman polisi kekal BM secara lalai', html.includes('Polisi Privasi') && html.includes('>English<'));
 jakim.close();
 
+// ---- hantar serentak (fan-out): 60 telefon, 2 pekerja, tiada ping berganda ----
+r = await plain0('POST', '/api/internal/push?i=0&n=1', {});
+check('Laluan dalaman push dilindungi kunci', r.status === 403, r.data);
+const bulkSql = Array.from({ length: 60 }, (_, k) => `(${rid}, 'http://127.0.0.1:8799/push/bulk-${k}', 0, ${Date.now()})`).join(',');
+d1(`INSERT INTO push_subs (user_id, endpoint, fails, created_at) VALUES ${bulkSql}`);
+await e.req('POST', '/api/push/test', {});
+await cron(false); await sleep(1500);
+const bulk = pings.filter(p => p.path.startsWith('/push/bulk-'));
+check('60 telefon dapat ping tepat sekali (fan-out 2 pekerja)', bulk.length === 60 && new Set(bulk.map(p => p.path)).size === 60, { got: bulk.length, unique: new Set(bulk.map(p => p.path)).size });
+d1(`DELETE FROM push_subs WHERE endpoint LIKE '%/push/bulk-%'`);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+lastSeen = Math.max(lastSeen, ...r.data.items.map(i => i.id));
+
 r = await e.req('POST', '/api/push/unsubscribe', { endpoint: 'http://127.0.0.1:8799/push/e1' });
 r = await e.req('POST', '/api/push/test', {});
 check('Selepas matikan, tiada notifikasi', r.status === 400, r.data);
@@ -426,7 +440,6 @@ await new Promise(ok => chipMock.listen(8798, '127.0.0.1', ok));
 const chipPay = (id, { total } = {}) => { const p = chipStore.get(id); p.status = 'paid'; p.is_recurring_token = !!p._req.force_recurring; if (total) p.purchase.total = total; };
 const lastPurchase = () => [...chipStore.values()].pop();
 const addM = (ms, n) => { const d = new Date(ms); d.setUTCMonth(d.getUTCMonth() + n); return d.getTime(); };
-const plain0 = async (method, path, body) => { const res = await fetch(BASE + path, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }); let data = null; try { data = await res.json(); } catch {} return { status: res.status, data }; };
 const callback = id => fetch(BASE + '/api/pay/callback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, status: 'paid' }) });
 
 r = await e.req('GET', '/api/plans');

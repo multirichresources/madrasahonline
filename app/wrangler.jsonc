@@ -17,7 +17,12 @@
     }
   ],
   "triggers": { "crons": ["* * * * *"] },
-  "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074" }
+  // Panggil diri sendiri untuk hantar notifikasi serentak (lihat src/push.js dispatchPush)
+  "services": [{ "binding": "SELF", "service": "madrasah-online" }],
+  // Log & ralat boleh dilihat di Cloudflare → Workers → madrasah-online → Observability
+  "observability": { "enabled": true },
+  // PUSH_BATCH × PUSH_FANOUT = telefon seminit. Pelan percuma: 40 × 1. Workers Paid: 500 × 4.
+  "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074", "PUSH_BATCH": "40", "PUSH_FANOUT": "1" }
   // Rahsia (tetapkan dengan: npx wrangler secret put NAMA):
   //   SETUP_KEY       — kunci sekali guna untuk cipta admin pertama (min 16 aksara)
   //   BUNNY_API_KEY   — API key library Bunny Stream

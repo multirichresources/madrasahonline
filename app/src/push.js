@@ -8,14 +8,16 @@
 //
 // Kunci VAPID dijana sendiri kali pertama digunakan dan disimpan dalam jadual settings,
 // jadi tiada secret tambahan perlu ditetapkan.
-import { now, json, fail, readJson, b64url, cleanText } from './util.js';
+import { now, json, fail, readJson, b64url, cleanText, randomToken, safeEqual } from './util.js';
 import { requireUser } from './auth.js';
 
 const enc = new TextEncoder();
 const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'push.services.mozilla.com', 'notify.windows.com', 'push.apple.com'];
 const MAX_SUBS_PER_USER = 10;
-// Had subrequest pelan percuma = 50 setiap jemputan. Dengan Workers Paid, naikkan melalui var PUSH_BATCH (cth. 400).
+// Had subrequest pelan percuma = 50 setiap jemputan, jadi lalai 40 ping × 1 pekerja seminit.
+// Dengan Workers Paid: PUSH_BATCH=500, PUSH_FANOUT=4 → ~2,000 telefon seminit (lihat wrangler.jsonc).
 const batchSize = env => Math.min(900, Math.max(10, Number(env.PUSH_BATCH) || 40));
+const fanout = env => Math.min(16, Math.max(1, Number(env.PUSH_FANOUT) || 1));
 
 function validEndpoint(env, endpoint) {
   let u;
@@ -85,9 +87,11 @@ export async function notify(env, target, msg) {
 }
 
 // Hantar ping kepada sebahagian baris gilir. Selebihnya diteruskan oleh cron setiap 5 minit.
-export async function processJobs(env, limit) {
+export async function processJobs(env, limit, part) {
   limit = limit || batchSize(env);
-  const { results } = await env.DB.prepare('SELECT j.sub_id, s.endpoint FROM push_jobs j JOIN push_subs s ON s.id = j.sub_id ORDER BY j.created_at LIMIT ?').bind(limit).all();
+  // part = { i, n }: pekerja ke-i daripada n hanya ambil sub_id % n = i (tiada ping berganda)
+  const where = part && part.n > 1 ? `WHERE j.sub_id % ${part.n} = ${part.i}` : '';
+  const { results } = await env.DB.prepare(`SELECT j.sub_id, s.endpoint FROM push_jobs j JOIN push_subs s ON s.id = j.sub_id ${where} ORDER BY j.created_at LIMIT ?`).bind(limit).all();
   if (!results.length) {
     await env.DB.prepare('DELETE FROM push_jobs WHERE sub_id NOT IN (SELECT id FROM push_subs)').run();
     return { sent: 0, failed: 0 };
@@ -208,4 +212,36 @@ export async function sendClassReminders(env) {
     });
   }
   return soon.results.length + day.results.length;
+}
+
+// ---------- hantar serentak (fan-out) ----------
+// Setiap jemputan Worker ada had subrequest sendiri, jadi untuk ribuan telefon kita panggil
+// Worker ini sendiri (service binding SELF) beberapa kali serentak, setiap satu satu bahagian.
+async function internalKey(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'internal_key'").first();
+  if (row && row.value) return row.value;
+  await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES ('internal_key', ?, ?)").bind(randomToken(32), now()).run();
+  return (await env.DB.prepare("SELECT value FROM settings WHERE key = 'internal_key'").first()).value;
+}
+
+export async function dispatchPush(env) {
+  const n = fanout(env);
+  if (n <= 1 || !env.SELF) return processJobs(env);
+  const key = await internalKey(env);
+  const parts = Array.from({ length: n }, (_, i) => i);
+  const res = await Promise.allSettled(parts.map(async i => {
+    const r = await env.SELF.fetch(`https://self.internal/api/internal/push?i=${i}&n=${n}`, { method: 'POST', headers: { 'x-internal-key': key } });
+    if (!r.ok) throw new Error('fan-out ' + r.status);
+    return r.json();
+  }));
+  // Jika panggilan diri gagal, bahagian itu dihantar terus oleh jemputan ini
+  for (const [i, r] of res.entries()) if (r.status === 'rejected') { console.warn('fan-out', i, String(r.reason)); await processJobs(env, 40, { i, n }); }
+}
+
+export async function internalPush(env, request) {
+  const key = await internalKey(env);
+  if (!safeEqual(request.headers.get('x-internal-key') || '', key)) return fail(403, 'Permintaan ditolak.');
+  const u = new URL(request.url);
+  const n = Math.min(16, Math.max(1, Number(u.searchParams.get('n')) || 1)), i = Math.min(n - 1, Math.max(0, Number(u.searchParams.get('i')) || 0));
+  return json({ ok: true, ...(await processJobs(env, batchSize(env), { i, n })) });
 }

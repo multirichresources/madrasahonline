@@ -662,7 +662,7 @@ function loadPlayerJs() {
 async function saveProgress(force) {
   if (!S.playing || !S.playing.embedUrl) return;
   const now = Date.now();
-  if (!force && now - lastSaved < 15000) return;
+  if (!force && now - lastSaved < 30000) return; // setiap 30 saat
   lastSaved = now;
   api('POST', `/api/videos/${S.playing.video.id}/progress`, { seconds: Math.floor(lastSeconds) });
 }

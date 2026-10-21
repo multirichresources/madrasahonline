@@ -48,7 +48,7 @@ export async function donateInfo(env) {
 
 export async function donateCheckout(env, request) {
   if (!billingReady(env)) return fail(503, 'Saluran sumbangan belum dibuka.');
-  if (!(await rateLimit(env.DB, 'donate:' + clientIp(request), 10, 3600e3))) return fail(429, 'Terlalu banyak cubaan. Cuba lagi sebentar.');
+  if (!(await rateLimit(env.DB, 'donate:' + clientIp(request), 100, 3600e3))) return fail(429, 'Terlalu banyak cubaan. Cuba lagi sebentar.');
   const b = await readJson(request);
   const use = b.use === 'umum' ? 'umum' : b.use === 'taja' ? 'taja' : null;
   if (!use) return fail(400, 'Sila pilih tujuan sumbangan.');

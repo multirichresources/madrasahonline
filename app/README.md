@@ -88,3 +88,10 @@ _Deploy: Cloudflare Workers Builds, root directory `app`._
 - Mesej ralat server (BM) diterjemah di pelayar oleh `tErr()`.
 - Bahasa disimpan dalam pelayar (`mo-lang`) dan dihantar ke server (`users.lang`) supaya notifikasi telefon ikut bahasa pelajar.
 - Halaman polisi: `/terma?lang=en` dsb. Panel admin kekal BM.
+
+## Persediaan launch / trafik tinggi
+
+- **Workers Paid wajib** untuk ribuan pengguna (pelan percuma: 100k permintaan/hari, 10ms CPU). Selepas naik taraf, tukar dalam `wrangler.jsonc`: `PUSH_BATCH` "500" dan `PUSH_FANOUT` "4" (~2,000 notifikasi seminit).
+- Notifikasi dihantar serentak oleh beberapa jemputan Worker melalui service binding `SELF` → `/api/internal/push` (dilindungi kunci dalam `settings.internal_key`).
+- Had per IP sengaja longgar (WiFi dewan & CGNAT telco berkongsi IP). Perlindungan tekaan PIN = kunci akaun selepas 5 PIN salah.
+- Log: Cloudflare → Workers → madrasah-online → Observability.

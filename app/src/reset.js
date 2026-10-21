@@ -28,7 +28,7 @@ export async function publicConfig(env) {
 // supaya orang luar tak boleh guna borang ini untuk semak no. telefon siapa berdaftar.
 export async function forgotPin(env, request) {
   if (!mailReady(env)) return fail(503, 'Set semula PIN melalui emel belum dibuka. Sila hubungi admin.');
-  if (!(await rateLimit(env.DB, 'forgot:' + clientIp(request), 5, 3600 * 1000)))
+  if (!(await rateLimit(env.DB, 'forgot:' + clientIp(request), 60, 3600 * 1000)))
     return fail(429, 'Terlalu banyak permintaan. Cuba lagi dalam sejam.');
   const body = await readJson(request);
   const phone = normalizePhone(body.phone);
@@ -54,7 +54,7 @@ export async function forgotPin(env, request) {
 
 // Langkah 2: masukkan kod + PIN baharu.
 export async function resetPin(env, request) {
-  if (!(await rateLimit(env.DB, 'reset:' + clientIp(request), 20, 3600 * 1000)))
+  if (!(await rateLimit(env.DB, 'reset:' + clientIp(request), 200, 3600 * 1000)))
     return fail(429, 'Terlalu banyak cubaan. Cuba lagi dalam sejam.');
   const body = await readJson(request);
   const phone = normalizePhone(body.phone);
