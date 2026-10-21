@@ -18,6 +18,7 @@ import { legalPaths, renderLegal } from './legal.js';
 import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, processJobs, sendClassReminders } from './push.js';
 import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myPayments, runBilling, adminGetPlans, adminSavePlans, adminPayments } from './billing.js';
 import { adminInsights, adminExportUsers } from './insights.js';
+import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, adminDonations, adminStopDonor, adminTajaBalance, adminSponsor, adminExportDonations } from './donations.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
@@ -85,6 +86,16 @@ const routes = [
   ['GET', /^\/api\/admin\/plans$/, (env, req) => adminGetPlans(env, req)],
   ['POST', /^\/api\/admin\/plans$/, (env, req) => adminSavePlans(env, req)],
   ['GET', /^\/api\/admin\/payments$/, (env, req) => adminPayments(env, req)],
+  ['GET', /^\/api\/donate\/info$/, (env) => donateInfo(env)],
+  ['POST', /^\/api\/donate\/checkout$/, (env, req) => donateCheckout(env, req)],
+  ['POST', /^\/api\/donate\/confirm$/, (env, req) => donateConfirm(env, req)],
+  ['GET', /^\/api\/donate\/manage$/, (env, req) => donorManage(env, req)],
+  ['POST', /^\/api\/donate\/stop$/, (env, req) => donorStop(env, req)],
+  ['GET', /^\/api\/admin\/donations$/, (env, req) => adminDonations(env, req)],
+  ['POST', /^\/api\/admin\/donors\/(\d+)\/stop$/, (env, req, m) => adminStopDonor(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/taja-balance$/, (env, req) => adminTajaBalance(env, req)],
+  ['POST', /^\/api\/admin\/users\/(\d+)\/sponsor$/, (env, req, m) => adminSponsor(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/export\/sumbangan\.csv$/, (env, req) => adminExportDonations(env, req)],
   ['GET', /^\/api\/admin\/insights$/, (env, req) => adminInsights(env, req)],
   ['GET', /^\/api\/admin\/export\/pelajar\.csv$/, (env, req) => adminExportUsers(env, req)],
 

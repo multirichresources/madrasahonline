@@ -1,5 +1,5 @@
 // Panel admin Madrasah Online.
-const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null, plans: null, billingReady: false, insights: null, payments: null };
+const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null, plans: null, billingReady: false, insights: null, payments: null, don: null, taja: null };
 const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true, notify: true });
 A.annForm = blankAnn();
 // ms → nilai untuk <input type="datetime-local"> (waktu tempatan)
@@ -359,6 +359,40 @@ function plansCard() {
   </form>`;
 }
 
+function tSumbangan() {
+  const d = A.don;
+  if (!d) return '<div class="loading">Memuatkan sumbangan...</div>';
+  const s = d.summary, use = u => u === 'taja' ? 'Taja pelajar' : 'Am';
+  return `<div class="stats">
+      <div class="stat"><b>${rm(s.monthSen)}</b><span>Sumbangan bulan ini</span></div>
+      <div class="stat"><b>${rm(s.allSen)}</b><span>Jumlah keseluruhan</span></div>
+      <div class="stat"><b>${rm(s.tajaBalanceSen)}</b><span>Baki dana taja</span></div>
+      <div class="stat"><b>${s.monthlyDonors}</b><span>Penyumbang bulanan (${rm(s.monthlyPledgeSen)}/bln)</span></div>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Dana taja pelajar</span>
+      <p class="small">Masuk ${rm(s.tajaInSen)} · digunakan ${rm(s.tajaUsedSen)} · baki <b>${rm(s.tajaBalanceSen)}</b> (cukup untuk ${Math.floor(s.tajaBalanceSen / s.monthPriceSen)} bulan langganan).</p>
+      <p class="muted small">Untuk menaja: tab <b>Pelajar</b> → pilih pelajar → <b>Taja dari dana</b>.</p>
+      ${d.sponsorships.length ? `<div class="rows">${d.sponsorships.slice(0, 10).map(x => `<div class="row"><div><b>${esc(x.student)}</b><p class="muted small">${fmtDate(x.at)} · ${x.months} bulan${x.by ? ' · oleh ' + esc(x.by) : ''}</p></div><span class="pill ok">${rm(x.amountSen)}</span></div>`).join('')}</div>` : ''}
+    </div>
+    <div class="card">
+      <span class="eyebrow">Penyumbang bulanan aktif</span>
+      ${d.donors.length ? `<div class="rows">${d.donors.map(x => `<div class="row"><div style="min-width:0"><b>${esc(x.name)}</b><p class="muted small">${rm(x.amountSen)}/bulan · ${use(x.use)} · caj seterusnya ${x.nextChargeAt ? fmtDate(x.nextChargeAt) : '-'}</p></div><button class="iconbtn" data-a="donorStop" data-v="${x.id}">Henti</button></div>`).join('')}</div>` : '<p class="muted">Belum ada.</p>'}
+    </div>
+    <div class="card">
+      <span class="eyebrow">Sumbangan terkini</span>
+      ${d.donations.length ? `<div class="qa">${d.donations.map(x => `<div class="q">
+        <div class="who"><b>${esc(x.name)}${x.anonymous ? ' (tanpa nama)' : ''}</b><span>${fmtDate(x.at)}</span></div>
+        <p class="small">${rm(x.amountSen)} · ${use(x.use)}${x.monthly ? ' · bulanan' : ''}${x.status === 'semak' ? ' · <b style="color:var(--warn)">perlu semak</b>' : ''}</p>
+        <p class="muted small" style="overflow-wrap:anywhere">${esc(x.email || '')}${x.phone ? ' · ' + esc(x.phone) : ''}</p>
+        ${x.message ? `<p class="ann small">“${esc(x.message)}”</p>` : ''}
+      </div>`).join('')}</div>` : '<p class="muted">Belum ada sumbangan.</p>'}
+    </div>
+    <a class="btn btn-ghost" href="/sumbang" target="_blank" rel="noopener">Buka halaman sumbangan</a>
+    <a class="btn btn-ghost" href="https://wa.me/?text=${encodeURIComponent('Assalamualaikum. Jom bersama taja pelajar dewasa belajar mengaji di Madrasah Online. Sumbang di sini: ' + location.origin + '/sumbang')}" target="_blank" rel="noopener">Kongsi pautan sumbangan (WhatsApp)</a>
+    <a class="btn btn-ghost" href="/api/admin/export/sumbangan.csv" download>Muat turun rekod sumbangan (Excel)</a>`;
+}
+
 function tTetapan() {
   const o = A.org;
   return `${plansCard()}
@@ -412,6 +446,9 @@ function modal() {
         <button class="chip" data-a="sub" data-v="12">+12 bulan</button>
         ${u.active ? '<button class="chip" data-a="sub" data-v="tamat" style="color:var(--danger)">Tamatkan</button>' : ''}
       </div>
+      <span class="eyebrow">Taja dari dana</span>
+      <p class="muted small">${A.taja ? `Baki dana taja: <b>${rm(A.taja.balanceSen)}</b> (${rm(A.taja.monthPriceSen)} sebulan).` : 'Memuatkan baki...'}</p>
+      ${A.taja && A.taja.balanceSen >= A.taja.monthPriceSen ? `<div class="filter-row">${[1, 3, 6, 12].filter(m => m * A.taja.monthPriceSen <= A.taja.balanceSen).map(m => `<button class="chip" data-a="sponsor" data-v="${m}">Taja ${m} bulan</button>`).join('')}</div>` : A.taja ? '<p class="muted small">Baki belum mencukupi untuk menaja.</p>' : ''}
       <a class="btn btn-ghost" href="https://wa.me/${toWa(u.phone)}" target="_blank" rel="noopener">WhatsApp pelajar</a>
       ${A.newPin ? `<div class="ok-box">PIN sementara: <span style="font-size:1.3rem;letter-spacing:.2em">${A.newPin}</span></div>
         <a class="btn btn-primary" href="https://wa.me/${toWa(u.phone)}?text=${encodeURIComponent(`Assalamualaikum ${u.name}. PIN sementara Madrasah Online anda: ${A.newPin}. Sila log masuk dan tukar PIN di menu Akaun.`)}" target="_blank" rel="noopener">Hantar PIN melalui WhatsApp</a>`
@@ -459,11 +496,11 @@ function render() {
   else if (A.view === 'setup') body = vSetup();
   else if (A.view === 'login') body = vLogin();
   else {
-    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['tetapan', 'Tetapan']];
+    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, tetapan: tTetapan }[A.tab]()}`;
+      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}`;
   }
   app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
   restoreInputs();
@@ -490,6 +527,13 @@ async function loadAnns() {
   const r = await api('GET', '/api/admin/announcements');
   if (r.status === 401) return toLogin();
   A.anns = r.ok ? r.announcements : [];
+  if (!r.ok) toast(r.error);
+  render();
+}
+async function loadDon() {
+  const r = await api('GET', '/api/admin/donations');
+  if (r.status === 401) return toLogin();
+  A.don = r.ok ? r : null;
   if (!r.ok) toast(r.error);
   render();
 }
@@ -532,6 +576,7 @@ function openTab(t) {
   if (t === 'video') loadVideos();
   if (t === 'hebahan') loadAnns();
   if (t === 'tetapan') { loadOrg(); loadPlans(); }
+  if (t === 'sumbangan') { A.don = null; loadDon(); }
   if (t === 'soalan') { A.qs = null; A.editQ = null; loadQs(); }
 }
 
@@ -547,7 +592,25 @@ document.addEventListener('click', async e => {
     case 'refresh': A.stats = null; A.insights = null; A.payments = null; render(); loadStats(); return;
     case 'filter': A.filter = v; loadUsers(); return;
     case 'filterGo': A.filter = v; A.q = ''; openTab('pelajar'); return;
-    case 'user': A.sel = A.users.find(u => String(u.id) === v); A.newPin = null; A.err = ''; A.modal = 'user'; break;
+    case 'user':
+      A.sel = A.users.find(u => String(u.id) === v); A.newPin = null; A.err = ''; A.modal = 'user'; A.taja = null;
+      api('GET', '/api/admin/taja-balance').then(r => { if (r.ok) { A.taja = r; if (A.modal === 'user') render(); } });
+      break;
+    case 'sponsor': {
+      const r = await busy(el, () => api('POST', `/api/admin/users/${A.sel.id}/sponsor`, { months: Number(v) }));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { A.err = r.error; break; }
+      Object.assign(A.sel, { paidUntil: r.paidUntil, active: true }); A.taja.balanceSen = r.balanceSen;
+      toast(`${A.sel.name} ditaja ${v} bulan. Aktif hingga ${fmtDate(r.paidUntil)}.`);
+      loadUsers();
+      break;
+    }
+    case 'donorStop': {
+      const r = await busy(el, () => api('POST', `/api/admin/donors/${v}/stop`, {}));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { toast(r.error); return; }
+      toast('Sumbangan bulanan dihentikan.'); loadDon(); return;
+    }
     case 'modal': A.modal = v; A.err = ''; break;
     case 'close': case 'backdrop': A.modal = null; A.err = ''; A.newPin = null; break;
     case 'resetPin': {

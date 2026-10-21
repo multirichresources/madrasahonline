@@ -108,6 +108,12 @@ CREATE TABLE IF NOT EXISTS payments (
   status        TEXT    NOT NULL DEFAULT 'pending', -- 'pending' | 'completed' | 'failed' | 'semak' (jumlah tak sepadan)
   donor_name    TEXT,
   donation_use  TEXT,                             -- 'taja' | 'umum'
+  donor_email   TEXT,
+  donor_phone   TEXT,
+  anonymous     INTEGER NOT NULL DEFAULT 0,       -- 1 = papar sebagai "Hamba Allah"
+  message       TEXT,                             -- mesej / doa penyumbang
+  donor_id      INTEGER,                          -- penyumbang bulanan (jadual donors)
+  access_hash   TEXT,                             -- token halaman terima kasih (penyumbang tiada login)
   recurring     INTEGER NOT NULL DEFAULT 0,         -- 0 sekali bayar, 1 daftar auto-renew, 2 caj auto-renew
   created_at    INTEGER NOT NULL,
   completed_at  INTEGER
@@ -154,5 +160,35 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id);
 -- Baris gilir ping (satu baris setiap peranti yang perlu dikejutkan)
 CREATE TABLE IF NOT EXISTS push_jobs (
   sub_id      INTEGER PRIMARY KEY,
+  created_at  INTEGER NOT NULL
+);
+
+-- Penyumbang bulanan (kad, auto). Tiada akaun; urus melalui pautan rahsia /sumbang?urus=TOKEN.
+CREATE TABLE IF NOT EXISTS donors (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  name           TEXT,
+  email          TEXT    NOT NULL,
+  phone          TEXT,
+  anonymous      INTEGER NOT NULL DEFAULT 0,
+  donation_use   TEXT    NOT NULL,                -- 'taja' | 'umum'
+  amount_sen     INTEGER NOT NULL,
+  active         INTEGER NOT NULL DEFAULT 0,      -- 1 selepas bayaran pertama berjaya
+  chip_token     TEXT,
+  next_charge_at INTEGER,
+  attempt_at     INTEGER,
+  fails          INTEGER NOT NULL DEFAULT 0,
+  manage_hash    TEXT    NOT NULL,
+  stopped_at     INTEGER,
+  created_at     INTEGER NOT NULL
+);
+
+-- Penggunaan dana taja: langganan pelajar yang ditaja oleh admin
+CREATE TABLE IF NOT EXISTS sponsorships (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER,
+  months      INTEGER NOT NULL,
+  amount_sen  INTEGER NOT NULL,
+  admin_id    INTEGER,
+  note        TEXT,
   created_at  INTEGER NOT NULL
 );

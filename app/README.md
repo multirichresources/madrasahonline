@@ -66,3 +66,11 @@ _Deploy: Cloudflare Workers Builds, root directory `app`._
 - FPX / DuitNow QR / e-wallet: bayar sekali.
 - Callback `/api/pay/callback` tidak dipercayai terus: status sentiasa diambil semula dari `GET /purchases/{id}/` dengan secret key, dan jumlah disemak. Jumlah tak sepadan → status `semak`.
 - Ujian tempatan: `.dev.vars` dengan `CHIP_SECRET_KEY=test-secret-key`, `CHIP_BRAND_ID=brand-test`, `CHIP_API_BASE=http://127.0.0.1:8798/api/v1` (servis CHIP tiruan dalam `test/auth.test.mjs`).
+
+## Sumbangan & Taja Pelajar
+
+- Halaman awam `/sumbang` (tanpa login): sekali bayar, atau bulanan dengan kad (token CHIP, dicaj oleh cron).
+- Tujuan `taja` → dana taja; admin guna baki untuk taja pelajar (Pelajar → pilih → Taja dari dana), direkod dalam `sponsorships`.
+- Rekod sumbangan: `payments.purpose = 'sumbangan'`, diasingkan daripada kutipan langganan.
+- Penyumbang bulanan urus sendiri melalui pautan rahsia `/sumbang?urus=TOKEN` (ditunjuk selepas sumbangan pertama). Admin juga boleh hentikan dari tab Sumbangan.
+- Tiada tuntutan potongan cukai dibuat.

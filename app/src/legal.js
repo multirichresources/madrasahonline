@@ -3,7 +3,7 @@
 // dan boleh dibaca oleh penyemak payment gateway tanpa perlu log masuk.
 import { getOrg } from './content.js';
 
-const UPDATED = '20 Oktober 2026';
+const UPDATED = '21 Oktober 2026';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const waLocal = p => p ? '0' + p.slice(2, 4) + '-' + p.slice(4, p.length - 4) + ' ' + p.slice(-4) : '';
@@ -93,6 +93,7 @@ ${contactBlock(o)}`,
   <li><b>Rekod pembelajaran:</b> video yang ditonton dan minit terakhir anda berhenti, supaya anda boleh sambung tonton.</li>
   <li><b>Kandungan komuniti:</b> soalan atau komen yang anda hantar.</li>
   <li><b>Data teknikal:</b> alamat IP, digunakan untuk keselamatan dan menghadkan cubaan log masuk.</li>
+  <li><b>Penyumbang:</b> nama, emel, no. telefon (pilihan) dan mesej, untuk resit dan rekod sumbangan. Nama tidak dipaparkan jika anda memilih untuk tidak menunjukkannya.</li>
 </ol>
 <p>Kami <b>tidak</b> menyimpan nombor kad bank anda. Butiran kad diproses terus oleh gerbang pembayaran berlesen.</p>
 
@@ -180,7 +181,7 @@ ${contactBlock(o)}`,
 <p>Permohonan akan disemak dalam tempoh 3 hari bekerja. Jika diluluskan, bayaran akan dikembalikan melalui kaedah bayaran asal dalam tempoh 7 hingga 14 hari bekerja, bergantung kepada bank anda.</p>
 
 <h2>6. Sumbangan</h2>
-<p>Sumbangan dan tajaan pelajar adalah ikhlas dan tidak dikembalikan, kecuali jika berlaku kesilapan jumlah atau caj berganda yang dimaklumkan dalam tempoh 7 hari.</p>
+<p>Sumbangan dan tajaan pelajar adalah ikhlas dan tidak dikembalikan, kecuali jika berlaku kesilapan jumlah atau caj berganda yang dimaklumkan dalam tempoh 7 hari. Sumbangan bulanan boleh dihentikan pada bila-bila masa melalui pautan yang diberi selepas sumbangan pertama, atau dengan menghubungi kami. Sumbangan kepada Madrasah Online tidak layak untuk potongan cukai.</p>
 
 <h2>7. Hubungi kami</h2>
 ${contactBlock(o)}`,

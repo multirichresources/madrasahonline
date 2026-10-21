@@ -336,6 +336,7 @@ await new Promise(ok => chipMock.listen(8798, '127.0.0.1', ok));
 const chipPay = (id, { total } = {}) => { const p = chipStore.get(id); p.status = 'paid'; p.is_recurring_token = !!p._req.force_recurring; if (total) p.purchase.total = total; };
 const lastPurchase = () => [...chipStore.values()].pop();
 const addM = (ms, n) => { const d = new Date(ms); d.setUTCMonth(d.getUTCMonth() + n); return d.getTime(); };
+const plain0 = async (method, path, body) => { const res = await fetch(BASE + path, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }); let data = null; try { data = await res.json(); } catch {} return { status: res.status, data }; };
 const callback = id => fetch(BASE + '/api/pay/callback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, status: 'paid' }) });
 const d1 = sql => execSync(`npx wrangler d1 execute madrasah-db --local --command "${sql}"`, { stdio: 'ignore', cwd: process.cwd() });
 
@@ -432,6 +433,70 @@ const csv = await ad.raw('/api/admin/export/pelajar.csv');
 const csvBytes = new Uint8Array(await csv.arrayBuffer());
 const csvText = new TextDecoder().decode(csvBytes);
 check('Eksport CSV untuk Excel (BOM, tajuk, data)', csv.status === 200 && csvBytes[0] === 0xef && csvBytes[1] === 0xbb && csvBytes[2] === 0xbf && csvText.includes('Nama,No. telefon') && csvText.includes('Rohana Ismail') && csv.headers.get('content-disposition').includes('.csv'), csvText.slice(0, 200));
+// ---- sumbangan & taja pelajar ----
+const revBefore = (await ad.req('GET', '/api/admin/stats')).data.stats.revenueThisMonthSen;
+r = await plain0('GET', '/api/donate/info');
+check('Info sumbangan awam (tanpa login)', r.status === 200 && r.data.ready === true && r.data.monthPriceSen === 1000 && r.data.stats.donors === 0, r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 100, email: 'a@contoh.my', name: 'A' });
+check('Sumbangan bawah RM5 ditolak', r.status === 400, r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 3000, email: 'bukan-emel', name: 'A' });
+check('Sumbangan tanpa emel sah ditolak', r.status === 400, r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 3000, email: 'a@contoh.my' });
+check('Tanpa nama & tidak pilih tanpa nama ditolak', r.status === 400, r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 3000, email: 'karim@contoh.my', name: 'Haji Karim Bin Yusof', phone: '013-222 3333', message: 'Semoga dipermudahkan.' });
+pr = lastPurchase();
+check('Checkout sumbangan sekali: tanpa login, harga & resit betul', r.status === 200 && pr._req.force_recurring === false && !pr._req.payment_method_whitelist && pr._req.purchase.products[0].price === 3000 && pr._req.purchase.products[0].name.includes('Taja Pelajar') && pr._req.send_receipt === true, pr._req);
+let back = new URL(pr._req.success_redirect);
+const dId = back.searchParams.get('d'), dKey = back.searchParams.get('k');
+check('Pautan kembali ke /sumbang dengan token', back.pathname === '/sumbang' && back.searchParams.get('status') === 'berjaya' && dKey && dKey.length > 15, pr._req.success_redirect);
+r = await plain0('POST', '/api/donate/confirm', { id: dId, token: 'salah' });
+check('Semak sumbangan dengan token salah ditolak', r.status === 404, r.data);
+chipPay(pr.id); await callback(pr.id);
+r = await plain0('POST', '/api/donate/confirm', { id: dId, token: dKey });
+check('Sumbangan sekali diterima', r.data.payStatus === 'completed' && r.data.amountSen === 3000 && r.data.use === 'taja' && r.data.monthly === false, r.data);
+
+r = await plain0('POST', '/api/donate/checkout', { use: 'umum', amountSen: 2000, monthly: true, email: 'rahsia@contoh.my', anonymous: true });
+pr = lastPurchase(); back = new URL(pr._req.success_redirect);
+const urus = back.searchParams.get('urus');
+check('Sumbangan bulanan: kad sahaja, simpan token, pautan urus', r.status === 200 && pr._req.force_recurring === true && pr._req.payment_method_whitelist.join() === 'visa,mastercard,maestro' && urus && urus.length > 20, pr._req);
+r = await plain0('GET', '/api/donate/manage?token=' + urus);
+check('Sebelum bayar: penyumbang bulanan belum aktif', r.status === 200 && r.data.donor.active === false, r.data);
+const donorToken = pr.id;
+chipPay(pr.id); await callback(pr.id);
+r = await plain0('GET', '/api/donate/manage?token=' + urus);
+check('Selepas bayar: aktif, nama disembunyikan, caj seterusnya ~1 bulan', r.data.donor.active === true && r.data.donor.name === 'Hamba Allah' && Math.abs(r.data.donor.nextChargeAt - addM(Date.now(), 1)) < 120e3, r.data);
+r = await plain0('GET', '/api/donate/manage?token=salah-token-yang-cukup-panjang');
+check('Pautan urus palsu ditolak', r.status === 404, r.data);
+r = await plain0('GET', '/api/donate/info');
+check('Info: penyumbang terkini (Hamba Allah & nama pendek)', r.data.stats.donors === 2 && r.data.recent.map(x => x.name).join() === 'Hamba Allah,Haji Karim', r.data);
+
+r = await ad.req('GET', '/api/admin/donations');
+check('Admin: ringkasan sumbangan diasingkan', r.status === 200 && r.data.summary.tajaInSen === 3000 && r.data.summary.umumSen === 2000 && r.data.summary.tajaBalanceSen === 3000 && r.data.summary.monthlyDonors === 1 && r.data.donations[1].message === 'Semoga dipermudahkan.', r.data.summary);
+const fId = (await ad.req('GET', '/api/admin/users?q=Salmah')).data.users[0].id;
+const fBefore = (await f.req('GET', '/api/me')).data.user.paidUntil;
+r = await ad.req('POST', `/api/admin/users/${fId}/sponsor`, { months: 3 });
+check('Taja pelajar 3 bulan dari dana', r.status === 200 && r.data.balanceSen === 0 && Math.abs(r.data.paidUntil - addM(Math.max(Date.now(), fBefore), 3)) < 60e3, r.data);
+r = await ad.req('POST', `/api/admin/users/${fId}/sponsor`, { months: 1 });
+check('Baki dana tak cukup: ditolak', r.status === 400 && /tidak mencukupi/.test(r.data.error), r.data);
+r = await plain0('GET', '/api/donate/info');
+check('Info awam: 1 pelajar ditaja', r.data.stats.studentsSponsored === 1, r.data.stats);
+
+d1(`UPDATE donors SET next_charge_at = ${Date.now() - 1000}`);
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+r = await ad.req('GET', '/api/admin/donations');
+check('Cron: sumbangan bulanan dicaj guna token', r.data.summary.umumSen === 4000 && chipCalls.some(c => c.url.endsWith('/charge/') && c.body.recurring_token === donorToken) && r.data.donors[0].nextChargeAt > Date.now() + 20 * 864e5, r.data.summary);
+r = await plain0('POST', '/api/donate/stop', { token: urus });
+const m2 = await plain0('GET', '/api/donate/manage?token=' + urus);
+check('Penyumbang hentikan sumbangan bulanan sendiri', r.status === 200 && m2.data.donor.active === false && chipCalls.some(c => c.url === `/api/v1/purchases/${donorToken}/delete_recurring_token/`), m2.data);
+r = await ad.req('GET', '/api/admin/stats');
+check('Kutipan langganan tidak bercampur dengan sumbangan', r.data.stats.revenueThisMonthSen === revBefore, { before: revBefore, after: r.data.stats.revenueThisMonthSen });
+r = await plain0('GET', '/api/admin/donations');
+check('Orang awam tak boleh lihat rekod sumbangan', r.status === 401);
+const dcsv = new TextDecoder().decode(await (await ad.raw('/api/admin/export/sumbangan.csv')).arrayBuffer());
+check('Eksport rekod sumbangan', dcsv.includes('Haji Karim Bin Yusof') && dcsv.includes('Taja Pelajar') && dcsv.includes('30.00'), dcsv.slice(0, 300));
+page = await fetch(BASE + '/sumbang');
+check('Halaman /sumbang dipapar', page.status === 200 && (await page.text()).includes('/sumbang.js'));
+
 chipMock.close();
 
 const plain = jar();

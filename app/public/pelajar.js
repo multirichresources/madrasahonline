@@ -137,6 +137,11 @@ function tUtama() {
     ${classCard()}
     ${S.ann && S.ann.nextClass ? pushCard(true) : ''}
     ${latestAnnCard()}
+    <div class="card">
+      <span class="eyebrow">Sumbang & taja pelajar</span>
+      <p class="small">Bantu orang lain belajar mengaji dengan menaja langganan mereka, atau sumbang untuk kos kelas.</p>
+      <a class="btn btn-ghost" href="/sumbang">${I.star} Sumbang sekarang</a>
+    </div>
     ${installCard()}`;
 }
 
@@ -403,6 +408,7 @@ function tAkaun() {
     <div class="card">
       <span class="eyebrow">Maklumat & bantuan</span>
       ${S.cfg.org && S.cfg.org.whatsapp ? `<a class="btn btn-ghost" href="https://wa.me/${esc(S.cfg.org.whatsapp)}" target="_blank" rel="noopener">WhatsApp admin</a>` : ''}
+      <a class="btn btn-ghost" href="/sumbang">Sumbang / taja pelajar</a>
       ${legalLinks()}
     </div>
     ${installCard()}

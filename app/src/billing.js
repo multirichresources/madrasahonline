@@ -13,14 +13,15 @@
 import { now, json, fail, readJson, cleanText, rateLimit } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
 import { notify, processJobs } from './push.js';
+import { chargeDonors } from './donations.js';
 
-const CARD_METHODS = ['visa', 'mastercard', 'maestro'];
+export const CARD_METHODS = ['visa', 'mastercard', 'maestro'];
 const MAX_RENEW_FAILS = 3;
 
 export const billingReady = (env) => !!(env.CHIP_SECRET_KEY && env.CHIP_BRAND_ID);
 const apiBase = (env) => env.CHIP_API_BASE || 'https://gate.chip-in.asia/api/v1';
 
-async function chip(env, method, path, body) {
+export async function chip(env, method, path, body) {
   const r = await fetch(apiBase(env) + path, {
     method,
     headers: { authorization: `Bearer ${env.CHIP_SECRET_KEY}`, 'content-type': 'application/json', accept: 'application/json' },
@@ -83,7 +84,7 @@ export async function publicPlans(env, request) {
 }
 
 // ---------- tambah tempoh langganan (idempotent) ----------
-function addMonths(fromMs, months) {
+export function addMonths(fromMs, months) {
   const d = new Date(fromMs);
   d.setUTCMonth(d.getUTCMonth() + months);
   return d.getTime();
@@ -95,6 +96,14 @@ async function fulfil(env, pay, purchase) {
   const t = now();
   const upd = await env.DB.prepare("UPDATE payments SET status = 'completed', completed_at = ? WHERE id = ? AND status != 'completed'").bind(t, pay.id).run();
   if (!upd.meta.changes) return false;
+  if (pay.purpose === 'sumbangan') {
+    // Sumbangan bulanan pertama: simpan token kad dan jadualkan caj seterusnya
+    if (pay.donor_id && purchase && purchase.is_recurring_token) {
+      await env.DB.prepare('UPDATE donors SET active = 1, chip_token = ?, next_charge_at = ?, fails = 0 WHERE id = ? AND chip_token IS NULL')
+        .bind(purchase.id, addMonths(t, 1), pay.donor_id).run();
+    }
+    return true;
+  }
   if (!pay.user_id) return true;
   const u = await env.DB.prepare('SELECT paid_until FROM users WHERE id = ?').bind(pay.user_id).first();
   if (!u) return true;
@@ -111,7 +120,7 @@ async function fulfil(env, pay, purchase) {
 }
 
 // Ambil status sebenar dari CHIP dan kemas kini rekod.
-async function syncPayment(env, pay) {
+export async function syncPayment(env, pay) {
   const p = await chip(env, 'GET', `/purchases/${encodeURIComponent(pay.provider_ref)}/`);
   const total = p.purchase && (p.purchase.total ?? p.purchase.total_override);
   if (p.status === 'paid') {
@@ -230,6 +239,8 @@ export async function runBilling(env) {
   for (const pay of pend.results) {
     try { await syncPayment(env, pay); } catch (e) { console.warn('semak bayaran', String(e)); }
   }
+  // Sumbangan bulanan (kad) yang tiba masanya
+  try { await chargeDonors(env, t); } catch (e) { console.error('sumbangan bulanan', e); }
   // 2. Bayaran yang terlalu lama tergantung → gagal
   await env.DB.prepare("UPDATE payments SET status = 'failed' WHERE status = 'pending' AND created_at < ?").bind(t - 3 * 864e5).run();
 
