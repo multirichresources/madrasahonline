@@ -251,3 +251,14 @@ textarea.input { min-height: 6rem; resize: vertical; line-height: 1.45; }
 .check { display: flex; gap: .6rem; align-items: flex-start; font-weight: 700; }
 .check input { width: 1.4rem; height: 1.4rem; flex: none; margin-top: .1rem; accent-color: var(--green); }
 .shell.admin .tabs { flex-wrap: wrap; overflow: visible; }
+
+/* ---- waktu solat ---- */
+.solat .pnext { display: flex; flex-direction: column; gap: .2rem; background: var(--green-soft); border-radius: 14px; padding: .8rem .9rem; }
+.solat .pnext b { font-size: 1.3rem; color: var(--green); }
+.solat .pnext .pill { align-self: flex-start; background: var(--bg); }
+.ptimes { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; }
+.pt { display: flex; flex-direction: column; align-items: center; gap: .05rem; border: 1px solid var(--line); border-radius: 12px; padding: .5rem .2rem; background: var(--bg); }
+.pt span { font-size: .8rem; color: var(--muted); font-weight: 700; }
+.pt b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.pt.next { border: 2px solid var(--green); }
+.pt.now { background: var(--gold-soft); }

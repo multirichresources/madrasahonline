@@ -55,7 +55,7 @@ _Deploy: Cloudflare Workers Builds, root directory `app`._
 
 - Tiada setup diperlukan. Kunci VAPID dijana sendiri kali pertama pelajar hidupkan peringatan, dan disimpan dalam jadual `settings` (key `vapid`). **Jangan padam baris ini**, nanti semua pelajar perlu hidupkan peringatan semula.
 - Server hantar "ping" kosong; service worker (`public/sw.js`) ambil mesej dari `/api/push/inbox`.
-- Cron setiap 5 minit (`*/5 * * * *`): peringatan sehari & 30 minit sebelum kelas Zoom, dan hantar baki ping (40 setiap pusingan). Pembersihan harian berjalan pada 3 pagi waktu Malaysia.
+- Cron setiap minit (`* * * * *`): notifikasi azan. Setiap 5 minit: peringatan kelas, bayaran & sumbangan bulanan. Ping dihantar 40 setiap pusingan (naikkan dengan var `PUSH_BATCH` jika guna Workers Paid). Pembersihan harian pada 3 pagi waktu Malaysia.
 - Ujian tempatan: `.dev.vars` perlu `PUSH_ALLOW_HTTP=1`, dan jalankan `wrangler dev --test-scheduled`.
 
 ## Bayaran (CHIP Collect)
@@ -74,3 +74,17 @@ _Deploy: Cloudflare Workers Builds, root directory `app`._
 - Rekod sumbangan: `payments.purpose = 'sumbangan'`, diasingkan daripada kutipan langganan.
 - Penyumbang bulanan urus sendiri melalui pautan rahsia `/sumbang?urus=TOKEN` (ditunjuk selepas sumbangan pertama). Admin juga boleh hentikan dari tab Sumbangan.
 - Tiada tuntutan potongan cukai dibuat.
+
+## Waktu solat & azan
+
+- Sumber: JAKIM e-Solat (`period=duration`, sebulan), sandaran api.waktusolat.app. Disimpan dalam `prayer_times`, jadi API luar dipanggil sekali sebulan bagi setiap zon.
+- Pelajar pilih zon (`users.solat_zone`, lalai WLY01) dan waktu yang mahu dinotifikasi (`users.azan`).
+- Notifikasi dihantar oleh cron dalam 1–2 minit selepas masuk waktu; `azan_sent` elak berganda. Bunyi ikut bunyi notifikasi telefon (app web tak boleh mainkan azan penuh).
+- Ujian tempatan: `JAKIM_API` dan `WAKTUSOLAT_API` dalam `.dev.vars` menghala ke servis tiruan dalam `test/auth.test.mjs`.
+
+## Bahasa (BM / EN)
+
+- App pelajar & `/sumbang`: semua teks dibalut `t('teks BM')`; terjemahan dalam `public/i18n-en.js`. Selepas menambah teks baharu, jalankan `node test/i18n.test.mjs`.
+- Mesej ralat server (BM) diterjemah di pelayar oleh `tErr()`.
+- Bahasa disimpan dalam pelayar (`mo-lang`) dan dihantar ke server (`users.lang`) supaya notifikasi telefon ikut bahasa pelajar.
+- Halaman polisi: `/terma?lang=en` dsb. Panel admin kekal BM.

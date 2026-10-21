@@ -14,7 +14,8 @@ import { requireUser } from './auth.js';
 const enc = new TextEncoder();
 const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'push.services.mozilla.com', 'notify.windows.com', 'push.apple.com'];
 const MAX_SUBS_PER_USER = 10;
-const BATCH = 40; // had subrequest pelan percuma = 50 setiap jemputan
+// Had subrequest pelan percuma = 50 setiap jemputan. Dengan Workers Paid, naikkan melalui var PUSH_BATCH (cth. 400).
+const batchSize = env => Math.min(900, Math.max(10, Number(env.PUSH_BATCH) || 40));
 
 function validEndpoint(env, endpoint) {
   let u;
@@ -62,27 +63,30 @@ async function vapidSigner(env) {
 // Sasaran: { kind: 'user', userId } | { kind: 'active' } (pelanggan aktif) | { kind: 'all' }
 function audienceSql(target, t) {
   if (target.kind === 'user') return { where: 'u.id = ?', args: [target.userId] };
+  if (target.kind === 'azan') return { where: "COALESCE(u.solat_zone, ?) = ? AND (',' || u.azan || ',') LIKE ?", args: [target.defaultZone, target.zone, `%,${target.prayer},%`] };
   if (target.kind === 'active') return { where: 'u.paid_until > ?', args: [t] };
   return { where: '1 = 1', args: [] };
 }
 
 // Simpan mesej dalam peti masuk setiap pelajar yang ada langganan notifikasi, dan baris gilir ping.
-export async function notify(env, target, { title, body, url }) {
+// msg: { title, body, url } (satu bahasa) atau { ms: {title, body}, en: {title, body}, url } (ikut bahasa pelajar)
+export async function notify(env, target, msg) {
   const t = now();
   const a = audienceSql(target, t);
-  const res = await env.DB.batch([
-    env.DB.prepare(`INSERT INTO notifications (user_id, title, body, url, created_at)
-      SELECT DISTINCT u.id, ?, ?, ?, ? FROM push_subs ps JOIN users u ON u.id = ps.user_id WHERE ${a.where}`)
-      .bind(cleanText(title, 80), cleanText(body, 200), url || '/', t, ...a.args),
-    env.DB.prepare(`INSERT OR IGNORE INTO push_jobs (sub_id, created_at)
-      SELECT ps.id, ? FROM push_subs ps JOIN users u ON u.id = ps.user_id WHERE ${a.where}`)
-      .bind(t, ...a.args),
-  ]);
-  return res[0].meta.changes || 0;
+  const url = msg.url || '/';
+  const variants = msg.en ? [['ms', msg.ms], ['en', msg.en]] : [[null, msg]];
+  const stmts = variants.map(([lang, m]) => env.DB.prepare(`INSERT INTO notifications (user_id, title, body, url, created_at)
+      SELECT DISTINCT u.id, ?, ?, ?, ? FROM push_subs ps JOIN users u ON u.id = ps.user_id WHERE ${a.where}${lang ? " AND COALESCE(u.lang, 'ms') = ?" : ''}`)
+    .bind(cleanText(m.title, 80), cleanText(m.body, 200), url, t, ...a.args, ...(lang ? [lang] : [])));
+  stmts.push(env.DB.prepare(`INSERT OR IGNORE INTO push_jobs (sub_id, created_at)
+      SELECT ps.id, ? FROM push_subs ps JOIN users u ON u.id = ps.user_id WHERE ${a.where}`).bind(t, ...a.args));
+  const res = await env.DB.batch(stmts);
+  return res.slice(0, variants.length).reduce((n, r) => n + (r.meta.changes || 0), 0);
 }
 
 // Hantar ping kepada sebahagian baris gilir. Selebihnya diteruskan oleh cron setiap 5 minit.
-export async function processJobs(env, limit = BATCH) {
+export async function processJobs(env, limit) {
+  limit = limit || batchSize(env);
   const { results } = await env.DB.prepare('SELECT j.sub_id, s.endpoint FROM push_jobs j JOIN push_subs s ON s.id = j.sub_id ORDER BY j.created_at LIMIT ?').bind(limit).all();
   if (!results.length) {
     await env.DB.prepare('DELETE FROM push_jobs WHERE sub_id NOT IN (SELECT id FROM push_subs)').run();
@@ -145,7 +149,11 @@ export async function pushUnsubscribe(env, request) {
 
 export async function pushTest(env, request) {
   const u = await requireUser(env, request);
-  const n = await notify(env, { kind: 'user', userId: u.id }, { title: 'Peringatan sudah aktif', body: 'Alhamdulillah. Anda akan menerima peringatan kelas di telefon ini.', url: '/' });
+  const n = await notify(env, { kind: 'user', userId: u.id }, {
+    ms: { title: 'Peringatan sudah aktif', body: 'Alhamdulillah. Anda akan menerima peringatan kelas di telefon ini.' },
+    en: { title: 'Reminders are on', body: 'Alhamdulillah. You will receive class reminders on this phone.' },
+    url: '/',
+  });
   if (!n) return fail(400, 'Telefon ini belum dihidupkan untuk notifikasi.');
   const r = await processJobs(env, 10);
   return json({ ok: true, ...r });
@@ -164,15 +172,16 @@ export async function pushInbox(env, request) {
 }
 
 // ---------- peringatan kelas automatik (cron) ----------
-const HARI = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
-const BLN = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+const HARI = { ms: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
+const BLN = { ms: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'], en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] };
 // Waktu Malaysia (UTC+8) tanpa bergantung pada zon masa pelayan
-function myTime(ms) {
+function myTime(ms, lang = 'ms') {
   const d = new Date(ms + 8 * 3600e3), h = d.getUTCHours(), m = String(d.getUTCMinutes()).padStart(2, '0');
-  const part = h < 12 ? 'pagi' : h < 14 ? 'tengah hari' : h < 19 ? 'petang' : 'malam';
-  return { day: HARI[d.getUTCDay()], date: `${d.getUTCDate()} ${BLN[d.getUTCMonth()]}`, time: `${h % 12 || 12}.${m} ${part}` };
+  const time = lang === 'en' ? `${h % 12 || 12}:${m} ${h < 12 ? 'am' : 'pm'}`
+    : `${h % 12 || 12}.${m} ${h < 12 ? 'pagi' : h < 14 ? 'tengah hari' : h < 19 ? 'petang' : 'malam'}`;
+  return { day: HARI[lang][d.getUTCDay()], date: `${d.getUTCDate()} ${BLN[lang][d.getUTCMonth()]}`, time };
 }
-export const classWhen = ms => { const w = myTime(ms); return `${w.day}, ${w.date} · ${w.time}`; };
+export const classWhen = (ms, lang = 'ms') => { const w = myTime(ms, lang); return `${w.day}, ${w.date} · ${w.time}`; };
 
 export async function sendClassReminders(env) {
   const t = now();
@@ -180,10 +189,10 @@ export async function sendClassReminders(env) {
     .bind(t - 10 * 60e3, t + 35 * 60e3).all();
   for (const a of soon.results) {
     await env.DB.prepare('UPDATE announcements SET reminded_soon = 1, reminded_day = 1 WHERE id = ?').bind(a.id).run();
-    const w = myTime(a.class_at);
+    const w = myTime(a.class_at), we = myTime(a.class_at, 'en');
     await notify(env, { kind: a.members_only ? 'active' : 'all' }, {
-      title: 'Kelas bermula sekejap lagi',
-      body: `${a.title}, ${w.time}. Tekan untuk buka app dan Masuk Kelas.`,
+      ms: { title: 'Kelas bermula sekejap lagi', body: `${a.title}, ${w.time}. Tekan untuk buka app dan Masuk Kelas.` },
+      en: { title: 'Class starts soon', body: `${a.title}, ${we.time}. Tap to open the app and Join Class.` },
       url: '/',
     });
   }
@@ -191,10 +200,10 @@ export async function sendClassReminders(env) {
     .bind(t + 2 * 3600e3, t + 24 * 3600e3).all();
   for (const a of day.results) {
     await env.DB.prepare('UPDATE announcements SET reminded_day = 1 WHERE id = ?').bind(a.id).run();
-    const w = myTime(a.class_at);
+    const w = myTime(a.class_at), we = myTime(a.class_at, 'en');
     await notify(env, { kind: a.members_only ? 'active' : 'all' }, {
-      title: `Peringatan kelas: ${a.title}`,
-      body: `${w.day}, ${w.date}, ${w.time}. Butang Masuk Kelas dibuka 30 minit sebelum kelas.`,
+      ms: { title: `Peringatan kelas: ${a.title}`, body: `${w.day}, ${w.date}, ${w.time}. Butang Masuk Kelas dibuka 30 minit sebelum kelas.` },
+      en: { title: `Class reminder: ${a.title}`, body: `${we.day}, ${we.date}, ${we.time}. The Join Class button opens 30 minutes before class.` },
       url: '/',
     });
   }

@@ -286,8 +286,10 @@ export async function runBilling(env) {
       const stop = reason === 'token' || fails >= MAX_RENEW_FAILS;
       await env.DB.prepare(`UPDATE users SET renew_fails = ?${stop ? ', auto_renew = 0, chip_token = NULL' : ''} WHERE id = ?`).bind(fails, u.id).run();
       await notify(env, { kind: 'user', userId: u.id }, stop
-        ? { title: 'Auto-renew dihentikan', body: 'Kad anda tidak dapat dicaj. Sila langgan semula di menu Akaun untuk terus menonton video kelas.', url: '/' }
-        : { title: 'Bayaran automatik tidak berjaya', body: 'Kami akan cuba lagi esok. Pastikan kad anda aktif dan ada baki mencukupi.', url: '/' });
+        ? { ms: { title: 'Auto-renew dihentikan', body: 'Kad anda tidak dapat dicaj. Sila langgan semula di menu Akaun untuk terus menonton video kelas.' },
+            en: { title: 'Auto-renew stopped', body: 'Your card could not be charged. Please subscribe again in the Account menu to keep watching class videos.' }, url: '/' }
+        : { ms: { title: 'Bayaran automatik tidak berjaya', body: 'Kami akan cuba lagi esok. Pastikan kad anda aktif dan ada baki mencukupi.' },
+            en: { title: 'Automatic payment failed', body: "We'll try again tomorrow. Please make sure your card is active and has enough balance." }, url: '/' });
       notified = true;
     }
   }

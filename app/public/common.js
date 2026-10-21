@@ -9,34 +9,64 @@ const I = {
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>',
   sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 4.1L20 7l-.9 5 .9 5-5.1.9L12 22l-2.9-4.1L4 17l.9-5L4 7l5.1-.9z"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;vertical-align:-.12em"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/></svg>',
 };
 
 const pattern = id => `<svg class="pat" aria-hidden="true"><defs><pattern id="${id}" width="44" height="44" patternUnits="userSpaceOnUse"><g fill="none" stroke-width="1.1"><rect x="12" y="12" width="20" height="20"/><rect x="12" y="12" width="20" height="20" transform="rotate(45 22 22)"/><circle cx="22" cy="22" r="3.5"/><path d="M0 0l7.5 7.5M44 0l-7.5 7.5M0 44l7.5-7.5M44 44l-7.5-7.5"/></g></pattern></defs><rect width="100%" height="100%" fill="url(#${id})"/></svg>`;
 const orn = () => `<div class="orn" aria-hidden="true">${I.star}</div>`;
 
+// ---------- bahasa (BM / EN) ----------
+// Teks asal dalam BM menjadi kunci; terjemahan EN dalam /i18n-en.js (window.EN_DICT).
+// Panel admin sentiasa BM (admin.js tetapkan LANG = 'ms').
+let LANG = (() => { try { return localStorage.getItem('mo-lang') === 'en' ? 'en' : 'ms'; } catch { return 'ms'; } })();
+function t(s, vars) {
+  let out = LANG === 'en' && window.EN_DICT && window.EN_DICT[s] != null ? window.EN_DICT[s] : s;
+  if (vars) out = out.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m));
+  return out;
+}
+// Mesej ralat dari server (BM) → EN jika ada terjemahan
+function tErr(s) {
+  if (LANG !== 'en' || !s) return s;
+  if (window.EN_DICT && window.EN_DICT[s] != null) return window.EN_DICT[s];
+  for (const [re, fn] of (window.EN_PATTERNS || [])) { const m = s.match(re); if (m) return fn(m); }
+  return s;
+}
+function setLang(l) {
+  LANG = l === 'en' ? 'en' : 'ms';
+  try { localStorage.setItem('mo-lang', LANG); } catch {}
+  document.documentElement.lang = LANG;
+}
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const BLN = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
-const fmtDate = ms => { const d = new Date(ms); return d.getDate() + ' ' + BLN[d.getMonth()] + ' ' + d.getFullYear(); };
+const BLN_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthName = i => (LANG === 'en' ? BLN_EN : BLN)[i];
+const fmtDate = ms => { const d = new Date(ms); return d.getDate() + ' ' + monthName(d.getMonth()) + ' ' + d.getFullYear(); };
 const HARI = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
-// 9.00 malam, 10.30 pagi
+const HARI_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const dayName = i => (LANG === 'en' ? HARI_EN : HARI)[i];
+// BM: 9.00 malam, 10.30 pagi · EN: 9:00 pm
 const fmtTime = ms => { const d = new Date(ms), h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
+  if (LANG === 'en') return `${h % 12 || 12}:${m} ${h < 12 ? 'am' : 'pm'}`;
   const part = h < 12 ? 'pagi' : h < 14 ? 'tengah hari' : h < 19 ? 'petang' : 'malam';
   return `${h % 12 || 12}.${m} ${part}`; };
-const fmtClass = ms => `${HARI[new Date(ms).getDay()]}, ${fmtDate(ms)} · ${fmtTime(ms)}`;
+const fmtClass = ms => `${dayName(new Date(ms).getDay())}, ${fmtDate(ms)} · ${fmtTime(ms)}`;
 // "Lagi 3 hari", "Lagi 2 jam 15 minit", "Sedang berlangsung"
 function countdown(ms, nowMs = Date.now()) {
+  const en = LANG === 'en';
   const diff = ms - nowMs;
-  if (diff <= 0) return 'Sedang berlangsung';
+  if (diff <= 0) return en ? 'In progress' : 'Sedang berlangsung';
   const min = Math.ceil(diff / 6e4);
-  if (min < 60) return `Lagi ${min} minit`;
+  if (min < 60) return en ? `In ${min} min` : `Lagi ${min} minit`;
   const h = Math.floor(min / 60), m = min % 60;
-  if (h < 24) return `Lagi ${h} jam${m ? ' ' + m + ' minit' : ''}`;
+  if (h < 24) return en ? `In ${h} hr${m ? ' ' + m + ' min' : ''}` : `Lagi ${h} jam${m ? ' ' + m + ' minit' : ''}`;
   const sameDayTomorrow = new Date(nowMs); sameDayTomorrow.setDate(sameDayTomorrow.getDate() + 1);
-  if (new Date(ms).toDateString() === sameDayTomorrow.toDateString()) return 'Esok';
-  return `Lagi ${Math.ceil(diff / 864e5)} hari`;
+  if (new Date(ms).toDateString() === sameDayTomorrow.toDateString()) return en ? 'Tomorrow' : 'Esok';
+  const days = Math.ceil(diff / 864e5);
+  return en ? `In ${days} days` : `Lagi ${days} hari`;
 }
-const legalLinks = () => '<nav class="legal-links" aria-label="Polisi"><a href="/terma">Terma</a><a href="/privasi">Privasi</a><a href="/bayaran-balik">Bayaran Balik</a></nav>';
+const legalLinks = () => { const q = LANG === 'en' ? '?lang=en' : ''; return `<nav class="legal-links" aria-label="${t('Polisi')}"><a href="/terma${q}">${t('Terma')}</a><a href="/privasi${q}">${t('Privasi')}</a><a href="/bayaran-balik${q}">${t('Bayaran Balik')}</a></nav>`; };
 const rm = sen => 'RM' + (sen / 100).toLocaleString('en-MY', { minimumFractionDigits: sen % 100 ? 2 : 0, maximumFractionDigits: 2 });
 
 // ---------- tetapan paparan (disimpan dalam pelayar) ----------
@@ -52,7 +82,9 @@ function applyPrefs() {
   if (tc) tc.setAttribute('content', theme === 'dark' ? '#0a1615' : '#ffffff');
 }
 const isDark = () => Prefs.get('theme', 'light') === 'dark';
-const themeBtn = () => `<button class="iconbtn" data-a="theme" aria-label="${isDark() ? 'Tukar ke tema cerah' : 'Tukar ke tema gelap'}">${isDark() ? I.sun : I.moon}</button>`;
+const themeBtn = () => `<button class="iconbtn" data-a="theme" aria-label="${isDark() ? t('Tukar ke tema cerah') : t('Tukar ke tema gelap')}">${isDark() ? I.sun : I.moon}</button>`;
+// Butang tukar bahasa (tunjuk bahasa yang satu lagi)
+const langBtn = () => `<button class="iconbtn" data-a="lang" data-v="${LANG === 'en' ? 'ms' : 'en'}" lang="${LANG === 'en' ? 'ms' : 'en'}" aria-label="${LANG === 'en' ? 'Tukar ke Bahasa Melayu' : 'Switch to English'}">${LANG === 'en' ? 'BM' : 'EN'}</button>`;
 function toggleTheme() { Prefs.set('theme', isDark() ? 'light' : 'dark'); applyPrefs(); }
 
 // ---------- notis ringkas ----------
@@ -74,16 +106,16 @@ async function api(method, path, body) {
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
-    return { ok: false, status: 0, error: 'Tiada sambungan internet. Semak talian dan cuba lagi.' };
+    return { ok: false, status: 0, error: t('Tiada sambungan internet. Semak talian dan cuba lagi.') };
   }
   let data = {};
   try { data = await r.json(); } catch {}
-  return { ...data, ok: r.ok && data.ok !== false, status: r.status, error: data.error || (r.ok ? null : 'Ralat sistem. Sila cuba lagi.') };
+  return { ...data, ok: r.ok && data.ok !== false, status: r.status, error: data.error ? tErr(data.error) : (r.ok ? null : t('Ralat sistem. Sila cuba lagi.')), message: data.message ? tErr(data.message) : data.message };
 }
 
 // Butang sibuk semasa menunggu
 async function busy(btn, fn) {
-  if (btn) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.textContent = 'Sila tunggu...'; }
+  if (btn) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.textContent = t('Sila tunggu...'); }
   try { return await fn(); } finally { if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.label; } }
 }
 
@@ -94,8 +126,8 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (window.render) window.render(); });
 function installCard() {
   if (isStandalone()) return '';
-  if (installEvt) return `<button class="btn btn-ghost" data-a="install">${I.home} Pasang app di telefon</button>`;
-  if (isIOS()) return '<p class="note">Untuk pasang di iPhone: tekan butang Share di Safari, kemudian pilih <b>Add to Home Screen</b>.</p>';
+  if (installEvt) return `<button class="btn btn-ghost" data-a="install">${I.home} ${t('Pasang app di telefon')}</button>`;
+  if (isIOS()) return `<p class="note">${t('Untuk pasang di iPhone: tekan butang Share di Safari, kemudian pilih <b>Add to Home Screen</b>.')}</p>`;
   return '';
 }
 function doInstall() {
@@ -120,3 +152,4 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 applyPrefs();
+document.documentElement.lang = LANG;

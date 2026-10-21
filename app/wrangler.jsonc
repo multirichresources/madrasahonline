@@ -16,7 +16,7 @@
       "database_id": "854d1695-7144-46f6-a73f-a2c577d4feab"
     }
   ],
-  "triggers": { "crons": ["*/5 * * * *"] },
+  "triggers": { "crons": ["* * * * *"] },
   "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074" }
   // Rahsia (tetapkan dengan: npx wrangler secret put NAMA):
   //   SETUP_KEY       — kunci sekali guna untuk cipta admin pertama (min 16 aksara)

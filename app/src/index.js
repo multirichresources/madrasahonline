@@ -3,7 +3,7 @@ import { json, fail, HttpError, now } from './util.js';
 import {
   register, login, logout, me, changePin, deleteAccount,
   adminLogin, adminMe, createAdmin, adminResetPin, requireAdmin, publicUser,
-  setupStatus, adminChangePassword,
+  setupStatus, adminChangePassword, setLang,
 } from './auth.js';
 import { publicConfig, forgotPin, resetPin, updateEmail } from './reset.js';
 import {
@@ -18,6 +18,7 @@ import { legalPaths, renderLegal } from './legal.js';
 import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, processJobs, sendClassReminders } from './push.js';
 import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myPayments, runBilling, adminGetPlans, adminSavePlans, adminPayments } from './billing.js';
 import { adminInsights, adminExportUsers } from './insights.js';
+import { listZones, solatToday, saveSolatPrefs, sendAzan, cleanAzan } from './solat.js';
 import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, adminDonations, adminStopDonor, adminTajaBalance, adminSponsor, adminExportDonations } from './donations.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
 
@@ -36,6 +37,10 @@ const routes = [
   ['POST', /^\/api\/me\/pin$/, (env, req) => changePin(env, req)],
   ['POST', /^\/api\/me\/delete$/, (env, req) => deleteAccount(env, req)],
   ['POST', /^\/api\/me\/email$/, (env, req) => updateEmail(env, req)],
+  ['POST', /^\/api\/me\/lang$/, (env, req) => setLang(env, req)],
+  ['POST', /^\/api\/me\/solat$/, (env, req) => saveSolatPrefs(env, req)],
+  ['GET', /^\/api\/solat$/, (env, req) => solatToday(env, req)],
+  ['GET', /^\/api\/solat\/zones$/, () => listZones()],
   ['GET', /^\/api\/config$/, (env) => publicConfig(env)],
   ['POST', /^\/api\/pin\/forgot$/, (env, req) => forgotPin(env, req)],
   ['POST', /^\/api\/pin\/reset$/, (env, req) => resetPin(env, req)],
@@ -160,7 +165,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, '');
     if (legalPaths.includes(path) && request.method === 'GET') {
-      try { return await renderLegal(env, path); }
+      try { return await renderLegal(env, path, url.searchParams.get('lang') === 'en' ? 'en' : 'ms'); }
       catch (err) { console.error(err); return new Response('Ralat sistem. Sila cuba sebentar lagi.', { status: 500 }); }
     }
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
@@ -180,20 +185,25 @@ export default {
     }
   },
 
-  // Cron setiap 5 minit: peringatan kelas + hantar baki notifikasi.
+  // Cron setiap minit: notifikasi azan (perlu tepat pada waktu).
+  // Setiap 5 minit: peringatan kelas, bayaran, sumbangan bulanan.
   // Sekali sehari (3 pagi waktu Malaysia): buang sesi dan rekod lama.
   async scheduled(event, env, ctx) {
     const t = now();
-    try { await sendClassReminders(env); } catch (e) { console.error('peringatan', e); }
-    try { await runBilling(env); } catch (e) { console.error('bayaran', e); }
-    try { await processJobs(env); } catch (e) { console.error('push', e); }
     const d = new Date(event.scheduledTime || t);
-    if (d.getUTCHours() === 19 && d.getUTCMinutes() < 5) {
+    try { await sendAzan(env); } catch (e) { console.error('azan', e); }
+    if (d.getUTCMinutes() % 5 === 0) {
+      try { await sendClassReminders(env); } catch (e) { console.error('peringatan', e); }
+      try { await runBilling(env); } catch (e) { console.error('bayaran', e); }
+    }
+    try { await processJobs(env); } catch (e) { console.error('push', e); }
+    if (d.getUTCHours() === 19 && d.getUTCMinutes() === 0) {
       await env.DB.batch([
         env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(t),
         env.DB.prepare('DELETE FROM rate_limits WHERE window_ends < ?').bind(t),
         env.DB.prepare('DELETE FROM pin_resets WHERE expires_at < ?').bind(t),
         env.DB.prepare('DELETE FROM notifications WHERE created_at < ?').bind(t - 30 * 864e5),
+        cleanAzan(env, t),
       ]);
     }
   },

@@ -60,6 +60,9 @@ export function publicUser(u) {
     paidUntil: u.paid_until || null,
     active: !!(u.paid_until && u.paid_until > t),
     autoRenew: !!(u.auto_renew && u.chip_token),
+    lang: u.lang === 'en' ? 'en' : 'ms',
+    solatZone: u.solat_zone || 'WLY01',
+    azan: u.azan ? String(u.azan).split(',') : [],
   };
 }
 
@@ -279,4 +282,13 @@ export async function adminChangePassword(env, request) {
   const hash = await hashSecret(pw, salt, iterations(env));
   await env.DB.prepare('UPDATE admins SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(hash, salt, a.id).run();
   return json({ ok: true });
+}
+
+// Bahasa pilihan pelajar (untuk notifikasi telefon). Paparan app ikut tetapan pelayar.
+export async function setLang(env, request) {
+  const u = await requireUser(env, request);
+  const b = await readJson(request);
+  const lang = b.lang === 'en' ? 'en' : 'ms';
+  await env.DB.prepare('UPDATE users SET lang = ? WHERE id = ?').bind(lang, u.id).run();
+  return json({ ok: true, lang });
 }

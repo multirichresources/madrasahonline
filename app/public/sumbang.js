@@ -6,11 +6,11 @@ const D = {
 };
 const app = document.getElementById('app');
 
-const USE_LABEL = { taja: 'Taja Pelajar', umum: 'Sumbangan Am' };
+const USE_LABEL = () => ({ taja: t('Taja Pelajar'), umum: t('Sumbangan Am') });
 function presets() {
   const P = D.info ? D.info.monthPriceSen : 1000;
   return D.f.use === 'taja'
-    ? [[P, '1 bulan'], [P * 3, '3 bulan'], [P * 6, '6 bulan'], [P * 12, 'Setahun']]
+    ? [[P, t('{n} bulan', { n: 1 })], [P * 3, t('{n} bulan', { n: 3 })], [P * 6, t('{n} bulan', { n: 6 })], [P * 12, t('Setahun')]]
     : [[1000, ''], [2000, ''], [5000, ''], [10000, '']];
 }
 const amountSen = () => {
@@ -23,10 +23,10 @@ function tajaText(amt) {
   const P = D.info ? D.info.monthPriceSen : 1000;
   if (D.f.use !== 'taja' || amt < P) return '';
   const m = Math.floor(amt / P);
-  const span = m % 12 === 0 ? (m === 12 ? 'setahun' : m / 12 + ' tahun') : m + ' bulan';
-  return `${rm(amt)} menaja seorang pelajar selama ${span}${D.f.monthly ? ', setiap bulan' : ''}.`;
+  const span = m % 12 === 0 ? (m === 12 ? t('setahun') : t('{n} tahun', { n: m / 12 })) : t('{n} bulan', { n: m });
+  return t(D.f.monthly ? '{amt} menaja seorang pelajar selama {span}, setiap bulan.' : '{amt} menaja seorang pelajar selama {span}.', { amt: rm(amt), span });
 }
-const goLabel = amt => `Sumbang ${amt >= 500 ? rm(amt) : ''}${D.f.monthly ? ' sebulan' : ''}`;
+const goLabel = amt => t(D.f.monthly ? 'Sumbang {amt} sebulan' : 'Sumbang {amt}', { amt: amt >= 500 ? rm(amt) : '' }).replace(/\s+/g, ' ');
 // Kemas kini butang & nota tanpa melukis semula skrin (papan kekunci telefon tak tertutup)
 function amountUI() {
   const amt = amountSen();
@@ -36,14 +36,14 @@ function amountUI() {
 }
 
 function header() {
-  return `<div class="toolbar"><a href="/" aria-label="Madrasah Online" style="margin-right:auto"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"></a>${themeBtn()}</div>`;
+  return `<div class="toolbar"><a href="/" aria-label="Madrasah Online" style="margin-right:auto"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"></a>${langBtn()}${themeBtn()}</div>`;
 }
 
 function vForm() {
   const I0 = D.info;
   if (!I0.ready) return `${header()}
-    <div class="hero">${pattern('patD')}<p class="bism">بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p><h1>Sumbang untuk Madrasah Online</h1>${orn()}</div>
-    <div class="card empty">${I.star}<h2 style="font-size:1.15rem">Saluran sumbangan akan dibuka tidak lama lagi</h2><p class="muted">Insya-Allah. Terima kasih atas niat baik anda.</p></div>
+    <div class="hero">${pattern('patD')}<p class="bism">بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p><h1>${t('Sumbang untuk Madrasah Online')}</h1>${orn()}</div>
+    <div class="card empty">${I.star}<h2 style="font-size:1.15rem">${t('Saluran sumbangan akan dibuka tidak lama lagi')}</h2><p class="muted">${t('Insya-Allah. Terima kasih atas niat baik anda.')}</p></div>
     ${legalLinks()}`;
   const P = I0.monthPriceSen, f = D.f, pre = presets();
   if (!f.amount || !pre.some(p => p[0] === f.amount)) f.amount = pre[f.use === 'taja' ? 0 : 1][0];
@@ -51,90 +51,90 @@ function vForm() {
   return `${header()}
     <div class="hero">${pattern('patD')}
       <p class="bism">بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
-      <h1>Sumbang untuk Madrasah Online</h1>
-      <p class="muted">Bantu lebih ramai orang dewasa belajar membaca al-Quran.</p>
+      <h1>${t('Sumbang untuk Madrasah Online')}</h1>
+      <p class="muted">${t('Bantu lebih ramai orang dewasa belajar membaca al-Quran.')}</p>
       ${orn()}
     </div>
     ${I0.stats.tajaMonths || I0.stats.donors ? `<div class="card"><div class="donstats">
-      <div><b>${I0.stats.studentsSponsored}</b><span>pelajar telah ditaja</span></div>
-      <div><b>${I0.stats.donors}</b><span>penyumbang</span></div>
+      <div><b>${I0.stats.studentsSponsored}</b><span>${t('pelajar telah ditaja')}</span></div>
+      <div><b>${I0.stats.donors}</b><span>${t('penyumbang')}</span></div>
     </div></div>` : ''}
     <form id="fDonate" class="card" novalidate>
-      <span class="eyebrow">1. Tujuan</span>
-      <div class="vlist" role="radiogroup" aria-label="Tujuan">
-        <button type="button" class="opt ${f.use === 'taja' ? 'on' : ''}" role="radio" aria-checked="${f.use === 'taja'}" data-a="use" data-v="taja"><b>Taja pelajar</b><span>Bantu pelajar yang kurang mampu. ${rm(P)} menaja seorang pelajar selama sebulan.</span></button>
-        <button type="button" class="opt ${f.use === 'umum' ? 'on' : ''}" role="radio" aria-checked="${f.use === 'umum'}" data-a="use" data-v="umum"><b>Sumbangan am</b><span>Untuk kos kelas, rakaman video dan sistem Madrasah Online.</span></button>
+      <span class="eyebrow">${t('1. Tujuan')}</span>
+      <div class="vlist" role="radiogroup" aria-label="${t('Tujuan')}">
+        <button type="button" class="opt ${f.use === 'taja' ? 'on' : ''}" role="radio" aria-checked="${f.use === 'taja'}" data-a="use" data-v="taja"><b>${t('Taja pelajar')}</b><span>${t('Bantu pelajar yang kurang mampu. {amt} menaja seorang pelajar selama sebulan.', { amt: rm(P) })}</span></button>
+        <button type="button" class="opt ${f.use === 'umum' ? 'on' : ''}" role="radio" aria-checked="${f.use === 'umum'}" data-a="use" data-v="umum"><b>${t('Sumbangan am')}</b><span>${t('Untuk kos kelas, rakaman video dan sistem Madrasah Online.')}</span></button>
       </div>
-      <span class="eyebrow">2. Kekerapan</span>
-      <div class="kind-row" role="radiogroup" aria-label="Kekerapan">
-        <button type="button" class="opt ${f.monthly ? '' : 'on'}" role="radio" aria-checked="${!f.monthly}" data-a="freq" data-v="0"><b>Sekali</b><span>FPX, DuitNow QR, kad atau e-wallet</span></button>
-        <button type="button" class="opt ${f.monthly ? 'on' : ''}" role="radio" aria-checked="${f.monthly}" data-a="freq" data-v="1"><b>Setiap bulan</b><span>Kad sahaja. Boleh berhenti bila-bila masa</span></button>
+      <span class="eyebrow">${t('2. Kekerapan')}</span>
+      <div class="kind-row" role="radiogroup" aria-label="${t('Kekerapan')}">
+        <button type="button" class="opt ${f.monthly ? '' : 'on'}" role="radio" aria-checked="${!f.monthly}" data-a="freq" data-v="0"><b>${t('Sekali')}</b><span>${t('FPX, DuitNow QR, kad atau e-wallet')}</span></button>
+        <button type="button" class="opt ${f.monthly ? 'on' : ''}" role="radio" aria-checked="${f.monthly}" data-a="freq" data-v="1"><b>${t('Setiap bulan')}</b><span>${t('Kad sahaja. Boleh berhenti bila-bila masa')}</span></button>
       </div>
-      <span class="eyebrow">3. Jumlah</span>
+      <span class="eyebrow">${t('3. Jumlah')}</span>
       <div class="filter-row">${pre.map(([sen, lbl]) => `<button type="button" class="chip ${!val('dAmt') && f.amount === sen ? 'on' : ''}" data-a="amt" data-v="${sen}">${rm(sen)}${lbl ? ' · ' + lbl : ''}</button>`).join('')}</div>
-      <label class="f" for="dAmt">Atau jumlah lain (RM)<input class="input" id="dAmt" inputmode="decimal" placeholder="Contoh: 25"></label>
+      <label class="f" for="dAmt">${t('Atau jumlah lain (RM)')}<input class="input" id="dAmt" inputmode="decimal" placeholder="${t('Contoh: 25')}"></label>
       <p class="small"><b id="dNote">${esc(tajaText(amt))}</b></p>
-      <span class="eyebrow">4. Maklumat anda</span>
-      <label class="f" for="dName">Nama<input class="input" id="dName" autocomplete="name" maxlength="80"></label>
-      <label class="check" for="dAnon"><input type="checkbox" id="dAnon" ${f.anonymous ? 'checked' : ''}><span>Jangan paparkan nama saya<br><span class="muted small" style="font-weight:400">Dipaparkan sebagai "Hamba Allah".</span></span></label>
-      <label class="f" for="dEmail">Emel (untuk resit)<input class="input" id="dEmail" type="email" inputmode="email" autocomplete="email"></label>
-      <label class="f" for="dPhone">No. telefon <span class="muted small">(pilihan)</span><input class="input" id="dPhone" inputmode="tel" autocomplete="tel" placeholder="Contoh: 012-345 6789"></label>
-      <label class="f" for="dMsg">Mesej atau doa <span class="muted small">(pilihan)</span><textarea class="input" id="dMsg" rows="3" maxlength="300"></textarea></label>
+      <span class="eyebrow">${t('4. Maklumat anda')}</span>
+      <label class="f" for="dName">${t('Nama')}<input class="input" id="dName" autocomplete="name" maxlength="80"></label>
+      <label class="check" for="dAnon"><input type="checkbox" id="dAnon" ${f.anonymous ? 'checked' : ''}><span>${t('Jangan paparkan nama saya')}<br><span class="muted small" style="font-weight:400">${t('Dipaparkan sebagai "Hamba Allah".')}</span></span></label>
+      <label class="f" for="dEmail">${t('Emel (untuk resit)')}<input class="input" id="dEmail" type="email" inputmode="email" autocomplete="email"></label>
+      <label class="f" for="dPhone">${t('No. telefon')} <span class="muted small">${t('(pilihan)')}</span><input class="input" id="dPhone" inputmode="tel" autocomplete="tel" placeholder="${t('Contoh: 012-345 6789')}"></label>
+      <label class="f" for="dMsg">${t('Mesej atau doa')} <span class="muted small">${t('(pilihan)')}</span><textarea class="input" id="dMsg" rows="3" maxlength="300"></textarea></label>
       ${D.err ? `<div class="err" role="alert">${esc(D.err)}</div>` : ''}
       <button class="btn btn-primary" type="submit" id="dGo">${goLabel(amt)}</button>
-      <p class="note">Bayaran diproses dengan selamat oleh CHIP, gerbang pembayaran berdaftar dengan Bank Negara Malaysia. Rekod sumbangan diasingkan daripada yuran langganan. Sumbangan ini tidak layak untuk potongan cukai.</p>
+      <p class="note">${t('Bayaran diproses dengan selamat oleh CHIP, gerbang pembayaran berdaftar dengan Bank Negara Malaysia. Rekod sumbangan diasingkan daripada yuran langganan. Sumbangan ini tidak layak untuk potongan cukai.')}</p>
     </form>
-    ${I0.recent.length ? `<div class="card"><span class="eyebrow">Penyumbang terkini</span><div class="rows">${I0.recent.map(r => `<div class="row"><div><b>${esc(r.name)}</b><p class="muted small">${USE_LABEL[r.use] || ''}</p></div><span class="muted small">${fmtDate(r.at)}</span></div>`).join('')}</div>
-      <p class="muted small">Jazakumullahu khairan kepada semua penyumbang.</p></div>` : ''}
+    ${I0.recent.length ? `<div class="card"><span class="eyebrow">${t('Penyumbang terkini')}</span><div class="rows">${I0.recent.map(r => `<div class="row"><div><b>${esc(r.name === 'Hamba Allah' ? t('Hamba Allah') : r.name)}</b><p class="muted small">${USE_LABEL()[r.use] || ''}</p></div><span class="muted small">${fmtDate(r.at)}</span></div>`).join('')}</div>
+      <p class="muted small">${t('Jazakumullahu khairan kepada semua penyumbang.')}</p></div>` : ''}
     ${legalLinks()}`;
 }
 
 function vThanks() {
   const R = D.result;
-  if (!R || R.state === 'checking') return `${header()}<div class="card"><h1 style="font-size:1.4rem">Menyemak sumbangan...</h1><div class="loading">Sila tunggu sebentar</div></div>`;
-  if (R.state === 'failed') return `${header()}<div class="card"><h1 style="font-size:1.4rem">Sumbangan tidak berjaya</h1>
-    <p>Tiada caj dibuat. Sila cuba lagi, atau pilih cara bayaran lain.</p><button class="btn btn-primary" data-a="again">Cuba lagi</button></div>`;
+  if (!R || R.state === 'checking') return `${header()}<div class="card"><h1 style="font-size:1.4rem">${t('Menyemak sumbangan...')}</h1><div class="loading">${t('Sila tunggu sebentar')}</div></div>`;
+  if (R.state === 'failed') return `${header()}<div class="card"><h1 style="font-size:1.4rem">${t('Sumbangan tidak berjaya')}</h1>
+    <p>${t('Tiada caj dibuat. Sila cuba lagi, atau pilih cara bayaran lain.')}</p><button class="btn btn-primary" data-a="again">${t('Cuba lagi')}</button></div>`;
   const link = D.manageToken ? `${location.origin}/sumbang?urus=${D.manageToken}` : '';
   return `${header()}
     <div class="card thanks">${I.star}
-      <h1 style="font-size:1.6rem">${R.state === 'completed' ? 'Jazakallahu khairan' : 'Sumbangan sedang disahkan'}</h1>
+      <h1 style="font-size:1.6rem">${R.state === 'completed' ? 'Jazakallahu khairan' : t('Sumbangan sedang disahkan')}</h1>
       ${R.state === 'completed'
-        ? `<p>Sumbangan <b>${rm(R.amountSen)}</b>${R.monthly ? ' setiap bulan' : ''} untuk <b>${USE_LABEL[R.use]}</b> telah diterima. Semoga Allah membalas kebaikan anda.</p><p class="muted small">Resit telah dihantar ke emel anda.</p>`
-        : '<p>Bank masih memproses bayaran anda. Rekod akan dikemas kini secara automatik dalam beberapa minit.</p>'}
+        ? `<p>${t(R.monthly ? 'Sumbangan <b>{amt}</b> setiap bulan untuk <b>{use}</b> telah diterima. Semoga Allah membalas kebaikan anda.' : 'Sumbangan <b>{amt}</b> untuk <b>{use}</b> telah diterima. Semoga Allah membalas kebaikan anda.', { amt: rm(R.amountSen), use: USE_LABEL()[R.use] })}</p><p class="muted small">${t('Resit telah dihantar ke emel anda.')}</p>`
+        : `<p>${t('Bank masih memproses bayaran anda. Rekod akan dikemas kini secara automatik dalam beberapa minit.')}</p>`}
     </div>
     ${R.monthly && link ? `<div class="card">
-      <span class="eyebrow">Urus sumbangan bulanan</span>
-      <p class="small">Simpan pautan ini. Gunakannya jika anda mahu menghentikan sumbangan bulanan pada bila-bila masa.</p>
+      <span class="eyebrow">${t('Urus sumbangan bulanan')}</span>
+      <p class="small">${t('Simpan pautan ini. Gunakannya jika anda mahu menghentikan sumbangan bulanan pada bila-bila masa.')}</p>
       <input class="input" id="manageLink" value="${esc(link)}" readonly>
-      <button class="btn btn-ghost" data-a="copy">Salin pautan</button>
+      <button class="btn btn-ghost" data-a="copy">${t('Salin pautan')}</button>
     </div>` : ''}
-    <a class="btn btn-line" href="/sumbang">Kembali ke halaman sumbangan</a>
+    <a class="btn btn-line" href="/sumbang">${t('Kembali ke halaman sumbangan')}</a>
     ${legalLinks()}`;
 }
 
 function vManage() {
   const M = D.manage;
-  if (!M) return `${header()}<div class="loading">Memuatkan...</div>`;
-  if (M.error) return `${header()}<div class="card"><h1 style="font-size:1.4rem">Pautan tidak sah</h1><p>Pautan urus sumbangan ini tidak dijumpai. Sila hubungi admin Madrasah Online.</p></div>${legalLinks()}`;
+  if (!M) return `${header()}<div class="loading">${t('Memuatkan...')}</div>`;
+  if (M.error) return `${header()}<div class="card"><h1 style="font-size:1.4rem">${t('Pautan tidak sah')}</h1><p>${t('Pautan urus sumbangan ini tidak dijumpai. Sila hubungi admin Madrasah Online.')}</p></div>${legalLinks()}`;
   const d = M.donor;
   return `${header()}
     <div class="card">
-      <span class="eyebrow">Sumbangan bulanan anda</span>
-      <h1 style="font-size:1.4rem">${rm(d.amountSen)} sebulan</h1>
-      <p>${USE_LABEL[d.use]} · atas nama <b>${esc(d.name || 'Hamba Allah')}</b></p>
-      ${d.active ? `<p class="small">Caj seterusnya: <b>${d.nextChargeAt ? fmtDate(d.nextChargeAt) : '-'}</b></p>
-        ${D.confirmStop ? `<div class="confirm"><p><b>Hentikan sumbangan bulanan?</b> Kad anda tidak akan dicaj lagi.</p>
-          <button class="btn btn-primary" data-a="stopGo" style="background:var(--danger)">Ya, hentikan</button>
-          <button class="btn btn-ghost" data-a="stopCancel">Batal</button></div>`
-        : '<button class="btn btn-ghost" data-a="stop">Hentikan sumbangan bulanan</button>'}`
-      : `<div class="ok-box">Sumbangan bulanan ini sudah dihentikan${d.stoppedAt ? ' pada ' + fmtDate(d.stoppedAt) : ''}.</div>`}
+      <span class="eyebrow">${t('Sumbangan bulanan anda')}</span>
+      <h1 style="font-size:1.4rem">${t('{amt} sebulan', { amt: rm(d.amountSen) })}</h1>
+      <p>${USE_LABEL()[d.use]} · ${t('atas nama')} <b>${esc(!d.name || d.name === 'Hamba Allah' ? t('Hamba Allah') : d.name)}</b></p>
+      ${d.active ? `<p class="small">${t('Caj seterusnya:')} <b>${d.nextChargeAt ? fmtDate(d.nextChargeAt) : '-'}</b></p>
+        ${D.confirmStop ? `<div class="confirm"><p>${t('<b>Hentikan sumbangan bulanan?</b> Kad anda tidak akan dicaj lagi.')}</p>
+          <button class="btn btn-primary" data-a="stopGo" style="background:var(--danger)">${t('Ya, hentikan')}</button>
+          <button class="btn btn-ghost" data-a="stopCancel">${t('Batal')}</button></div>`
+        : `<button class="btn btn-ghost" data-a="stop">${t('Hentikan sumbangan bulanan')}</button>`}`
+      : `<div class="ok-box">${d.stoppedAt ? t('Sumbangan bulanan ini sudah dihentikan pada {d}.', { d: fmtDate(d.stoppedAt) }) : t('Sumbangan bulanan ini sudah dihentikan.')}</div>`}
     </div>
-    <p class="muted small" style="text-align:center">Jazakallahu khairan atas sumbangan anda selama ini.</p>
+    <p class="muted small" style="text-align:center">${t('Jazakallahu khairan atas sumbangan anda selama ini.')}</p>
     ${legalLinks()}`;
 }
 
 function render() {
-  const body = D.view === 'loading' ? `${header()}<div class="loading">Memuatkan...</div>`
+  const body = D.view === 'loading' ? `${header()}<div class="loading">${t('Memuatkan...')}</div>`
     : D.view === 'thanks' ? vThanks() : D.view === 'manage' ? vManage() : vForm();
   app.innerHTML = `<div class="shell" style="padding-bottom:48px">${body}</div>`;
   restoreInputs();
@@ -166,13 +166,14 @@ document.addEventListener('click', async e => {
   const a = el.dataset.a, v = el.dataset.v;
   switch (a) {
     case 'theme': toggleTheme(); break;
+    case 'lang': setLang(v); break;
     case 'use': D.f.use = v; D.f.amount = null; forget('dAmt'); D.err = ''; break;
     case 'freq': D.f.monthly = v === '1'; D.err = ''; break;
     case 'amt': D.f.amount = Number(v); forget('dAmt'); { const x = document.getElementById('dAmt'); if (x) x.value = ''; } break;
     case 'again': history.replaceState(null, '', '/sumbang'); D.view = 'form'; D.err = ''; break;
     case 'copy': {
       const inp = document.getElementById('manageLink');
-      try { await navigator.clipboard.writeText(inp.value); toast('Pautan disalin.'); } catch { inp.select(); toast('Tekan lama dan pilih Copy.'); }
+      try { await navigator.clipboard.writeText(inp.value); toast(t('Pautan disalin.')); } catch { inp.select(); toast(t('Tekan lama dan pilih Copy.')); }
       return;
     }
     case 'stop': D.confirmStop = true; break;
@@ -181,7 +182,7 @@ document.addEventListener('click', async e => {
       const r = await busy(el, () => api('POST', '/api/donate/stop', { token: D.manageToken }));
       if (!r.ok) { toast(r.error); return; }
       D.confirmStop = false; D.manage.donor.active = false; D.manage.donor.stoppedAt = Date.now();
-      toast('Sumbangan bulanan dihentikan.');
+      toast(t('Sumbangan bulanan dihentikan.'));
       break;
     }
     default: return;
@@ -207,7 +208,7 @@ document.addEventListener('submit', async e => {
   };
   const r = await busy(btn, () => api('POST', '/api/donate/checkout', body));
   if (!r.ok) { D.err = r.error; render(); return; }
-  btn.disabled = true; btn.textContent = 'Membuka halaman bayaran...';
+  btn.disabled = true; btn.textContent = t('Membuka halaman bayaran...');
   location.href = r.checkoutUrl;
 });
 
@@ -223,5 +224,5 @@ document.addEventListener('submit', async e => {
   const r = await api('GET', '/api/donate/info');
   D.info = r.ok ? r : { ready: false, stats: {}, recent: [], monthPriceSen: 1000 };
   D.view = 'form'; render();
-  if (status === 'batal') toast('Sumbangan dibatalkan. Tiada caj dibuat.');
+  if (status === 'batal') toast(t('Sumbangan dibatalkan. Tiada caj dibuat.'));
 })();

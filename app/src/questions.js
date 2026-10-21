@@ -97,9 +97,10 @@ export async function adminAnswer(env, request, id, ctx) {
   await env.DB.prepare('UPDATE questions SET answer = ?, answered_by = ?, answered_at = COALESCE(answered_at, ?) WHERE id = ?').bind(answer, a.id, now(), id).run();
   // Beritahu pelajar bila soalannya dijawab buat kali pertama
   if (!before.answer && before.user_id) {
+    const snippet = before.body.length > 90 ? before.body.slice(0, 90) + '…' : before.body;
     const n = await notify(env, { kind: 'user', userId: before.user_id }, {
-      title: 'Ustaz sudah menjawab soalan anda',
-      body: before.body.length > 90 ? before.body.slice(0, 90) + '…' : before.body,
+      ms: { title: 'Ustaz sudah menjawab soalan anda', body: snippet },
+      en: { title: 'The ustaz has answered your question', body: snippet },
       url: '/?k=soaljawab',
     });
     if (n && ctx) ctx.waitUntil(processJobs(env, 10));

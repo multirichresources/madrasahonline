@@ -1,4 +1,6 @@
-// Panel admin Madrasah Online.
+// Panel admin Madrasah Online (sentiasa dalam BM).
+LANG = 'ms';
+document.documentElement.lang = 'ms';
 const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null, plans: null, billingReady: false, insights: null, payments: null, don: null, taja: null };
 const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true, notify: true });
 A.annForm = blankAnn();

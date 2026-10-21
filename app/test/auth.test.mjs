@@ -207,6 +207,9 @@ const pings = [];
 const mock = http.createServer((req, res) => { let b = ''; req.on('data', d => b += d); req.on('end', () => { pings.push({ path: req.url, headers: req.headers, body: b }); res.writeHead(201); res.end(); }); });
 await new Promise(ok => mock.listen(8799, '127.0.0.1', ok));
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
+// Cron tempatan. at5=true: minit gandaan 5 (peringatan kelas & bayaran berjalan); false: azan sahaja
+const d1 = sql => execSync(`npx wrangler d1 execute madrasah-db --local --command "${sql}"`, { stdio: 'ignore', cwd: process.cwd() });
+const cron = (at5 = true) => fetch(BASE + `/cdn-cgi/handler/scheduled?cron=*+*+*+*+*&time=${Math.floor(Date.now() / 300000) * 300000 + (at5 ? 0 : 60000)}`);
 const waitPing = async (path, n = 1) => { for (let i = 0; i < 40 && pings.filter(p => p.path === path).length < n; i++) await sleep(100); return pings.filter(p => p.path === path); };
 
 r = await e.req('GET', '/api/push/key');
@@ -284,18 +287,105 @@ r = await ad.req('POST', '/api/admin/announcements', { title: 'Kelas Esok', body
 check('Hebahan tanpa notifikasi', r.status === 201 && r.data.notified === 0, r.data);
 await sleep(300);
 let pingCount = pings.length;
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*');
+await cron();
 await sleep(800);
 r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
 const titles = r.data.items.map(i => i.title);
 check('Cron: peringatan 30 minit & sehari sebelum', titles.includes('Kelas bermula sekejap lagi') && titles.some(t => t === 'Peringatan kelas: Kelas Esok') && titles.some(t => t.startsWith('Kelas Zoom: Kelas Malam Ini')), titles);
 check('Cron: ping dihantar', pings.length > pingCount, pings.length - pingCount);
 lastSeen = Math.max(...r.data.items.map(i => i.id));
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*');
+await cron();
 await sleep(500);
 r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
 check('Cron: peringatan tidak berulang', r.data.items.length === 0, r.data);
 await ad.req('POST', `/api/admin/announcements/${soonId}/delete`, {});
+// ---- waktu solat (JAKIM tiruan) & notifikasi azan & bahasa ----
+let jakimFail = new Set(), jakimCalls = [];
+const MONTHS3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const jakim = http.createServer((req, res) => {
+  let b = ''; req.on('data', d => b += d); req.on('end', () => {
+    const u = new URL(req.url, 'http://x');
+    jakimCalls.push({ path: u.pathname, zone: u.searchParams.get('zone'), body: b });
+    const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
+    if (u.pathname === '/index.php') {
+      const zone = u.searchParams.get('zone');
+      if (jakimFail.has(zone)) return send(500, { status: 'ERROR' });
+      const p = new URLSearchParams(b), start = new Date(p.get('datestart') + 'T00:00:00Z'), end = new Date(p.get('dateend') + 'T00:00:00Z');
+      const prayerTime = [];
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        prayerTime.push({ hijri: '1448-04-29', date: `${String(d.getUTCDate()).padStart(2, '0')}-${MONTHS3[d.getUTCMonth()]}-${d.getUTCFullYear()}`, day: 'Wednesday',
+          imsak: '05:37:00', fajr: '05:47:00', syuruk: '06:56:00', dhuhr: '13:03:00', asr: '16:12:00', maghrib: '19:07:00', isha: '20:16:00' });
+      }
+      return send(200, { prayerTime, status: 'OK!', zone, periodType: 'duration' });
+    }
+    if (u.pathname.startsWith('/alt/v2/solat/')) {
+      const y = Number(u.searchParams.get('year')), m = Number(u.searchParams.get('month'));
+      const days = new Date(Date.UTC(y, m, 0)).getUTCDate(), prayers = [];
+      for (let d = 1; d <= days; d++) {
+        const base = Date.UTC(y, m - 1, d) / 1000 - 8 * 3600; // tengah malam waktu Malaysia
+        prayers.push({ day: d, hijri: '1448-04-29', fajr: base + 5 * 3600 + 50 * 60, syuruk: base + 7 * 3600, dhuhr: base + 13 * 3600 + 5 * 60, asr: base + 16 * 3600 + 15 * 60, maghrib: base + 19 * 3600 + 10 * 60, isha: base + 20 * 3600 + 20 * 60 });
+      }
+      return send(200, { zone: u.pathname.split('/').pop(), year: y, month_number: m, prayers });
+    }
+    send(404, {});
+  });
+});
+await new Promise(ok => jakim.listen(8796, '127.0.0.1', ok));
+const myToday = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+const myAt = hms => Date.parse(`${myToday}T${hms}+08:00`);
+
+r = await e.req('GET', '/api/solat/zones');
+check('Senarai zon JAKIM', r.status === 200 && r.data.zones.length > 55 && r.data.zones.some(z => z.code === 'WLY01' && z.area.includes('Kuala Lumpur')), r.data.zones && r.data.zones.length);
+r = await e.req('GET', '/api/solat');
+check('Waktu solat hari ini (zon lalai WLY01, dari JAKIM)', r.status === 200 && r.data.zone.code === 'WLY01' && r.data.today.date === myToday && r.data.today.fajr === myAt('05:47:00') && r.data.today.isha === myAt('20:16:00') && r.data.today.source === 'jakim' && r.data.tomorrow, r.data);
+const callsBefore = jakimCalls.length;
+r = await e.req('GET', '/api/solat');
+check('Waktu solat disimpan (tiada panggilan JAKIM kedua)', jakimCalls.length === callsBefore, jakimCalls.length - callsBefore);
+jakimFail.add('SGR01');
+r = await e.req('GET', '/api/solat?zone=SGR01');
+check('JAKIM gagal → sandaran waktusolat.app', r.status === 200 && r.data.today.source === 'waktusolat' && r.data.today.dhuhr === myAt('13:05:00'), r.data);
+jakimFail.add('JHR02');
+r = await e.req('POST', '/api/me/solat', { zone: 'XXX99', azan: ['fajr'] });
+check('Zon tidak sah ditolak', r.status === 400, r.data);
+r = await e.req('POST', '/api/me/solat', { zone: 'WLY01', azan: ['dhuhr', 'asr', 'bukan'] });
+check('Simpan zon & waktu notifikasi', r.status === 200 && r.data.azan.join() === 'dhuhr,asr', r.data);
+r = await e.req('GET', '/api/me');
+check('Profil: zon & azan', r.data.user.solatZone === 'WLY01' && r.data.user.azan.join() === 'dhuhr,asr' && r.data.user.lang === 'ms', r.data.user);
+
+// azan: tetapkan Zohor hari ini = 1 minit lalu
+d1(`UPDATE prayer_times SET dhuhr = ${Date.now() - 60e3} WHERE zone = 'WLY01' AND date = '${myToday}'`);
+let pBefore = pings.length;
+await cron(false); await sleep(800);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+const azanItem = r.data.items.find(i => i.title === 'Waktu Zohor');
+check('Notifikasi azan masuk waktu Zohor (BM)', !!azanItem && azanItem.body.includes('Kuala Lumpur') && pings.length > pBefore, r.data.items);
+lastSeen = Math.max(lastSeen, ...r.data.items.map(i => i.id));
+await cron(false); await sleep(500);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+check('Azan tidak dihantar dua kali', r.data.items.length === 0, r.data.items);
+d1(`UPDATE prayer_times SET maghrib = ${Date.now() - 60e3} WHERE zone = 'WLY01' AND date = '${myToday}'`);
+await cron(false); await sleep(500);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+check('Waktu yang tidak dipilih (Maghrib) tidak dihantar', r.data.items.length === 0, r.data.items);
+
+r = await e.req('POST', '/api/me/lang', { lang: 'en' });
+check('Tukar bahasa ke English', r.status === 200 && r.data.lang === 'en', r.data);
+d1(`UPDATE prayer_times SET asr = ${Date.now() - 60e3} WHERE zone = 'WLY01' AND date = '${myToday}'`);
+await cron(false); await sleep(800);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+check('Notifikasi azan dalam English', r.data.items.some(i => i.title === 'Asr prayer time' && i.body.includes('Kuala Lumpur')), r.data.items);
+lastSeen = Math.max(lastSeen, ...r.data.items.map(i => i.id));
+r = await e.req('POST', '/api/push/test', {});
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+check('Notifikasi sistem ikut bahasa pelajar (EN)', r.data.items.some(i => i.title === 'Reminders are on'), r.data.items);
+lastSeen = Math.max(lastSeen, ...r.data.items.map(i => i.id));
+await e.req('POST', '/api/me/lang', { lang: 'ms' });
+html = await (await fetch(BASE + '/terma?lang=en')).text();
+check('Halaman polisi English', html.includes('Terms of Use') && html.includes('lang="en"') && html.includes('Bahasa Melayu version applies'));
+html = await (await fetch(BASE + '/privasi')).text();
+check('Halaman polisi kekal BM secara lalai', html.includes('Polisi Privasi') && html.includes('>English<'));
+jakim.close();
+
 r = await e.req('POST', '/api/push/unsubscribe', { endpoint: 'http://127.0.0.1:8799/push/e1' });
 r = await e.req('POST', '/api/push/test', {});
 check('Selepas matikan, tiada notifikasi', r.status === 400, r.data);
@@ -338,7 +428,6 @@ const lastPurchase = () => [...chipStore.values()].pop();
 const addM = (ms, n) => { const d = new Date(ms); d.setUTCMonth(d.getUTCMonth() + n); return d.getTime(); };
 const plain0 = async (method, path, body) => { const res = await fetch(BASE + path, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }); let data = null; try { data = await res.json(); } catch {} return { status: res.status, data }; };
 const callback = id => fetch(BASE + '/api/pay/callback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, status: 'paid' }) });
-const d1 = sql => execSync(`npx wrangler d1 execute madrasah-db --local --command "${sql}"`, { stdio: 'ignore', cwd: process.cwd() });
 
 r = await e.req('GET', '/api/plans');
 check('Pakej: CHIP sedia, hanya Bulanan dibuka (lalai)', r.data.billingReady === true && r.data.plans.length === 1 && r.data.plans[0].priceSen === 1000, r.data);
@@ -389,23 +478,23 @@ check('Pakej tertutup ditolak', r.status === 400, r.data);
 // auto-renew oleh cron
 d1(`UPDATE users SET paid_until = ${Date.now() + 12 * 3600e3}, renew_attempt_at = NULL WHERE id = ${rid}`);
 const before12 = (await e.req('GET', '/api/me')).data.user.paidUntil;
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+await cron(); await sleep(800);
 r = await e.req('GET', '/api/me');
 check('Cron auto-renew: kad dicaj, +1 bulan', Math.abs(r.data.user.paidUntil - addM(before12, 1)) < 60e3 && r.data.user.autoRenew === true, { got: r.data.user.paidUntil, want: addM(before12, 1) });
 check('Caj guna token kad yang betul', chipCalls.some(c => c.url.endsWith('/charge/') && c.body.recurring_token === tokenId), chipCalls.filter(c => c.url.endsWith('/charge/')).map(c => c.body));
 r = await e.req('GET', '/api/pay/history');
 check('Sejarah bayaran: 2 berjaya + 1 semak', r.data.payments.filter(p => p.status === 'completed').length === 2 && r.data.payments.some(p => p.status === 'semak'), r.data);
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(500);
+await cron(); await sleep(500);
 r = await e.req('GET', '/api/pay/history');
 check('Cron tidak caj berganda', r.data.payments.filter(p => p.status === 'completed').length === 2, r.data);
 failCharge = 'purchase_charge_error';
 d1(`UPDATE users SET paid_until = ${Date.now() + 6 * 3600e3}, renew_attempt_at = NULL WHERE id = ${rid}`);
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+await cron(); await sleep(800);
 r = await e.req('GET', '/api/me');
 check('Kad gagal sekali: auto-renew kekal (cuba esok)', r.data.user.autoRenew === true && r.data.user.paidUntil < Date.now() + 7 * 3600e3, r.data.user);
 failCharge = 'invalid_recurring_token';
 d1(`UPDATE users SET renew_attempt_at = NULL WHERE id = ${rid}`);
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+await cron(); await sleep(800);
 r = await e.req('GET', '/api/me');
 check('Token kad tidak sah: auto-renew dihentikan', r.data.user.autoRenew === false, r.data.user);
 failCharge = null;
@@ -482,7 +571,7 @@ r = await plain0('GET', '/api/donate/info');
 check('Info awam: 1 pelajar ditaja', r.data.stats.studentsSponsored === 1, r.data.stats);
 
 d1(`UPDATE donors SET next_charge_at = ${Date.now() - 1000}`);
-await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+await cron(); await sleep(800);
 r = await ad.req('GET', '/api/admin/donations');
 check('Cron: sumbangan bulanan dicaj guna token', r.data.summary.umumSen === 4000 && chipCalls.some(c => c.url.endsWith('/charge/') && c.body.recurring_token === donorToken) && r.data.donors[0].nextChargeAt > Date.now() + 20 * 864e5, r.data.summary);
 r = await plain0('POST', '/api/donate/stop', { token: urus });

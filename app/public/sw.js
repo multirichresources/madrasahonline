@@ -1,8 +1,8 @@
 // Service worker: simpan fail app untuk buka pantas, dan papar notifikasi peringatan.
 // API tidak pernah disimpan.
-const CACHE = 'madrasah-app-v10';
+const CACHE = 'madrasah-app-v11';
 const STATE = 'mo-push-state'; // id notifikasi terakhir yang dipaparkan di peranti ini
-const SHELL = ['/', '/admin', '/app.css', '/common.js', '/pelajar.js', '/admin.js', '/tus.min.js', '/sumbang', '/sumbang.js', '/logo.png', '/icon-192.png'];
+const SHELL = ['/', '/admin', '/app.css', '/common.js', '/pelajar.js', '/admin.js', '/tus.min.js', '/i18n-en.js', '/sumbang', '/sumbang.js', '/logo.png', '/icon-192.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== STATE).map(k => caches.delete(k)))).then(() => self.clients.claim()));

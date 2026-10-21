@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS users (
   chip_token    TEXT,                             -- id Purchase CHIP yang menyimpan token kad
   renew_fails   INTEGER NOT NULL DEFAULT 0,
   renew_attempt_at INTEGER,
+  lang          TEXT,                             -- 'ms' | 'en' (bahasa notifikasi)
+  solat_zone    TEXT,                             -- zon JAKIM, cth. WLY01
+  azan          TEXT,                             -- waktu yang mahu dinotifikasi, cth. 'fajr,dhuhr,asr,maghrib,isha'
   created_at    INTEGER NOT NULL
 );
 
@@ -191,4 +194,30 @@ CREATE TABLE IF NOT EXISTS sponsorships (
   admin_id    INTEGER,
   note        TEXT,
   created_at  INTEGER NOT NULL
+);
+
+-- Waktu solat JAKIM (disimpan sebulan setiap kali ambil). Masa dalam epoch ms.
+CREATE TABLE IF NOT EXISTS prayer_times (
+  zone        TEXT    NOT NULL,
+  date        TEXT    NOT NULL,                   -- YYYY-MM-DD (waktu Malaysia)
+  hijri       TEXT,
+  imsak       INTEGER,
+  fajr        INTEGER NOT NULL,
+  syuruk      INTEGER,
+  dhuhr       INTEGER NOT NULL,
+  asr         INTEGER NOT NULL,
+  maghrib     INTEGER NOT NULL,
+  isha        INTEGER NOT NULL,
+  source      TEXT,                               -- 'jakim' | 'waktusolat'
+  fetched_at  INTEGER NOT NULL,
+  PRIMARY KEY (zone, date)
+);
+
+-- Elak notifikasi azan berganda
+CREATE TABLE IF NOT EXISTS azan_sent (
+  zone     TEXT NOT NULL,
+  date     TEXT NOT NULL,
+  prayer   TEXT NOT NULL,
+  sent_at  INTEGER NOT NULL,
+  PRIMARY KEY (zone, date, prayer)
 );

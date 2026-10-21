@@ -130,7 +130,8 @@ export async function adminCreateAnnouncement(env, request, ctx) {
   let notified = 0;
   if (b.notify !== false) {
     notified = await notify(env, { kind: a.membersOnly ? 'active' : 'all' }, a.classAt
-      ? { title: `Kelas Zoom: ${a.title}`, body: `${classWhen(a.classAt)}. Butang Masuk Kelas dibuka 30 minit sebelum kelas.`, url: '/' }
+      ? { ms: { title: `Kelas Zoom: ${a.title}`, body: `${classWhen(a.classAt)}. Butang Masuk Kelas dibuka 30 minit sebelum kelas.` },
+          en: { title: `Zoom class: ${a.title}`, body: `${classWhen(a.classAt, 'en')}. The Join Class button opens 30 minutes before class.` }, url: '/' }
       : { title: a.title, body: a.body.replace(/\s+/g, ' ').slice(0, 140), url: '/?k=pengumuman' });
     if (notified && ctx) ctx.waitUntil(processJobs(env));
   }
