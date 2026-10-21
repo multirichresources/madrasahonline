@@ -1,6 +1,6 @@
 // App pelajar Madrasah Online.
 // No. WhatsApp admin & maklumat hubungan datang dari Tetapan admin (/api/config).
-const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false, org: {} }, reset: { step: 1, phone: '', msg: '' }, videos: null, continueId: null, filter: 'Semua', playing: null, ann: null };
+const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false, org: {} }, reset: { step: 1, phone: '', msg: '' }, videos: null, continueId: null, filter: 'Semua', playing: null, ann: null, kTab: 'pengumuman', qa: null, vqa: null, askVideo: null, push: { state: 'unknown' } };
 const app = document.getElementById('app');
 
 // ---------- skrin luar (belum log masuk) ----------
@@ -134,6 +134,7 @@ function tUtama() {
     ${(() => { const c = S.videos && S.continueId && S.videos.find(v => v.id === S.continueId); return c && S.user.active ? `<div class="card"><span class="eyebrow">Sambung tonton</span><div class="vlist">${vItem(c)}</div></div>` : ''; })()}
     ${S.videos && S.videos.length && !S.continueId ? `<div class="card"><span class="eyebrow">Video kelas</span><p>${S.videos.length} rakaman kelas sedia ditonton.</p><button class="btn btn-ghost" data-a="tab" data-v="video">Lihat video</button></div>` : ''}
     ${classCard()}
+    ${S.ann && S.ann.nextClass ? pushCard(true) : ''}
     ${latestAnnCard()}
     ${installCard()}`;
 }
@@ -251,20 +252,114 @@ function vPlayer() {
       <p class="muted small">${esc(v.topic)} · ${v.minutes} minit${v.classMonth ? ' · Kelas ' + monthLabel(v.classMonth) : ''}</p>
       <p class="small">Nak ikut bacaan perlahan-lahan? Tekan ikon <b>tetapan</b> dalam video, kemudian pilih kelajuan <b>0.75</b>.</p>
       ${P.resumeAt > 30 ? `<p class="muted small">Video disambung dari tempat terakhir anda tonton.</p>` : ''}
-    </div>`;
+    </div>
+    ${askCard(v.id)}
+    ${S.vqa && S.vqa.length ? `<div class="qa">${S.vqa.map(q => qItem(q, false)).join('')}</div>` : ''}`;
+}
+
+// ---------- soal jawab ----------
+function qItem(q, showVideo = true) {
+  return `<article class="q">
+    <div class="who"><b>Soalan ${esc(q.mine ? 'anda' : q.asker)}</b><span>${fmtDate(q.createdAt)}</span></div>
+    ${showVideo && q.videoTitle ? `<span class="muted small">Tentang video: <b>${esc(q.videoTitle)}</b></span>` : ''}
+    <p class="ann">${esc(q.body)}</p>
+    ${q.answer ? `<div class="ans"><b>Jawapan ${esc(q.answeredBy)}</b><p class="ann">${esc(q.answer)}</p></div>`
+      : `<div class="top"><span class="pill warn">Menunggu jawapan ustaz</span><button class="link" data-a="qDelete" data-v="${q.id}" style="color:var(--danger)">Tarik balik</button></div>`}
+  </article>`;
+}
+
+function askCard(videoId) {
+  return `<div class="card">
+    <span class="eyebrow">${videoId ? 'Soalan tentang video ini' : 'Tanya ustaz'}</span>
+    <p class="small">${videoId ? 'Ada bahagian yang kurang faham dalam video ini?' : 'Ada soalan tentang bacaan, tajwid atau makhraj?'} Tanya ustaz. Jawapan akan dipaparkan di sini.</p>
+    <button class="btn btn-primary" data-a="ask" data-v="${videoId || ''}">Tanya ustaz</button>
+  </div>`;
+}
+
+function tSoalJawab() {
+  const list = S.qa;
+  return `${askCard(null)}
+    ${!list ? '<div class="loading">Memuatkan soal jawab...</div>'
+      : list.length ? `<div class="qa">${list.map(q => qItem(q)).join('')}</div>`
+      : `<div class="card empty">${I.users}<h2 style="font-size:1.15rem">Belum ada soal jawab</h2><p class="muted">Jadilah yang pertama bertanya. Soalan dan jawapan ustaz akan dipaparkan di sini untuk manfaat semua.</p></div>`}`;
+}
+
+async function loadQa() {
+  const r = await api('GET', '/api/questions');
+  if (r.ok) { S.qa = r.questions; if (S.view === 'app' && S.tab === 'komuniti') render(); }
+}
+async function loadVqa(videoId) {
+  const r = await api('GET', `/api/questions?video=${videoId}`);
+  if (r.ok && S.playing && S.playing.video.id === videoId) { S.vqa = r.questions; render(); }
+}
+
+// ---------- peringatan (notifikasi telefon) ----------
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function b64ToBytes(s) {
+  const b = atob((s + '==='.slice((s.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+async function setPushLast(id) {
+  try { await (await caches.open('mo-push-state')).put('/__push-state', new Response(JSON.stringify({ lastId: id || 0, last: null }), { headers: { 'content-type': 'application/json' } })); } catch {}
+}
+async function currentSub() {
+  try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); } catch { return null; }
+}
+async function checkPush() {
+  if (!pushSupported()) { S.push.state = isIOS() && !isStandalone() ? 'ios-install' : 'unsupported'; return; }
+  if (Notification.permission === 'denied') { S.push.state = 'denied'; return; }
+  const sub = Notification.permission === 'granted' ? await currentSub() : null;
+  S.push.state = sub ? 'on' : 'off';
+  if (sub) api('POST', '/api/push/subscribe', { endpoint: sub.endpoint }); // pastikan peranti dipaut ke akaun yang sedang log masuk
+}
+async function enablePush(btn) {
+  let perm;
+  try { perm = await Notification.requestPermission(); } catch { perm = 'default'; }
+  if (perm !== 'granted') { S.push.state = perm === 'denied' ? 'denied' : 'off'; render(); return; }
+  const r = await busy(btn, async () => {
+    const k = await api('GET', '/api/push/key');
+    if (!k.ok) return k;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(k.publicKey) });
+      const res = await api('POST', '/api/push/subscribe', { endpoint: sub.endpoint });
+      if (res.ok) await setPushLast(res.latestId);
+      return res;
+    } catch (e) { return { ok: false, error: 'Telefon ini tidak dapat menghidupkan notifikasi. Cuba buka app dari skrin utama telefon.' }; }
+  });
+  if (!r.ok) { toast(r.error); return; }
+  S.push.state = 'on'; render();
+  toast('Peringatan dihidupkan. Notifikasi ujian sedang dihantar.');
+  api('POST', '/api/push/test');
+}
+async function disablePush() {
+  const sub = await currentSub();
+  if (sub) { api('POST', '/api/push/unsubscribe', { endpoint: sub.endpoint }); try { await sub.unsubscribe(); } catch {} }
+  S.push.state = 'off';
+}
+
+function pushCard(compact) {
+  const st = S.push.state;
+  if (st === 'unknown' || (compact && st !== 'off' && st !== 'ios-install')) return '';
+  const head = '<span class="eyebrow">Peringatan kelas</span>';
+  if (st === 'on') return `<div class="card">${head}<p><b>Aktif di telefon ini.</b> Anda akan dapat notifikasi sehari sebelum kelas, 30 minit sebelum kelas, dan bila ustaz jawab soalan anda.</p>
+    <div class="btn-row"><button class="btn btn-ghost" data-a="pushTest">Hantar ujian</button><button class="btn btn-ghost" data-a="pushOff">Matikan</button></div></div>`;
+  if (st === 'off') return `<div class="card">${head}<p>Dapatkan notifikasi di telefon sebelum kelas Zoom bermula, supaya tak terlepas.</p>
+    <button class="btn btn-primary" data-a="pushOn">Hidupkan peringatan</button></div>`;
+  if (st === 'ios-install') return `<div class="card">${head}<p class="small">Untuk dapat peringatan di iPhone, pasang app dulu: tekan butang <b>Share</b> di Safari, pilih <b>Add to Home Screen</b>, kemudian buka app dari skrin utama.</p></div>`;
+  if (st === 'denied') return `<div class="card">${head}<p class="small">Notifikasi disekat untuk app ini. Buka <b>Tetapan</b> telefon atau pelayar, cari Madrasah Online, dan benarkan notifikasi.</p></div>`;
+  return `<div class="card">${head}<p class="small muted">Telefon atau pelayar ini belum menyokong notifikasi. Cuba buka app ini menggunakan Google Chrome.</p></div>`;
 }
 
 function tKomuniti() {
   const list = S.ann ? S.ann.announcements : null;
+  const tabs = [['pengumuman', 'Pengumuman'], ['soaljawab', 'Soal Jawab']];
   return `<div class="top"><h1>Komuniti</h1></div>
-    <span class="eyebrow">Pengumuman</span>
+    <div class="chips" role="tablist">${tabs.map(([k, l]) => `<button class="chip ${S.kTab === k ? 'on' : ''}" role="tab" aria-selected="${S.kTab === k}" data-a="kTab" data-v="${k}">${l}</button>`).join('')}</div>
+    ${S.kTab === 'soaljawab' ? tSoalJawab() : `
     ${!list ? '<div class="loading">Memuatkan pengumuman...</div>'
       : list.length ? list.map(annItem).join('')
-      : `<div class="card empty">${I.users}<h2 style="font-size:1.15rem">Belum ada pengumuman</h2><p class="muted">Pengumuman dan jadual kelas Zoom akan dipaparkan di sini.</p></div>`}
-    <div class="card">
-      <span class="eyebrow">Soal jawab dengan ustaz</span>
-      <p class="muted">Ruang untuk bertanya soalan kepada ustaz akan dibuka tidak lama lagi, insya-Allah.</p>
-    </div>`;
+      : `<div class="card empty">${I.users}<h2 style="font-size:1.15rem">Belum ada pengumuman</h2><p class="muted">Pengumuman dan jadual kelas Zoom akan dipaparkan di sini.</p></div>`}`}`;
 }
 
 function tAkaun() {
@@ -293,6 +388,7 @@ function tAkaun() {
         <button class="btn ${isDark() ? 'btn-primary' : 'btn-ghost'}" data-a="themeSet" data-v="dark">${I.moon} Gelap</button>
       </div>
     </div>
+    ${pushCard(false)}
     <div class="card">
       <span class="eyebrow">Keselamatan</span>
       <p class="small">${u.email ? `Emel: <b>${esc(u.email)}</b>` : '<b>Tiada emel.</b> Tambah emel supaya boleh set semula PIN sendiri jika terlupa.'}</p>
@@ -342,6 +438,15 @@ function modal() {
       <button class="btn btn-primary" type="submit" style="background:var(--danger)">Padam akaun saya</button>
       <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
     </form>`;
+  if (S.modal === 'ask') inner = `<form id="fAsk" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+      <h2 style="font-size:1.25rem">Tanya ustaz</h2>
+      ${S.askVideo ? `<p class="small muted">Tentang video: <b>${esc((S.videos || []).find(x => x.id === S.askVideo)?.title || '')}</b></p>` : ''}
+      <label class="f" for="askBody">Soalan anda<textarea class="input" id="askBody" rows="5" maxlength="1000" placeholder="Contoh: Bagaimana cara sebut huruf ع dengan betul?"></textarea></label>
+      <p class="muted small">Soalan dan jawapan boleh dibaca oleh pelajar lain untuk manfaat bersama. Hanya nama pertama anda dipaparkan.</p>
+      ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">Hantar soalan</button>
+      <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+    </form>`;
   if (S.modal === 'subscribe') inner = `<h2 style="font-size:1.25rem">Langganan RM10 sebulan</h2>
       <p>Sistem bayaran sedang disiapkan. Admin akan maklumkan dalam group WhatsApp bila bayaran dibuka.</p>
       <button class="btn btn-primary" data-a="close">Faham</button>`;
@@ -386,7 +491,8 @@ async function stopPlayer() {
 async function openVideo(id) {
   const v = S.videos.find(x => x.id === id);
   if (!S.user.active) { S.modal = 'subscribe'; render(); return; }
-  S.tab = 'video'; S.playing = { video: v, embedUrl: null }; window.scrollTo(0, 0); render();
+  S.tab = 'video'; S.playing = { video: v, embedUrl: null }; S.vqa = null; window.scrollTo(0, 0); render();
+  loadVqa(id);
   const r = await api('GET', `/api/videos/${id}/play`);
   if (!r.ok) {
     if (r.status === 402) { S.user.active = false; S.playing = null; S.modal = 'subscribe'; render(); return; }
@@ -420,8 +526,22 @@ document.addEventListener('click', async e => {
     case 'go': S.view = v; S.err = ''; S.lupaAdmin = false; S.reset = { step: 1, phone: '', msg: '' }; window.scrollTo(0, 0); break;
     case 'lupaAdmin': S.lupaAdmin = true; S.err = ''; break;
     case 'resendCode': S.reset.step = 1; S.err = ''; break;
-    case 'tab': await stopPlayer(); S.tab = v; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); break;
+    case 'tab': await stopPlayer(); S.tab = v; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); if (v === 'komuniti' && S.kTab === 'soaljawab') loadQa(); break;
     case 'vfilter': S.filter = v; break;
+    case 'kTab': S.kTab = v; if (v === 'soaljawab') loadQa(); else loadAnn(); break;
+    case 'ask':
+      if (!S.user.active) { S.modal = 'subscribe'; break; }
+      S.askVideo = v ? Number(v) : null; S.modal = 'ask'; S.err = ''; break;
+    case 'qDelete': {
+      const r = await busy(el, () => api('POST', `/api/questions/${v}/delete`, {}));
+      if (!r.ok) { toast(r.error); return; }
+      S.qa = S.qa && S.qa.filter(q => String(q.id) !== v); S.vqa = S.vqa && S.vqa.filter(q => String(q.id) !== v);
+      toast('Soalan ditarik balik.');
+      break;
+    }
+    case 'pushOn': enablePush(el); return;
+    case 'pushOff': await disablePush(); toast('Peringatan dimatikan di telefon ini.'); break;
+    case 'pushTest': { const r = await busy(el, () => api('POST', '/api/push/test')); toast(r.ok ? 'Notifikasi ujian dihantar. Semak telefon anda.' : r.error); return; }
     case 'play': openVideo(Number(v)); return;
     case 'stopPlay': await stopPlayer(); window.scrollTo(0, 0); loadVideos(); break;
     case 'theme': toggleTheme(); break;
@@ -433,7 +553,8 @@ document.addEventListener('click', async e => {
     case 'subscribe': S.modal = 'subscribe'; break;
     case 'close': case 'backdrop': S.modal = null; S.err = ''; break;
     case 'logout':
-      await stopPlayer(); S.videos = null; S.continueId = null; S.ann = null;
+      await stopPlayer(); S.videos = null; S.continueId = null; S.ann = null; S.qa = null;
+      if (S.push.state === 'on') await disablePush(); // peranti ini tak lagi terima notifikasi akaun ini
       await api('POST', '/api/logout', {});
       S.user = null; S.view = 'login'; S.tab = 'utama';
       toast('Anda telah log keluar.');
@@ -449,14 +570,14 @@ document.addEventListener('submit', async e => {
   if (f.id === 'fLogin') {
     const r = await busy(btn, () => api('POST', '/api/login', { phone: val('lPhone'), pin: val('lPin') }));
     if (!r.ok) { S.err = r.error; render(); return; }
-    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadVideos(); loadAnn();
+    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadVideos(); loadAnn(); checkPush().then(render);
     toast('Assalamualaikum, ' + r.user.name);
   }
   if (f.id === 'fDaftar') {
     if (val('dPin') !== val('dPin2')) { S.err = 'PIN tidak sama. Sila masukkan semula.'; render(); return; }
     const r = await busy(btn, () => api('POST', '/api/register', { name: val('dName'), phone: val('dPhone'), email: val('dEmail'), pin: val('dPin') }));
     if (!r.ok) { S.err = r.error; render(); return; }
-    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadAnn();
+    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; loadAnn(); checkPush().then(render);
     toast('Pendaftaran berjaya. Selamat datang!');
   }
   if (f.id === 'fForgot') {
@@ -472,6 +593,17 @@ document.addEventListener('submit', async e => {
     if (!r.ok) { S.err = r.error; render(); return; }
     S.view = 'login'; S.err = ''; S.reset = { step: 1, phone: '', msg: '' };
     toast('PIN baharu disimpan. Sila log masuk.');
+  }
+  if (f.id === 'fAsk') {
+    const r = await busy(btn, () => api('POST', '/api/questions', { body: val('askBody'), videoId: S.askVideo }));
+    if (!r.ok) {
+      if (r.status === 402) { S.user.active = false; S.modal = 'subscribe'; render(); return; }
+      S.err = r.error; render(); return;
+    }
+    forget('askBody'); S.modal = null; S.err = '';
+    if (S.askVideo && S.vqa) S.vqa.unshift(r.question);
+    if (S.qa) S.qa.unshift(r.question);
+    toast('Soalan dihantar. Ustaz akan jawab, insya-Allah.');
   }
   if (f.id === 'fEmail') {
     const r = await busy(btn, () => api('POST', '/api/me/email', { email: val('eEmail'), pin: val('ePin') }));
@@ -498,8 +630,11 @@ document.addEventListener('submit', async e => {
 
 (async function start() {
   api('GET', '/api/config').then(c => { if (c.ok) { S.cfg = { emailReset: !!c.emailReset, org: c.org || {} }; if (S.view === 'lupa' || (S.view === 'app' && S.tab === 'akaun')) render(); } });
+  // Pautan dari notifikasi: /?k=soaljawab atau /?k=pengumuman
+  const k = new URLSearchParams(location.search).get('k');
+  if (k === 'soaljawab' || k === 'pengumuman') { S.tab = 'komuniti'; S.kTab = k; history.replaceState(null, '', '/'); }
   const r = await api('GET', '/api/me');
-  if (r.ok) { S.user = r.user; S.view = 'app'; loadVideos(); loadAnn(); }
+  if (r.ok) { S.user = r.user; S.view = 'app'; loadVideos(); loadAnn(); if (S.kTab === 'soaljawab') loadQa(); checkPush().then(render); }
   else S.view = 'login';
   render();
 })();

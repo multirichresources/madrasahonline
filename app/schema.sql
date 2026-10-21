@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS announcements (
   zoom_url    TEXT,
   class_at    INTEGER,                            -- epoch ms, untuk butang Masuk Kelas
   members_only INTEGER NOT NULL DEFAULT 0,        -- 1 = pautan Zoom untuk pelajar yang melanggan sahaja
+  reminded_day  INTEGER NOT NULL DEFAULT 0,       -- peringatan sehari sebelum sudah dihantar
+  reminded_soon INTEGER NOT NULL DEFAULT 0,       -- peringatan 30 minit sebelum sudah dihantar
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_announcements_class ON announcements(class_at);
@@ -85,6 +87,7 @@ CREATE TABLE IF NOT EXISTS questions (
   answer      TEXT,
   answered_by INTEGER,
   answered_at INTEGER,
+  hidden      INTEGER NOT NULL DEFAULT 0,         -- 1 = disembunyikan oleh admin
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_questions_video ON questions(video_id);
@@ -119,5 +122,32 @@ CREATE TABLE IF NOT EXISTS pin_resets (
   code_hash   TEXT    NOT NULL,
   tries       INTEGER NOT NULL DEFAULT 0,
   expires_at  INTEGER NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+
+-- Notifikasi telefon (Web Push). Satu baris setiap peranti yang dihidupkan.
+CREATE TABLE IF NOT EXISTS push_subs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL,
+  endpoint    TEXT    NOT NULL UNIQUE,
+  fails       INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subs(user_id);
+
+-- Peti masuk notifikasi; service worker ambil dari sini bila menerima ping.
+CREATE TABLE IF NOT EXISTS notifications (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL,
+  title       TEXT    NOT NULL,
+  body        TEXT    NOT NULL,
+  url         TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id);
+
+-- Baris gilir ping (satu baris setiap peranti yang perlu dikejutkan)
+CREATE TABLE IF NOT EXISTS push_jobs (
+  sub_id      INTEGER PRIMARY KEY,
   created_at  INTEGER NOT NULL
 );

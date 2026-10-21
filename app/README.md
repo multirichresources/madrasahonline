@@ -50,3 +50,10 @@ Perlu domain sendiri di Cloudflare DNS. Pilih satu:
 Ujian tempatan: `MAIL_DEV=1` dalam `.dev.vars` cetak emel ke log, tidak dihantar.
 
 _Deploy: Cloudflare Workers Builds, root directory `app`._
+
+## Notifikasi telefon (Web Push)
+
+- Tiada setup diperlukan. Kunci VAPID dijana sendiri kali pertama pelajar hidupkan peringatan, dan disimpan dalam jadual `settings` (key `vapid`). **Jangan padam baris ini**, nanti semua pelajar perlu hidupkan peringatan semula.
+- Server hantar "ping" kosong; service worker (`public/sw.js`) ambil mesej dari `/api/push/inbox`.
+- Cron setiap 5 minit (`*/5 * * * *`): peringatan sehari & 30 minit sebelum kelas Zoom, dan hantar baki ping (40 setiap pusingan). Pembersihan harian berjalan pada 3 pagi waktu Malaysia.
+- Ujian tempatan: `.dev.vars` perlu `PUSH_ALLOW_HTTP=1`, dan jalankan `wrangler dev --test-scheduled`.

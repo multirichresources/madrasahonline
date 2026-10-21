@@ -1,6 +1,6 @@
 // Panel admin Madrasah Online.
-const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null };
-const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true });
+const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null };
+const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true, notify: true });
 A.annForm = blankAnn();
 // ms → nilai untuk <input type="datetime-local"> (waktu tempatan)
 const toLocalInput = ms => { if (!ms) return ''; const d = new Date(ms), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
@@ -64,7 +64,12 @@ function tRingkasan() {
       <div class="rows">
         <div class="row"><div><b>${s.expiringIn7Days} langganan tamat dalam 7 hari</b><p class="muted small">Ingatkan mereka untuk sambung</p></div></div>
         <div class="row"><div><b>${s.registeredNotPaid} pelajar belum bayar</b><p class="muted small">Boleh follow up melalui WhatsApp</p></div><button class="iconbtn" data-a="filterGo" data-v="belum-bayar">Lihat</button></div>
+        <div class="row"><div><b>${s.unansweredQuestions} soalan belum dijawab</b><p class="muted small">Soalan pelajar kepada ustaz</p></div><button class="iconbtn" data-a="tab" data-v="soalan">Jawab</button></div>
       </div>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Peringatan telefon</span>
+      <p><b>${s.pushUsers}</b> pelajar sudah hidupkan notifikasi. Mereka dapat peringatan sehari dan 30 minit sebelum kelas Zoom secara automatik.</p>
     </div>
     <button class="btn btn-ghost" data-a="refresh">Muat semula</button>`;
 }
@@ -234,6 +239,35 @@ async function startUpload(btn) {
   catch (e) { clearTimeout(watchdog); log('GAGAL mula: ' + String(e.message || e)); A.upload.busy = false; A.upload.msg = 'Upload tak dapat dimulakan.'; render(); }
 }
 
+function qRow(q) {
+  const editing = A.editQ === q.id || !q.answer;
+  return `<div class="q">
+    <div class="who"><b>${esc(q.asker)}</b><span>${fmtDate(q.createdAt)}</span></div>
+    ${q.askerPhone ? `<span class="muted small">${esc(q.askerPhone)}</span>` : ''}
+    ${q.videoTitle ? `<span class="muted small">Tentang video: <b>${esc(q.videoTitle)}</b></span>` : ''}
+    <p class="ann">${esc(q.body)}</p>
+    ${editing && !q.hidden ? `<form class="fAnswer" data-v="${q.id}" novalidate style="display:flex;flex-direction:column;gap:.6rem">
+        <label class="f" for="ans-${q.id}">${q.answer ? 'Edit jawapan' : 'Jawapan ustaz'}<textarea class="input" id="ans-${q.id}" rows="4" maxlength="3000">${esc(q.answer || '')}</textarea></label>
+        <button class="btn btn-primary" type="submit">${q.answer ? 'Simpan jawapan' : 'Hantar jawapan'}</button>
+        ${q.answer ? '<button class="btn btn-ghost" type="button" data-a="qEditCancel">Batal</button>' : ''}
+      </form>`
+      : q.answer ? `<div class="ans"><b>Jawapan ${esc(q.answeredBy || 'admin')}</b><p class="ann">${esc(q.answer)}</p></div>` : ''}
+    <div class="btn-row">
+      ${q.answer && !editing && !q.hidden ? `<button class="btn btn-ghost" data-a="qEdit" data-v="${q.id}">Edit jawapan</button>` : ''}
+      <button class="btn btn-ghost" data-a="qHide" data-v="${q.id}">${q.hidden ? 'Papar semula' : 'Sembunyikan'}</button>
+    </div>
+  </div>`;
+}
+
+function tSoalan() {
+  const filters = [['belum', 'Belum dijawab'], ['dijawab', 'Dijawab'], ['sembunyi', 'Disembunyikan']];
+  return `<div class="filter-row">${filters.map(([k, l]) => `<button class="chip ${A.qFilter === k ? 'on' : ''}" data-a="qFilter" data-v="${k}">${l}</button>`).join('')}</div>
+    <p class="muted small">Jawapan boleh dibaca semua pelajar. Pelajar yang bertanya akan dapat notifikasi bila soalannya dijawab.</p>
+    <div class="qa">${!A.qs ? '<p class="muted">Memuatkan...</p>'
+      : A.qs.length ? A.qs.map(qRow).join('')
+      : `<div class="card empty"><p class="muted">${A.qFilter === 'belum' ? 'Alhamdulillah, semua soalan sudah dijawab.' : 'Tiada soalan.'}</p></div>`}</div>`;
+}
+
 function annShareText(a) {
   return `*${a.title}*\n\n${a.classAt ? `Kelas Zoom: ${fmtClass(a.classAt)}\n\n` : ''}${a.body}\n\n${a.classAt ? 'Butang *Masuk Kelas* akan dibuka dalam app 30 minit sebelum kelas bermula.\n' : ''}Buka app Madrasah Online: ${location.origin}`;
 }
@@ -267,7 +301,8 @@ function tHebahan() {
       <label class="f" for="hZoom">Pautan Zoom<input class="input" id="hZoom" type="url" inputmode="url" value="${esc(f.zoomUrl)}" placeholder="https://us06web.zoom.us/j/..."></label>
       <label class="check" for="hMembers"><input type="checkbox" id="hMembers" ${f.membersOnly ? 'checked' : ''}><span>Pautan Zoom untuk pelajar yang melanggan sahaja<br><span class="muted small" style="font-weight:400">Buang tanda jika kelas ini terbuka untuk semua yang berdaftar.</span></span></label>` : ''}
       <label class="f" for="hBody">Mesej<textarea class="input" id="hBody" maxlength="2000" rows="5" placeholder="${f.isClass ? 'Contoh: Sediakan al-Quran dan masuk 5 minit awal. Kita sambung bab Mad Asli.' : 'Tulis makluman untuk pelajar...'}">${esc(f.body)}</textarea></label>
-      ${f.isClass ? '<p class="muted small">Pautan Zoom tak dipaparkan awal. Pelajar nampak butang <b>Masuk Kelas</b> 30 minit sebelum kelas bermula.</p>' : ''}
+      ${f.isClass ? '<p class="muted small">Pautan Zoom tak dipaparkan awal. Pelajar nampak butang <b>Masuk Kelas</b> 30 minit sebelum kelas bermula. Peringatan telefon dihantar automatik sehari dan 30 minit sebelum kelas.</p>' : ''}
+      ${editing ? '' : `<label class="check" for="hNotify"><input type="checkbox" id="hNotify" ${f.notify ? 'checked' : ''}><span>Hantar notifikasi ke telefon pelajar sekarang</span></label>`}
       ${A.err && A.modal === null ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-primary" type="submit">${editing ? 'Simpan perubahan' : 'Terbitkan hebahan'}</button>
       ${editing ? '<button class="btn btn-ghost" type="button" data-a="annCancel">Batal edit</button>' : ''}
@@ -377,11 +412,11 @@ function render() {
   else if (A.view === 'setup') body = vSetup();
   else if (A.view === 'login') body = vLogin();
   else {
-    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['tetapan', 'Tetapan']];
+    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, tetapan: tTetapan }[A.tab]()}`;
+      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, tetapan: tTetapan }[A.tab]()}`;
   }
   app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
   restoreInputs();
@@ -391,7 +426,7 @@ window.render = render;
 async function loadStats() {
   const r = await api('GET', '/api/admin/stats');
   if (r.status === 401) return toLogin();
-  if (r.ok) A.stats = r.stats; else toast(r.error);
+  if (r.ok) { A.stats = r.stats; A.unanswered = r.stats.unansweredQuestions; } else toast(r.error);
   render();
 }
 async function loadUsers() {
@@ -409,6 +444,12 @@ async function loadAnns() {
   if (!r.ok) toast(r.error);
   render();
 }
+async function loadQs() {
+  const r = await api('GET', `/api/admin/questions?status=${A.qFilter}`);
+  if (r.status === 401) return toLogin();
+  if (r.ok) { A.qs = r.questions; A.unanswered = r.unanswered; } else { A.qs = []; toast(r.error); }
+  render();
+}
 async function loadOrg() {
   const r = await api('GET', '/api/admin/settings');
   if (r.status === 401) return toLogin();
@@ -423,6 +464,7 @@ function readAnnForm() {
   if (el('hWhen')) f.classAt = el('hWhen').value ? new Date(el('hWhen').value).getTime() : null;
   if (el('hZoom')) f.zoomUrl = el('hZoom').value;
   if (el('hMembers')) f.membersOnly = el('hMembers').checked;
+  if (el('hNotify')) f.notify = el('hNotify').checked;
 }
 const ANN_IDS = ['hTitle', 'hBody', 'hWhen', 'hZoom'];
 // Borang hebahan sentiasa disalin ke A.annForm supaya isian tak hilang bila skrin dilukis semula
@@ -435,6 +477,7 @@ function openTab(t) {
   if (t === 'video') loadVideos();
   if (t === 'hebahan') loadAnns();
   if (t === 'tetapan') loadOrg();
+  if (t === 'soalan') { A.qs = null; A.editQ = null; loadQs(); }
 }
 
 document.addEventListener('click', async e => {
@@ -491,6 +534,19 @@ document.addEventListener('click', async e => {
       const r = await busy(el, () => api('POST', `/api/admin/videos/${A.delVideo.id}/delete`, {}));
       if (!r.ok) { A.err = r.error; break; }
       A.videos = A.videos.filter(x => x.id !== A.delVideo.id); A.modal = null; toast('Video dipadam.');
+      break;
+    }
+    case 'qFilter': A.qFilter = v; A.qs = null; A.editQ = null; render(); loadQs(); return;
+    case 'qEdit': A.editQ = Number(v); forget('ans-' + v); break;
+    case 'qEditCancel': A.editQ = null; break;
+    case 'qHide': {
+      const q = A.qs.find(x => String(x.id) === v);
+      const r = await busy(el, () => api('POST', `/api/admin/questions/${v}/hide`, { hidden: !q.hidden }));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { toast(r.error); return; }
+      A.qs = A.qs.filter(x => x !== q);
+      if (!q.answer) A.unanswered = Math.max(0, A.unanswered + (q.hidden ? 1 : -1));
+      toast(q.hidden ? 'Soalan dipapar semula.' : 'Soalan disembunyikan daripada pelajar.');
       break;
     }
     case 'annKind': readAnnForm(); A.annForm.isClass = v === 'kelas'; forget(...ANN_IDS); A.err = ''; break;
@@ -556,10 +612,22 @@ document.addEventListener('submit', async e => {
     if (!r.ok) { A.err = r.error; render(); return; }
     A.modal = null; A.err = ''; toast('Kata laluan ditukar.');
   }
+  if (f.classList.contains('fAnswer')) {
+    const id = f.dataset.v;
+    const r = await busy(btn, () => api('POST', `/api/admin/questions/${id}/answer`, { answer: document.getElementById('ans-' + id).value }));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { toast(r.error); return; }
+    forget('ans-' + id);
+    const wasNew = !A.qs.find(x => String(x.id) === id).answer;
+    if (wasNew && A.qFilter === 'belum') { A.qs = A.qs.filter(x => String(x.id) !== id); A.unanswered = Math.max(0, A.unanswered - 1); }
+    else A.qs = A.qs.map(x => String(x.id) === id ? r.question : x);
+    A.editQ = null;
+    toast(wasNew ? 'Jawapan dihantar. Pelajar akan dimaklumkan.' : 'Jawapan dikemas kini.');
+  }
   if (f.id === 'fAnn') {
     readAnnForm();
     const F = A.annForm;
-    const body = { title: F.title, body: F.body, isClass: F.isClass, classAt: F.classAt, zoomUrl: F.zoomUrl, membersOnly: F.membersOnly };
+    const body = { title: F.title, body: F.body, isClass: F.isClass, classAt: F.classAt, zoomUrl: F.zoomUrl, membersOnly: F.membersOnly, notify: F.notify };
     if (F.isClass && F.classAt && F.classAt < Date.now() - 3 * 3600e3 && !F.id) { A.err = 'Tarikh kelas sudah lepas. Sila semak tarikh dan masa.'; render(); return; }
     const r = await busy(btn, () => api('POST', F.id ? `/api/admin/announcements/${F.id}` : '/api/admin/announcements', body));
     if (r.status === 401) return toLogin();
@@ -568,7 +636,7 @@ document.addEventListener('submit', async e => {
     if (F.id) A.anns = A.anns.map(x => x.id === F.id ? r.announcement : x);
     else A.anns = [r.announcement, ...(A.anns || [])];
     A.annForm = blankAnn(); forget(...ANN_IDS);
-    toast(F.id ? 'Hebahan dikemas kini.' : 'Hebahan diterbitkan. Pelajar boleh lihat dalam app.');
+    toast(F.id ? 'Hebahan dikemas kini.' : `Hebahan diterbitkan.${r.notified ? ` Notifikasi dihantar kepada ${r.notified} pelajar.` : ''}`);
   }
   if (f.id === 'fOrg') {
     const r = await busy(btn, () => api('POST', '/api/admin/settings', { name: val('oName'), reg: val('oReg'), email: val('oEmail'), whatsapp: val('oWa'), address: document.getElementById('oAddr').value }));

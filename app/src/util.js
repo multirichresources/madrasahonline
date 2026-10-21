@@ -84,6 +84,13 @@ export function cleanText(v, max) {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+// Teks berbilang baris: buang aksara kawalan kecuali baris baharu.
+export function cleanMultiline(v, max) {
+  let s = String(v ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ');
+  s = s.split('\n').map(l => l.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return s.length > max ? s.slice(0, max) : s;
+}
+
 export function validEmail(e) {
   return /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(e);
 }

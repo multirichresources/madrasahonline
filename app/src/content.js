@@ -1,6 +1,7 @@
 // Maklumat pengendali (untuk halaman polisi & bantuan) dan pengumuman / kelas Zoom.
-import { now, json, fail, readJson, cleanText, validEmail, normalizePhone } from './util.js';
+import { now, json, fail, readJson, cleanText, cleanMultiline as cleanBody, validEmail, normalizePhone } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
+import { notify, processJobs, classWhen } from './push.js';
 
 // ---------- maklumat pengendali ----------
 const ORG_KEYS = ['org_name', 'org_reg', 'contact_email', 'contact_whatsapp', 'address'];
@@ -45,13 +46,6 @@ export async function adminSaveSettings(env, request) {
 // ---------- pengumuman & kelas Zoom ----------
 const JOIN_BEFORE = 30 * 60 * 1000;      // butang Masuk Kelas dibuka 30 minit sebelum
 const CLASS_LENGTH = 3 * 3600 * 1000;    // dianggap berlangsung hingga 3 jam selepas mula
-
-// Teks berbilang baris: buang aksara kawalan kecuali baris baharu.
-function cleanBody(v, max) {
-  let s = String(v ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ');
-  s = s.split('\n').map(l => l.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  return s.length > max ? s.slice(0, max) : s;
-}
 
 function cleanUrl(v) {
   const s = cleanText(v, 500);
@@ -126,21 +120,33 @@ export async function adminListAnnouncements(env, request) {
   return json({ ok: true, announcements: results.map(adminShape) });
 }
 
-export async function adminCreateAnnouncement(env, request) {
+export async function adminCreateAnnouncement(env, request, ctx) {
   await requireAdmin(env, request);
-  const a = readAnnouncement(await readJson(request));
+  const b = await readJson(request);
+  const a = readAnnouncement(b);
   if (a.error) return fail(400, a.error);
   const row = await env.DB.prepare('INSERT INTO announcements (title, body, zoom_url, class_at, members_only, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *')
     .bind(a.title, a.body, a.zoomUrl || null, a.classAt, a.membersOnly, now()).first();
-  return json({ ok: true, announcement: adminShape(row) }, 201);
+  let notified = 0;
+  if (b.notify !== false) {
+    notified = await notify(env, { kind: a.membersOnly ? 'active' : 'all' }, a.classAt
+      ? { title: `Kelas Zoom: ${a.title}`, body: `${classWhen(a.classAt)}. Butang Masuk Kelas dibuka 30 minit sebelum kelas.`, url: '/' }
+      : { title: a.title, body: a.body.replace(/\s+/g, ' ').slice(0, 140), url: '/?k=pengumuman' });
+    if (notified && ctx) ctx.waitUntil(processJobs(env));
+  }
+  return json({ ok: true, announcement: adminShape(row), notified }, 201);
 }
 
 export async function adminUpdateAnnouncement(env, request, id) {
   await requireAdmin(env, request);
   const a = readAnnouncement(await readJson(request));
   if (a.error) return fail(400, a.error);
-  const row = await env.DB.prepare('UPDATE announcements SET title = ?, body = ?, zoom_url = ?, class_at = ?, members_only = ? WHERE id = ? RETURNING *')
-    .bind(a.title, a.body, a.zoomUrl || null, a.classAt, a.membersOnly, id).first();
+  // Jika masa kelas diubah, peringatan automatik dihantar semula mengikut masa baharu
+  const row = await env.DB.prepare(`UPDATE announcements SET title = ?, body = ?, zoom_url = ?, members_only = ?,
+      reminded_day = CASE WHEN class_at IS ? THEN reminded_day ELSE 0 END,
+      reminded_soon = CASE WHEN class_at IS ? THEN reminded_soon ELSE 0 END,
+      class_at = ? WHERE id = ? RETURNING *`)
+    .bind(a.title, a.body, a.zoomUrl || null, a.membersOnly, a.classAt, a.classAt, a.classAt, id).first();
   if (!row) return fail(404, 'Pengumuman tidak dijumpai.');
   return json({ ok: true, announcement: adminShape(row) });
 }

@@ -199,6 +199,107 @@ r = await ad.req('POST', `/api/admin/announcements/${liveId}/delete`, {});
 r = await e.req('GET', '/api/announcements');
 check('Hebahan dipadam', r.data.announcements.length === 2 && r.data.nextClass.id === futureId, r.data);
 
+// ---- notifikasi telefon (Web Push) dengan servis push tiruan ----
+const http = await import('node:http');
+const nodeCrypto = await import('node:crypto');
+const pings = [];
+const mock = http.createServer((req, res) => { let b = ''; req.on('data', d => b += d); req.on('end', () => { pings.push({ path: req.url, headers: req.headers, body: b }); res.writeHead(201); res.end(); }); });
+await new Promise(ok => mock.listen(8799, '127.0.0.1', ok));
+const sleep = ms => new Promise(ok => setTimeout(ok, ms));
+const waitPing = async (path, n = 1) => { for (let i = 0; i < 40 && pings.filter(p => p.path === path).length < n; i++) await sleep(100); return pings.filter(p => p.path === path); };
+
+r = await e.req('GET', '/api/push/key');
+const pub = r.data.publicKey;
+check('Kunci VAPID dijana automatik', r.status === 200 && Buffer.from(pub, 'base64url').length === 65, r.data);
+r = await e.req('POST', '/api/push/subscribe', { endpoint: 'https://jahat.example/push/1' });
+check('Endpoint push bukan servis sah ditolak', r.status === 400, r.data);
+r = await e.req('POST', '/api/push/subscribe', { endpoint: 'http://127.0.0.1:8799/push/e1' });
+check('Langgan notifikasi', r.status === 200 && typeof r.data.latestId === 'number', r.data);
+r = await e.req('POST', '/api/push/test', {});
+check('Notifikasi ujian dihantar', r.status === 200 && r.data.sent === 1, r.data);
+let got = await waitPing('/push/e1');
+const auth = got[0] && got[0].headers.authorization || '';
+const m1 = auth.match(/^vapid t=([^,]+), k=(.+)$/);
+let jwtOk = false;
+if (m1) {
+  const [h, pl, sig] = m1[1].split('.');
+  const raw = Buffer.from(pub, 'base64url');
+  const key = nodeCrypto.createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: raw.subarray(1, 33).toString('base64url'), y: raw.subarray(33).toString('base64url') }, format: 'jwk' });
+  const claims = JSON.parse(Buffer.from(pl, 'base64url').toString());
+  jwtOk = m1[2] === pub && claims.aud === 'http://127.0.0.1:8799' && claims.exp > Date.now() / 1000
+    && nodeCrypto.verify('sha256', Buffer.from(h + '.' + pl), { key, dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'base64url'));
+}
+check('Ping bertandatangan VAPID sah, tanpa muatan', jwtOk && got[0].body === '' && got[0].headers.ttl === '86400', got[0] && got[0].headers);
+r = await e.req('GET', '/api/push/inbox?since=0');
+check('Peti masuk: mesej ujian', r.status === 200 && r.data.items.length === 1 && r.data.items[0].title === 'Peringatan sudah aktif', r.data);
+let lastSeen = r.data.items[0].id;
+
+// ---- soal jawab ----
+const f = jar();
+const phoneF = '01' + String(Date.now() + 77).slice(-8);
+await f.req('POST', '/api/register', { name: 'Salmah Binti Ali', phone: phoneF, email: 'salmah@contoh.my', pin: '482913' });
+r = await f.req('POST', '/api/questions', { body: 'Soalan saya tentang mad.' });
+check('Bukan pelanggan tak boleh bertanya', r.status === 402, r.data);
+r = await e.req('POST', '/api/questions', { body: 'abc' });
+check('Soalan terlalu pendek ditolak', r.status === 400, r.data);
+r = await e.req('POST', '/api/questions', { body: 'Ustaz, bagaimana nak bezakan bunyi huruf ح dan ه?', videoId: vid });
+check('Pelanggan hantar soalan tentang video', r.status === 201 && r.data.question.mine === true && r.data.question.videoTitle === 'Hukum Nun Mati', r.data);
+const qid = r.data.question.id;
+r = await f.req('GET', '/api/questions');
+check('Soalan belum dijawab tak nampak kepada pelajar lain', r.status === 200 && !r.data.questions.some(q => q.id === qid), r.data);
+r = await e.req('GET', `/api/questions?video=${vid}`);
+check('Penanya nampak soalan sendiri (menunggu)', r.data.questions.length === 1 && r.data.questions[0].answer === null, r.data);
+r = await ad.req('GET', '/api/admin/stats');
+check('Statistik: soalan belum dijawab & pengguna notifikasi', r.data.stats.unansweredQuestions === 1 && r.data.stats.pushUsers === 1, r.data.stats);
+r = await ad.req('GET', '/api/admin/questions?status=belum');
+check('Admin nampak soalan dengan nama penuh', r.data.questions.length === 1 && r.data.questions[0].asker === 'Rohana Ismail' && r.data.unanswered === 1, r.data);
+const before = pings.length;
+r = await ad.req('POST', `/api/admin/questions/${qid}/answer`, { answer: 'ح dari tengah halkum, ه dari pangkal halkum.\nCuba dengar semula minit ke-12.' });
+check('Admin jawab soalan', r.status === 200 && r.data.question.answeredBy === 'Admin', r.data);
+got = await waitPing('/push/e1', 2);
+check('Penanya dapat ping bila dijawab', pings.length > before, pings.length);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+check('Peti masuk: "Ustaz sudah menjawab"', r.data.items.length === 1 && r.data.items[0].title.includes('menjawab') && r.data.items[0].url === '/?k=soaljawab', r.data);
+lastSeen = r.data.items[0].id;
+r = await f.req('GET', '/api/questions');
+check('Soalan dijawab nampak kepada semua (nama pertama sahaja)', r.data.questions.some(q => q.id === qid && q.asker === 'Rohana' && q.answer.includes('halkum') && !q.mine), r.data);
+r = await e.req('POST', `/api/questions/${qid}/delete`, {});
+check('Soalan yang dijawab tak boleh ditarik balik', r.status === 400, r.data);
+r = await ad.req('POST', `/api/admin/questions/${qid}/hide`, { hidden: true });
+r = await f.req('GET', '/api/questions');
+check('Soalan disembunyikan hilang daripada pelajar', !r.data.questions.some(q => q.id === qid), r.data);
+r = await e.req('POST', '/api/questions', { body: 'Soalan kedua untuk ditarik balik.' });
+const q2 = r.data.question.id;
+r = await e.req('POST', `/api/questions/${q2}/delete`, {});
+check('Tarik balik soalan belum dijawab', r.status === 200, r.data);
+r = await f.req('POST', '/api/admin/questions/1/answer', { answer: 'X' });
+check('Pelajar tak boleh jawab sebagai admin', r.status === 401, r.data);
+
+// ---- peringatan kelas automatik (cron) ----
+r = await ad.req('POST', '/api/admin/announcements', { title: 'Kelas Malam Ini', body: 'Bab Mad.', isClass: true, classAt: Date.now() + 20 * 60e3, zoomUrl: 'https://us06web.zoom.us/j/333', membersOnly: true });
+check('Hebahan kelas: notifikasi terus kepada pelanggan', r.status === 201 && r.data.notified === 1, r.data);
+const soonId = r.data.announcement.id;
+r = await ad.req('POST', '/api/admin/announcements', { title: 'Kelas Esok', body: 'Bab Qalqalah.', isClass: true, classAt: Date.now() + 20 * 3600e3, zoomUrl: 'https://us06web.zoom.us/j/444', membersOnly: false, notify: false });
+check('Hebahan tanpa notifikasi', r.status === 201 && r.data.notified === 0, r.data);
+await sleep(300);
+let pingCount = pings.length;
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*');
+await sleep(800);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+const titles = r.data.items.map(i => i.title);
+check('Cron: peringatan 30 minit & sehari sebelum', titles.includes('Kelas bermula sekejap lagi') && titles.some(t => t === 'Peringatan kelas: Kelas Esok') && titles.some(t => t.startsWith('Kelas Zoom: Kelas Malam Ini')), titles);
+check('Cron: ping dihantar', pings.length > pingCount, pings.length - pingCount);
+lastSeen = Math.max(...r.data.items.map(i => i.id));
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*');
+await sleep(500);
+r = await e.req('GET', `/api/push/inbox?since=${lastSeen}`);
+check('Cron: peringatan tidak berulang', r.data.items.length === 0, r.data);
+await ad.req('POST', `/api/admin/announcements/${soonId}/delete`, {});
+r = await e.req('POST', '/api/push/unsubscribe', { endpoint: 'http://127.0.0.1:8799/push/e1' });
+r = await e.req('POST', '/api/push/test', {});
+check('Selepas matikan, tiada notifikasi', r.status === 400, r.data);
+mock.close();
+
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');
 check('Pelajar tanpa sesi admin tak boleh lihat senarai', r.status === 401);

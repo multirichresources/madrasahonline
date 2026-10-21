@@ -253,6 +253,9 @@ export async function deleteAccount(env, request) {
     env.DB.prepare("DELETE FROM sessions WHERE kind = 'user' AND subject_id = ?").bind(u.id),
     env.DB.prepare('DELETE FROM watch_progress WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM questions WHERE user_id = ?').bind(u.id),
+    env.DB.prepare('DELETE FROM push_jobs WHERE sub_id IN (SELECT id FROM push_subs WHERE user_id = ?)').bind(u.id),
+    env.DB.prepare('DELETE FROM push_subs WHERE user_id = ?').bind(u.id),
+    env.DB.prepare('DELETE FROM notifications WHERE user_id = ?').bind(u.id),
     // Rekod bayaran disimpan untuk akaun kewangan, tetapi tidak lagi dikaitkan dengan pelajar.
     env.DB.prepare('UPDATE payments SET user_id = NULL WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id),

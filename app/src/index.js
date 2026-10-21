@@ -15,6 +15,8 @@ import {
   adminListAnnouncements, adminCreateAnnouncement, adminUpdateAnnouncement, adminDeleteAnnouncement,
 } from './content.js';
 import { legalPaths, renderLegal } from './legal.js';
+import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, processJobs, sendClassReminders } from './push.js';
+import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
 function sameOrigin(request) {
@@ -59,11 +61,24 @@ const routes = [
 
   ['GET', /^\/api\/announcements$/, (env, req) => listAnnouncements(env, req)],
   ['GET', /^\/api\/admin\/announcements$/, (env, req) => adminListAnnouncements(env, req)],
-  ['POST', /^\/api\/admin\/announcements$/, (env, req) => adminCreateAnnouncement(env, req)],
+  ['POST', /^\/api\/admin\/announcements$/, (env, req, m, ctx) => adminCreateAnnouncement(env, req, ctx)],
   ['POST', /^\/api\/admin\/announcements\/(\d+)$/, (env, req, m) => adminUpdateAnnouncement(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/announcements\/(\d+)\/delete$/, (env, req, m) => adminDeleteAnnouncement(env, req, Number(m[1]))],
   ['GET', /^\/api\/admin\/settings$/, (env, req) => adminGetSettings(env, req)],
   ['POST', /^\/api\/admin\/settings$/, (env, req) => adminSaveSettings(env, req)],
+
+  ['GET', /^\/api\/questions$/, (env, req) => listQuestions(env, req)],
+  ['POST', /^\/api\/questions$/, (env, req) => askQuestion(env, req)],
+  ['POST', /^\/api\/questions\/(\d+)\/delete$/, (env, req, m) => deleteOwnQuestion(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/questions$/, (env, req) => adminListQuestions(env, req)],
+  ['POST', /^\/api\/admin\/questions\/(\d+)\/answer$/, (env, req, m, ctx) => adminAnswer(env, req, Number(m[1]), ctx)],
+  ['POST', /^\/api\/admin\/questions\/(\d+)\/hide$/, (env, req, m) => adminHideQuestion(env, req, Number(m[1]))],
+
+  ['GET', /^\/api\/push\/key$/, (env, req) => pushKey(env, req)],
+  ['POST', /^\/api\/push\/subscribe$/, (env, req) => pushSubscribe(env, req)],
+  ['POST', /^\/api\/push\/unsubscribe$/, (env, req) => pushUnsubscribe(env, req)],
+  ['POST', /^\/api\/push\/test$/, (env, req) => pushTest(env, req)],
+  ['GET', /^\/api\/push\/inbox$/, (env, req) => pushInbox(env, req)],
 ];
 
 async function adminStats(env, request) {
@@ -71,12 +86,14 @@ async function adminStats(env, request) {
   const t = now();
   const week = t + 7 * 24 * 3600 * 1000;
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
-  const [total, active, expiring, unpaid, revenue] = await env.DB.batch([
+  const [total, active, expiring, unpaid, revenue, unanswered, pushUsers] = await env.DB.batch([
     env.DB.prepare('SELECT COUNT(*) AS n FROM users'),
     env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE paid_until > ?').bind(t),
     env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE paid_until > ? AND paid_until <= ?').bind(t, week),
     env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE paid_until IS NULL'),
     env.DB.prepare("SELECT COALESCE(SUM(amount_sen), 0) AS s FROM payments WHERE status = 'completed' AND purpose = 'langganan' AND completed_at >= ?").bind(monthStart.getTime()),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM questions WHERE hidden = 0 AND answer IS NULL'),
+    env.DB.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM push_subs'),
   ]);
   return json({
     ok: true,
@@ -86,6 +103,8 @@ async function adminStats(env, request) {
       expiringIn7Days: expiring.results[0].n,
       registeredNotPaid: unpaid.results[0].n,
       revenueThisMonthSen: revenue.results[0].s,
+      unansweredQuestions: unanswered.results[0].n,
+      pushUsers: pushUsers.results[0].n,
     },
   });
 }
@@ -112,7 +131,7 @@ async function adminUsers(env, request) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, '');
     if (legalPaths.includes(path) && request.method === 'GET') {
@@ -125,7 +144,7 @@ export default {
       if (request.method !== 'GET' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
       for (const [method, pattern, handler] of routes) {
         const m = url.pathname.match(pattern);
-        if (m && request.method === method) return await handler(env, request, m);
+        if (m && request.method === method) return await handler(env, request, m, ctx);
       }
       return fail(404, 'Laluan tidak dijumpai.');
     } catch (err) {
@@ -135,14 +154,20 @@ export default {
     }
   },
 
-  // Cron harian: buang sesi dan rekod had cubaan yang sudah tamat.
-  async scheduled(event, env) {
+  // Cron setiap 5 minit: peringatan kelas + hantar baki notifikasi.
+  // Sekali sehari (3 pagi waktu Malaysia): buang sesi dan rekod lama.
+  async scheduled(event, env, ctx) {
     const t = now();
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(t),
-      env.DB.prepare('DELETE FROM rate_limits WHERE window_ends < ?').bind(t),
-      env.DB.prepare('DELETE FROM pin_resets WHERE expires_at < ?').bind(t),
-    ]);
+    try { await sendClassReminders(env); } catch (e) { console.error('peringatan', e); }
+    try { await processJobs(env); } catch (e) { console.error('push', e); }
+    const d = new Date(event.scheduledTime || t);
+    if (d.getUTCHours() === 19 && d.getUTCMinutes() < 5) {
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(t),
+        env.DB.prepare('DELETE FROM rate_limits WHERE window_ends < ?').bind(t),
+        env.DB.prepare('DELETE FROM pin_resets WHERE expires_at < ?').bind(t),
+        env.DB.prepare('DELETE FROM notifications WHERE created_at < ?').bind(t - 30 * 864e5),
+      ]);
+    }
   },
 };
-
