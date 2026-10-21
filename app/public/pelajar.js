@@ -193,8 +193,123 @@ function solatCard() {
     <div class="ptimes">${['fajr', 'syuruk', 'dhuhr', 'asr', 'maghrib', 'isha'].map(k => `<div class="pt${k === current ? ' now' : ''}${nx && !nx.tomorrow && k === nx.key ? ' next' : ''}"><span>${N[k]}</span><b>${d[k] ? fmtTime(d[k]).replace(/ (pagi|tengah hari|petang|malam|am|pm)$/, '') : '-'}</b></div>`).join('')}</div>
     ${azanOn ? `<p class="small">${I.bell} ${t('Notifikasi masuk waktu aktif ({n} waktu).', { n: S.user.azan.length })} <button class="link" data-a="solatSettings">${t('Ubah')}</button></p>`
       : `<button class="btn btn-ghost" data-a="solatSettings">${t('Hidupkan notifikasi waktu solat')}</button>`}
+    <button class="btn btn-line" data-a="qibla">${I.compass} ${t('Arah kiblat')}</button>
     <p class="note">${t('Sumber: JAKIM e-Solat')}</p>
   </div>`;
+}
+
+// ---------- arah kiblat ----------
+// Lokasi diproses dalam telefon sahaja (tidak dihantar ke server).
+const KAABA = { lat: 21.422487, lon: 39.826206 };
+const KL = { lat: 3.139, lon: 101.6869 };
+const RAD = Math.PI / 180;
+function qiblaBearing(lat, lon) {
+  const p1 = lat * RAD, p2 = KAABA.lat * RAD, dl = (KAABA.lon - lon) * RAD;
+  const y = Math.sin(dl) * Math.cos(p2), x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (Math.atan2(y, x) / RAD + 360) % 360;
+}
+function distanceKm(lat, lon) {
+  const dp = (KAABA.lat - lat) * RAD, dl = (KAABA.lon - lon) * RAD;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(lat * RAD) * Math.cos(KAABA.lat * RAD) * Math.sin(dl / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+const Q = { heading: null, smooth: null, listening: false, aligned: false, timer: null, raf: 0 };
+
+function openQibla() {
+  S.qibla = { state: 'locating', compass: 'idle' };
+  S.modal = 'qibla'; render();
+  let finished = false;
+  const done = (lat, lon, approx) => {
+    if (finished || S.modal !== 'qibla') return;
+    finished = true;
+    S.qibla = { ...S.qibla, state: 'ready', lat, lon, approx, bearing: qiblaBearing(lat, lon), km: distanceKm(lat, lon) };
+    render();
+    // Android: kompas boleh terus dimulakan. iPhone perlu izin melalui butang.
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') startCompass();
+  };
+  if (!navigator.geolocation) return done(KL.lat, KL.lon, true);
+  // Pelayar tidak mengira masa tamat selagi soalan izin lokasi belum dijawab — guna anggaran KL selepas 12 saat
+  setTimeout(() => done(KL.lat, KL.lon, true), 12000);
+  navigator.geolocation.getCurrentPosition(p => done(p.coords.latitude, p.coords.longitude, false), () => done(KL.lat, KL.lon, true), { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+}
+
+function onOrient(e) {
+  let h = null;
+  if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading; // iPhone
+  else if ((e.absolute || e.type === 'deviceorientationabsolute') && typeof e.alpha === 'number') h = (360 - e.alpha) % 360; // Android
+  if (h == null) return;
+  h = (h + ((screen.orientation && screen.orientation.angle) || 0) + 360) % 360;
+  // Tapis lembut supaya jarum tak bergetar (ambil kira lintasan 359° → 0°)
+  if (Q.smooth == null) Q.smooth = h;
+  else { const d = ((h - Q.smooth + 540) % 360) - 180; Q.smooth = (Q.smooth + d * 0.25 + 360) % 360; }
+  Q.heading = Q.smooth;
+  if (S.qibla && S.qibla.compass !== 'on') { S.qibla.compass = 'on'; clearTimeout(Q.timer); render(); }
+  if (!Q.raf) Q.raf = requestAnimationFrame(drawCompass);
+}
+
+async function startCompass() {
+  if (Q.listening) return;
+  if (typeof DeviceOrientationEvent === 'undefined') { S.qibla.compass = 'none'; render(); return; }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { if (await DeviceOrientationEvent.requestPermission() !== 'granted') { S.qibla.compass = 'denied'; render(); return; } }
+    catch { S.qibla.compass = 'denied'; render(); return; }
+  }
+  Q.listening = true; Q.smooth = null; Q.aligned = false;
+  window.addEventListener('ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation', onOrient);
+  S.qibla.compass = 'waiting'; render();
+  Q.timer = setTimeout(() => { if (S.qibla && S.qibla.compass === 'waiting') { S.qibla.compass = 'none'; render(); } }, 3000);
+}
+function stopCompass() {
+  window.removeEventListener('deviceorientationabsolute', onOrient);
+  window.removeEventListener('deviceorientation', onOrient);
+  Q.listening = false; Q.heading = null; Q.smooth = null; clearTimeout(Q.timer); cancelAnimationFrame(Q.raf); Q.raf = 0;
+}
+
+// Kemas kini dail terus (tanpa lukis semula seluruh skrin) supaya lancar
+function drawCompass() {
+  Q.raf = 0;
+  const q = S.qibla, dial = document.getElementById('qDial');
+  if (!q || !dial || Q.heading == null) return;
+  dial.style.transform = `rotate(${-Q.heading}deg)`;
+  const diff = ((q.bearing - Q.heading + 540) % 360) - 180, ok = Math.abs(diff) <= 5;
+  const box = document.getElementById('qBox'), st = document.getElementById('qStatus');
+  if (box) box.classList.toggle('aligned', ok);
+  if (st) st.textContent = ok ? t('Anda sedang menghadap kiblat') : diff > 0 ? t('Pusing ke kanan {d}°', { d: Math.round(Math.abs(diff)) }) : t('Pusing ke kiri {d}°', { d: Math.round(Math.abs(diff)) });
+  if (ok && !Q.aligned && navigator.vibrate) { try { navigator.vibrate(120); } catch {} }
+  Q.aligned = ok;
+}
+
+function compassSvg(bearing) {
+  const L = LANG === 'en' ? ['N', 'E', 'S', 'W'] : ['U', 'T', 'S', 'B'];
+  let ticks = '';
+  for (let a = 0; a < 360; a += 15) ticks += `<line x1="100" y1="${a % 90 ? 14 : 10}" x2="100" y2="22" transform="rotate(${a} 100 100)" class="${a % 90 ? 'tk' : 'tk major'}"/>`;
+  return `<svg viewBox="0 0 200 200" class="qsvg" aria-hidden="true">
+    <circle cx="100" cy="100" r="92" class="ring"/>${ticks}
+    ${L.map((l, i) => `<text x="100" y="40" transform="rotate(${i * 90} 100 100)" class="${i === 0 ? 'cardinal north' : 'cardinal'}" text-anchor="middle">${l}</text>`).join('')}
+    <g transform="rotate(${bearing} 100 100)"><line x1="100" y1="100" x2="100" y2="34" class="qline"/>
+      <g transform="translate(100 26)"><rect x="-11" y="-11" width="22" height="22" rx="2" class="kaaba"/><rect x="-11" y="-5" width="22" height="3.5" class="kaaba-band"/></g></g>
+    <circle cx="100" cy="100" r="5" class="hub"/>
+  </svg>`;
+}
+
+function qiblaModal() {
+  const q = S.qibla;
+  if (!q || q.state === 'locating') return `<h2 style="font-size:1.25rem">${t('Arah kiblat')}</h2><div class="loading">${t('Mengesan lokasi anda...')}</div>`;
+  const deg = Math.round(q.bearing);
+  const live = q.compass === 'on';
+  return `<h2 style="font-size:1.25rem">${t('Arah kiblat')}</h2>
+    <div id="qBox" class="qbox">
+      <div class="qpointer" aria-hidden="true"></div>
+      <div id="qDial" class="qdial">${compassSvg(q.bearing)}</div>
+    </div>
+    <p id="qStatus" class="qstatus" role="status" aria-live="polite">${live ? '' : t('Kiblat: {d}° dari arah Utara', { d: deg })}</p>
+    ${q.compass === 'idle' ? `<button class="btn btn-primary" data-a="qiblaStart">${t('Mulakan kompas')}</button>` : ''}
+    ${q.compass === 'waiting' ? `<p class="muted small" style="text-align:center">${t('Menunggu kompas telefon...')}</p>` : ''}
+    ${live ? `<p class="small" style="text-align:center">${t('Pegang telefon rata (mendatar) dan pusing badan perlahan-lahan sehingga ikon Kaabah berada di atas.')}</p>` : ''}
+    ${q.compass === 'none' || q.compass === 'denied' ? `<div class="adminnote">${I.compass}<p>${q.compass === 'denied' ? t('Akses kompas tidak dibenarkan.') : t('Telefon ini tidak mempunyai kompas, atau kompas tidak dapat dibaca.')} ${t('Gunakan app Kompas telefon dan hadap <b>{d}°</b> (arah barat laut).', { d: deg })}</p></div>` : ''}
+    <p class="muted small">${q.approx ? t('Lokasi tidak dapat dikesan, jadi arah dikira dari Kuala Lumpur. Bezanya kecil untuk seluruh Malaysia.') : t('Jarak ke Kaabah: {km} km', { km: Math.round(q.km).toLocaleString(LANG === 'en' ? 'en-MY' : 'ms-MY') })}</p>
+    <p class="note">${t('Jauhkan telefon daripada besi atau magnet. Jika arah kelihatan salah, gerakkan telefon membentuk angka 8 untuk kalibrasi kompas. Lokasi anda tidak dihantar ke server.')}</p>
+    <button class="btn btn-ghost" data-a="close">${t('Tutup')}</button>`;
 }
 
 async function loadSolat() {
@@ -608,6 +723,7 @@ function modal() {
       <button class="btn btn-ghost" type="button" data-a="close">${t('Batal')}</button>
     </form>`;
   if (S.modal === 'solat') inner = solatModal();
+  if (S.modal === 'qibla') inner = qiblaModal();
   if (S.modal === 'subscribe') inner = subscribeModal();
   if (S.modal === 'payResult') {
     const R = S.payResult || { state: 'checking' };
@@ -644,7 +760,7 @@ function draw() {
   else body = { utama: tUtama, video: tVideo, komuniti: tKomuniti, akaun: tAkaun }[S.tab]();
   app.innerHTML = `<div class="shell">${body}</div>${S.view === 'app' ? nav() : ''}${modal()}`;
 }
-function render() { draw(); restoreInputs(); }
+function render() { draw(); restoreInputs(); if (S.modal === 'qibla') drawCompass(); else if (Q.listening) stopCompass(); }
 window.render = render;
 
 // ---------- video ----------
@@ -733,6 +849,8 @@ document.addEventListener('click', async e => {
     case 'kTab': S.kTab = v; if (v === 'soaljawab') loadQa(); else loadAnn(); break;
     case 'solatSettings': openSolatSettings(); break;
     case 'solatRetry': S.solat = null; loadSolat(); break;
+    case 'qibla': openQibla(); return;
+    case 'qiblaStart': startCompass(); return;
     case 'ask':
       if (!S.user.active) { S.modal = 'subscribe'; if (!S.plans) loadPlans(); break; }
       S.askVideo = v ? Number(v) : null; S.modal = 'ask'; S.err = ''; break;

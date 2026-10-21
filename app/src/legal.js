@@ -97,6 +97,7 @@ ${contactBlock(o)}`,
   <li><b>Data teknikal:</b> alamat IP, digunakan untuk keselamatan dan menghadkan cubaan log masuk.</li>
   <li><b>Penyumbang:</b> nama, emel, no. telefon (pilihan) dan mesej, untuk resit dan rekod sumbangan. Nama tidak dipaparkan jika anda memilih untuk tidak menunjukkannya.</li>
   <li><b>Tetapan app:</b> bahasa, kawasan waktu solat dan pilihan notifikasi anda.</li>
+  <li><b>Lokasi (arah kiblat):</b> dikira dalam telefon anda sahaja dan <b>tidak dihantar</b> atau disimpan oleh kami.</li>
 </ol>
 <p>Kami <b>tidak</b> menyimpan nombor kad bank anda. Butiran kad diproses terus oleh gerbang pembayaran berlesen.</p>
 
@@ -263,6 +264,7 @@ ${contactBlock(o, 'en')}`,
   <li><b>Technical data:</b> IP address, used for security and to limit login attempts.</li>
   <li><b>Donors:</b> name, email, phone number (optional) and message, for receipts and donation records. Your name is not displayed if you choose to hide it.</li>
   <li><b>App settings:</b> your language, prayer time area and notification choices.</li>
+  <li><b>Location (Qibla direction):</b> calculated on your phone only and <b>not sent</b> to or stored by us.</li>
 </ol>
 <p>We do <b>not</b> store your bank card number. Card details are processed directly by the licensed payment gateway.</p>
 

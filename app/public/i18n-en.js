@@ -376,7 +376,22 @@ window.EN_DICT = {
  "Tidak dapat menyambung ke sistem bayaran. Cuba lagi sebentar.": "Couldn't connect to the payment system. Please try again shortly.",
  "Video belum boleh dimainkan. Sila cuba lagi nanti.": "This video can't be played yet. Please try again later.",
  "Video tidak dijumpai.": "Video not found.",
- "Waktu solat tidak dapat dimuatkan sekarang. Cuba lagi sebentar.": "Prayer times couldn't be loaded right now. Please try again shortly."
+ "Waktu solat tidak dapat dimuatkan sekarang. Cuba lagi sebentar.": "Prayer times couldn't be loaded right now. Please try again shortly.",
+ "Arah kiblat": "Qibla direction",
+ "Mengesan lokasi anda...": "Finding your location...",
+ "Anda sedang menghadap kiblat": "You are facing the Qibla",
+ "Pusing ke kanan {d}°": "Turn right {d}°",
+ "Pusing ke kiri {d}°": "Turn left {d}°",
+ "Kiblat: {d}° dari arah Utara": "Qibla: {d}° from North",
+ "Mulakan kompas": "Start compass",
+ "Menunggu kompas telefon...": "Waiting for the phone's compass...",
+ "Pegang telefon rata (mendatar) dan pusing badan perlahan-lahan sehingga ikon Kaabah berada di atas.": "Hold your phone flat and turn slowly until the Kaaba icon is at the top.",
+ "Akses kompas tidak dibenarkan.": "Compass access was not allowed.",
+ "Telefon ini tidak mempunyai kompas, atau kompas tidak dapat dibaca.": "This phone has no compass, or the compass can't be read.",
+ "Gunakan app Kompas telefon dan hadap <b>{d}°</b> (arah barat laut).": "Use your phone's Compass app and face <b>{d}°</b> (north-west).",
+ "Lokasi tidak dapat dikesan, jadi arah dikira dari Kuala Lumpur. Bezanya kecil untuk seluruh Malaysia.": "Your location couldn't be found, so the direction is calculated from Kuala Lumpur. The difference is small anywhere in Malaysia.",
+ "Jarak ke Kaabah: {km} km": "Distance to the Kaaba: {km} km",
+ "Jauhkan telefon daripada besi atau magnet. Jika arah kelihatan salah, gerakkan telefon membentuk angka 8 untuk kalibrasi kompas. Lokasi anda tidak dihantar ke server.": "Keep your phone away from metal or magnets. If the direction looks wrong, move your phone in a figure-8 to calibrate the compass. Your location is not sent to our server."
 };
 // Mesej ralat server yang mengandungi nombor
 window.EN_PATTERNS = [
