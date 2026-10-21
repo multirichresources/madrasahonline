@@ -1,5 +1,5 @@
 // Panel admin Madrasah Online.
-const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null };
+const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null, plans: null, billingReady: false, insights: null, payments: null };
 const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true, notify: true });
 A.annForm = blankAnn();
 // ms → nilai untuk <input type="datetime-local"> (waktu tempatan)
@@ -67,11 +67,38 @@ function tRingkasan() {
         <div class="row"><div><b>${s.unansweredQuestions} soalan belum dijawab</b><p class="muted small">Soalan pelajar kepada ustaz</p></div><button class="iconbtn" data-a="tab" data-v="soalan">Jawab</button></div>
       </div>
     </div>
+    ${insightCards()}
     <div class="card">
       <span class="eyebrow">Peringatan telefon</span>
       <p><b>${s.pushUsers}</b> pelajar sudah hidupkan notifikasi. Mereka dapat peringatan sehari dan 30 minit sebelum kelas Zoom secara automatik.</p>
     </div>
+    <a class="btn btn-ghost" href="/api/admin/export/pelajar.csv" download>Muat turun senarai pelajar (Excel)</a>
     <button class="btn btn-ghost" data-a="refresh">Muat semula</button>`;
+}
+
+const waLink = (phone, text) => `https://wa.me/${phone}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+function insightCards() {
+  const d = A.insights, pays = A.payments;
+  if (!d) return '<div class="loading">Memuatkan statistik...</div>';
+  const followExp = d.expiring.map(u => `<div class="row"><div><b>${esc(u.name)}</b><p class="muted small">Tamat ${fmtDate(u.paidUntil)}</p></div>
+      <a class="iconbtn" href="${waLink(u.wa, `Assalamualaikum ${u.name}. Langganan Madrasah Online anda akan tamat pada ${fmtDate(u.paidUntil)}. Sambung di app supaya boleh terus menonton video kelas: ${location.origin}`)}" target="_blank" rel="noopener">WhatsApp</a></div>`).join('');
+  const followIdle = d.idle.map(u => `<div class="row"><div><b>${esc(u.name)}</b><p class="muted small">${u.lastWatch ? 'Tonton terakhir ' + fmtDate(u.lastWatch) : 'Belum tonton video'}</p></div>
+      <a class="iconbtn" href="${waLink(u.wa, `Assalamualaikum ${u.name}. Ada rakaman kelas baharu di Madrasah Online. Jom sambung belajar: ${location.origin}`)}" target="_blank" rel="noopener">WhatsApp</a></div>`).join('');
+  return `<div class="card">
+      <span class="eyebrow">Perlu follow up</span>
+      <p class="small"><b>${d.expiring.length}</b> langganan tamat dalam 7 hari (tanpa auto-renew)</p>
+      ${followExp ? `<div class="rows">${followExp}</div>` : ''}
+      <p class="small"><b>${d.idle.length}</b> pelanggan tak tonton video 14 hari</p>
+      ${followIdle ? `<div class="rows">${followIdle}</div>` : ''}
+    </div>
+    <div class="card">
+      <span class="eyebrow">Tontonan video</span>
+      ${d.videos.length ? `<div class="rows">${d.videos.map(v => `<div class="row"><div style="min-width:0"><b>${esc(v.title)}</b><p class="muted small">${esc(v.topic)} · ${v.finished} habis tonton</p></div><span class="pill ok">${v.viewers} pelajar</span></div>`).join('')}</div>` : '<p class="muted">Belum ada video diterbitkan.</p>'}
+    </div>
+    <div class="card">
+      <span class="eyebrow">Bayaran terkini</span>
+      ${!pays ? '<p class="muted">Memuatkan...</p>' : pays.length ? `<div class="rows">${pays.slice(0, 10).map(p => `<div class="row"><div style="min-width:0"><b>${esc(p.name)}</b><p class="muted small">${fmtDate(p.paidAt)} · ${p.months || 1} bulan${p.auto ? ' · kad auto' : ''}</p></div><span class="pill ${p.status === 'completed' ? 'ok' : 'warn'}">${rm(p.amountSen)}${p.status === 'semak' ? ' · semak' : ''}</span></div>`).join('')}</div>` : '<p class="muted">Belum ada bayaran.</p>'}
+    </div>`;
 }
 
 function userRow(u) {
@@ -314,9 +341,28 @@ function tHebahan() {
     </div>`;
 }
 
+function plansCard() {
+  if (!A.plans) return '<div class="card"><span class="eyebrow">Pakej langganan</span><p class="muted">Memuatkan...</p></div>';
+  return `<form id="fPlans" class="card" novalidate>
+    <span class="eyebrow">Pakej langganan</span>
+    ${A.billingReady ? '<div class="ok-box">CHIP sudah disambung. Pelajar boleh membayar dalam app.</div>'
+      : `<div class="adminnote">${I.shield}<p><b>CHIP belum disambung.</b> Tambah secret <b>CHIP_SECRET_KEY</b> dan <b>CHIP_BRAND_ID</b> di Cloudflare. Sebelum itu, pelajar akan nampak "Sistem bayaran sedang disiapkan".</p></div>`}
+    <p class="muted small">Tandakan pakej yang ditawarkan. Harga baharu terpakai untuk bayaran seterusnya, termasuk auto-renew.</p>
+    ${A.plans.map(p => `<div class="q">
+      <label class="check" for="pl-${p.id}-on"><input type="checkbox" id="pl-${p.id}-on" ${p.active ? 'checked' : ''}><span>${p.months} bulan</span></label>
+      <div class="btn-row">
+        <label class="f" for="pl-${p.id}-label" style="flex:1">Nama<input class="input" id="pl-${p.id}-label" maxlength="30" value="${esc(p.label)}"></label>
+        <label class="f" for="pl-${p.id}-price" style="flex:1">Harga (RM)<input class="input" id="pl-${p.id}-price" inputmode="decimal" value="${(p.priceSen / 100).toFixed(2).replace(/\.00$/, '')}"></label>
+      </div>
+    </div>`).join('')}
+    <button class="btn btn-primary" type="submit">Simpan pakej</button>
+  </form>`;
+}
+
 function tTetapan() {
   const o = A.org;
-  return `<form id="fOrg" class="card" novalidate>
+  return `${plansCard()}
+    <form id="fOrg" class="card" novalidate>
       <span class="eyebrow">Maklumat pengendali</span>
       <p class="muted small">Dipaparkan dalam halaman Terma, Privasi & Bayaran Balik, skrin Lupa PIN dan menu Akaun pelajar. Payment gateway biasanya semak maklumat ini.</p>
       ${!o ? '<p class="muted">Memuatkan...</p>' : `
@@ -355,6 +401,7 @@ function modal() {
         <div class="row"><span class="muted">Telefon</span><b>${esc(u.phone)}</b></div>
         <div class="row"><span class="muted">Emel</span><b style="overflow-wrap:anywhere">${esc(u.email || '-')}</b></div>
         <div class="row"><span class="muted">Langganan</span><b>${u.active ? 'Aktif hingga ' + fmtDate(u.paidUntil) : u.paidUntil ? 'Tamat ' + fmtDate(u.paidUntil) : 'Belum bayar'}</b></div>
+        <div class="row"><span class="muted">Auto-renew kad</span><b>${u.autoRenew ? 'Ya' : 'Tidak'}</b></div>
         <div class="row"><span class="muted">Daftar</span><b>${fmtDate(u.createdAt)}</b></div>
       </div>
       <span class="eyebrow">Langganan manual</span>
@@ -424,6 +471,8 @@ function render() {
 window.render = render;
 
 async function loadStats() {
+  api('GET', '/api/admin/insights').then(x => { A.insights = x.ok ? x : { videos: [], expiring: [], idle: [] }; if (A.tab === 'ringkasan') render(); });
+  api('GET', '/api/admin/payments').then(x => { A.payments = x.ok ? x.payments : []; if (A.tab === 'ringkasan') render(); });
   const r = await api('GET', '/api/admin/stats');
   if (r.status === 401) return toLogin();
   if (r.ok) { A.stats = r.stats; A.unanswered = r.stats.unansweredQuestions; } else toast(r.error);
@@ -448,6 +497,12 @@ async function loadQs() {
   const r = await api('GET', `/api/admin/questions?status=${A.qFilter}`);
   if (r.status === 401) return toLogin();
   if (r.ok) { A.qs = r.questions; A.unanswered = r.unanswered; } else { A.qs = []; toast(r.error); }
+  render();
+}
+async function loadPlans() {
+  const r = await api('GET', '/api/admin/plans');
+  if (r.status === 401) return toLogin();
+  if (r.ok) { A.plans = r.plans; A.billingReady = r.billingReady; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`])); }
   render();
 }
 async function loadOrg() {
@@ -476,7 +531,7 @@ function openTab(t) {
   if (t === 'pelajar') loadUsers();
   if (t === 'video') loadVideos();
   if (t === 'hebahan') loadAnns();
-  if (t === 'tetapan') loadOrg();
+  if (t === 'tetapan') { loadOrg(); loadPlans(); }
   if (t === 'soalan') { A.qs = null; A.editQ = null; loadQs(); }
 }
 
@@ -489,7 +544,7 @@ document.addEventListener('click', async e => {
     case 'theme': toggleTheme(); render(); return;
     case 'install': doInstall(); return;
     case 'tab': openTab(v); return;
-    case 'refresh': A.stats = null; render(); loadStats(); return;
+    case 'refresh': A.stats = null; A.insights = null; A.payments = null; render(); loadStats(); return;
     case 'filter': A.filter = v; loadUsers(); return;
     case 'filterGo': A.filter = v; A.q = ''; openTab('pelajar'); return;
     case 'user': A.sel = A.users.find(u => String(u.id) === v); A.newPin = null; A.err = ''; A.modal = 'user'; break;
@@ -637,6 +692,19 @@ document.addEventListener('submit', async e => {
     else A.anns = [r.announcement, ...(A.anns || [])];
     A.annForm = blankAnn(); forget(...ANN_IDS);
     toast(F.id ? 'Hebahan dikemas kini.' : `Hebahan diterbitkan.${r.notified ? ` Notifikasi dihantar kepada ${r.notified} pelajar.` : ''}`);
+  }
+  if (f.id === 'fPlans') {
+    const plans = A.plans.map(p => ({
+      id: p.id,
+      active: document.getElementById(`pl-${p.id}-on`).checked,
+      label: val(`pl-${p.id}-label`),
+      priceSen: Math.round(parseFloat(val(`pl-${p.id}-price`).replace(/[^\d.]/g, '')) * 100),
+    }));
+    const r = await busy(btn, () => api('POST', '/api/admin/plans', { plans }));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { toast(r.error); return; }
+    A.plans = r.plans; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`]));
+    toast('Pakej disimpan.');
   }
   if (f.id === 'fOrg') {
     const r = await busy(btn, () => api('POST', '/api/admin/settings', { name: val('oName'), reg: val('oReg'), email: val('oEmail'), whatsapp: val('oWa'), address: document.getElementById('oAddr').value }));

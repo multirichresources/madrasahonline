@@ -16,6 +16,8 @@ import {
 } from './content.js';
 import { legalPaths, renderLegal } from './legal.js';
 import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, processJobs, sendClassReminders } from './push.js';
+import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myPayments, runBilling, adminGetPlans, adminSavePlans, adminPayments } from './billing.js';
+import { adminInsights, adminExportUsers } from './insights.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
@@ -73,6 +75,18 @@ const routes = [
   ['GET', /^\/api\/admin\/questions$/, (env, req) => adminListQuestions(env, req)],
   ['POST', /^\/api\/admin\/questions\/(\d+)\/answer$/, (env, req, m, ctx) => adminAnswer(env, req, Number(m[1]), ctx)],
   ['POST', /^\/api\/admin\/questions\/(\d+)\/hide$/, (env, req, m) => adminHideQuestion(env, req, Number(m[1]))],
+
+  ['GET', /^\/api\/plans$/, (env, req) => publicPlans(env, req)],
+  ['POST', /^\/api\/pay\/checkout$/, (env, req) => checkout(env, req)],
+  ['POST', /^\/api\/pay\/confirm$/, (env, req) => confirmPayment(env, req)],
+  ['POST', /^\/api\/pay\/callback$/, (env, req) => chipCallback(env, req)],
+  ['POST', /^\/api\/pay\/stop-auto$/, (env, req) => stopAutoRenew(env, req)],
+  ['GET', /^\/api\/pay\/history$/, (env, req) => myPayments(env, req)],
+  ['GET', /^\/api\/admin\/plans$/, (env, req) => adminGetPlans(env, req)],
+  ['POST', /^\/api\/admin\/plans$/, (env, req) => adminSavePlans(env, req)],
+  ['GET', /^\/api\/admin\/payments$/, (env, req) => adminPayments(env, req)],
+  ['GET', /^\/api\/admin\/insights$/, (env, req) => adminInsights(env, req)],
+  ['GET', /^\/api\/admin\/export\/pelajar\.csv$/, (env, req) => adminExportUsers(env, req)],
 
   ['GET', /^\/api\/push\/key$/, (env, req) => pushKey(env, req)],
   ['POST', /^\/api\/push\/subscribe$/, (env, req) => pushSubscribe(env, req)],
@@ -141,7 +155,8 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
-      if (request.method !== 'GET' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
+      // Callback CHIP datang dari server CHIP (bukan pelayar), jadi dikecualikan; ia hanya mencetuskan semakan status.
+      if (request.method !== 'GET' && url.pathname !== '/api/pay/callback' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
       for (const [method, pattern, handler] of routes) {
         const m = url.pathname.match(pattern);
         if (m && request.method === method) return await handler(env, request, m, ctx);
@@ -159,6 +174,7 @@ export default {
   async scheduled(event, env, ctx) {
     const t = now();
     try { await sendClassReminders(env); } catch (e) { console.error('peringatan', e); }
+    try { await runBilling(env); } catch (e) { console.error('bayaran', e); }
     try { await processJobs(env); } catch (e) { console.error('push', e); }
     const d = new Date(event.scheduledTime || t);
     if (d.getUTCHours() === 19 && d.getUTCMinutes() < 5) {

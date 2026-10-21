@@ -1,6 +1,6 @@
 // App pelajar Madrasah Online.
 // No. WhatsApp admin & maklumat hubungan datang dari Tetapan admin (/api/config).
-const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false, org: {} }, reset: { step: 1, phone: '', msg: '' }, videos: null, continueId: null, filter: 'Semua', playing: null, ann: null, kTab: 'pengumuman', qa: null, vqa: null, askVideo: null, push: { state: 'unknown' } };
+const S = { view: 'loading', tab: 'utama', user: null, err: '', modal: null, cfg: { emailReset: false, org: {} }, reset: { step: 1, phone: '', msg: '' }, videos: null, continueId: null, filter: 'Semua', playing: null, ann: null, kTab: 'pengumuman', qa: null, vqa: null, askVideo: null, push: { state: 'unknown' }, plans: null, pay: { plan: null, auto: true }, payResult: null, history: null };
 const app = document.getElementById('app');
 
 // ---------- skrin luar (belum log masuk) ----------
@@ -106,13 +106,14 @@ function statusCard() {
     return `<div class="status ok">
       <span class="eyebrow">Langganan</span>
       <div class="top"><span class="big">Aktif</span><span class="pill ok">${days} hari lagi</span></div>
-      <p>Tamat pada <b>${fmtDate(u.paidUntil)}</b>. Semua video kelas boleh ditonton.</p>
+      <p>${u.autoRenew ? `Diperbaharui automatik pada <b>${fmtDate(u.paidUntil - 864e5)}</b>.` : `Tamat pada <b>${fmtDate(u.paidUntil)}</b>.`} Semua video kelas boleh ditonton.</p>
+      ${!u.autoRenew && days <= 7 ? '<button class="btn btn-primary" data-a="subscribe">Sambung langganan</button>' : ''}
     </div>`;
   }
   return `<div class="status bad">
     <span class="eyebrow">Langganan</span>
     <span class="big">${u.paidUntil ? 'Langganan anda dah tamat' : 'Langganan belum aktif'}</span>
-    <p>${u.paidUntil ? `Tamat pada ${fmtDate(u.paidUntil)}. ` : ''}Langgan RM10 sebulan untuk tonton semua video kelas.</p>
+    <p>${u.paidUntil ? `Tamat pada ${fmtDate(u.paidUntil)}. ` : ''}Langgan untuk tonton semua video kelas dan bertanya kepada ustaz.</p>
     <button class="btn btn-primary" data-a="subscribe">Langgan sekarang</button>
   </div>`;
 }
@@ -224,7 +225,7 @@ function vItem(v) {
 }
 
 function lockCard() {
-  return `<div class="card lock">${I.lock}<h2 style="font-size:1.2rem">Video dikunci</h2><p class="muted">Langgan RM10 sebulan untuk tonton semua rakaman kelas.</p><button class="btn btn-primary" data-a="subscribe">Langgan sekarang</button></div>`;
+  return `<div class="card lock">${I.lock}<h2 style="font-size:1.2rem">Video dikunci</h2><p class="muted">Langgan untuk tonton semua rakaman kelas.</p><button class="btn btn-primary" data-a="subscribe">Langgan sekarang</button></div>`;
 }
 
 function tVideo() {
@@ -372,7 +373,11 @@ function tAkaun() {
     <div class="card">
       <span class="eyebrow">Langganan</span>
       <p>${u.active ? `Aktif hingga <b>${fmtDate(u.paidUntil)}</b>` : u.paidUntil ? `Tamat pada <b>${fmtDate(u.paidUntil)}</b>` : 'Belum melanggan'}</p>
-      ${u.active ? '' : '<button class="btn btn-primary" data-a="subscribe">Langgan sekarang</button>'}
+      ${u.active && u.autoRenew ? `<p class="small"><b>Auto-renew aktif.</b> Kad anda akan dicaj secara automatik pada ${fmtDate(u.paidUntil - 864e5)}.</p>
+        <button class="btn btn-ghost" data-a="modal" data-v="stopAuto">Berhenti auto-renew</button>` : ''}
+      ${!u.active ? '<button class="btn btn-primary" data-a="subscribe">Langgan sekarang</button>'
+        : !u.autoRenew ? '<button class="btn btn-ghost" data-a="subscribe">Sambung / tambah tempoh</button>' : ''}
+      <button class="link" data-a="history" style="align-self:flex-start">Sejarah bayaran</button>
     </div>
     <div class="card">
       <span class="eyebrow">Saiz tulisan</span>
@@ -408,6 +413,54 @@ function tAkaun() {
 function nav() {
   const items = [['utama', 'Utama', I.home], ['video', 'Video', I.video], ['komuniti', 'Komuniti', I.users], ['akaun', 'Akaun', I.user]];
   return `<nav class="nav"><div class="nav-in">${items.map(([k, l, ic]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-label="${l}"${S.tab === k ? ' aria-current="page"' : ''}>${ic}<span>${l}</span></button>`).join('')}</div></nav>`;
+}
+
+function subscribeModal() {
+  const P = S.plans;
+  if (!P) return '<h2 style="font-size:1.25rem">Langganan</h2><div class="loading">Memuatkan pakej...</div>';
+  if (!P.billingReady || !P.plans.length) return `<h2 style="font-size:1.25rem">Langganan</h2>
+    <p>Sistem bayaran sedang disiapkan. Admin akan maklumkan dalam group WhatsApp bila bayaran dibuka.</p>
+    <button class="btn btn-primary" data-a="close">Faham</button>`;
+  const plan = P.plans.find(p => p.id === S.pay.plan) || P.plans[0];
+  S.pay.plan = plan.id;
+  const per = p => p.months > 1 ? `≈ ${rm(Math.round(p.priceSen / p.months))} sebulan` : 'sebulan';
+  const every = plan.months === 1 ? 'setiap bulan' : plan.months === 12 ? 'setiap tahun' : `setiap ${plan.months} bulan`;
+  return `<h2 style="font-size:1.25rem">Pilih pakej</h2>
+    <div class="vlist" role="radiogroup" aria-label="Pakej">${P.plans.map(p => `<button type="button" class="opt ${p.id === plan.id ? 'on' : ''}" role="radio" aria-checked="${p.id === plan.id}" data-a="planPick" data-v="${p.id}">
+      <b>${esc(p.label)} · ${rm(p.priceSen)}</b><span>${per(p)}</span></button>`).join('')}</div>
+    <span class="eyebrow">Cara bayar</span>
+    <div class="vlist" role="radiogroup" aria-label="Cara bayar">
+      <button type="button" class="opt ${S.pay.auto ? 'on' : ''}" role="radio" aria-checked="${S.pay.auto}" data-a="payAuto" data-v="1"><b>Kad debit / kredit (auto-renew)</b><span>Dicaj automatik ${every}. Tak perlu ingat tarikh. Boleh berhenti bila-bila masa.</span></button>
+      <button type="button" class="opt ${S.pay.auto ? '' : 'on'}" role="radio" aria-checked="${!S.pay.auto}" data-a="payAuto" data-v="0"><b>FPX, DuitNow QR atau e-wallet</b><span>Bayar sekali. Perlu bayar semula bila tamat.</span></button>
+    </div>
+    ${S.user.active ? `<p class="muted small">Tempoh baharu akan ditambah selepas ${fmtDate(S.user.paidUntil)}.</p>` : ''}
+    ${!S.user.email ? '<div class="err">Sila tambah emel dahulu. Resit bayaran akan dihantar ke emel anda.</div><button class="btn btn-ghost" data-a="modal" data-v="email">Tambah emel</button>' : ''}
+    ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+    <button class="btn btn-primary" data-a="payGo" ${S.user.email ? '' : 'disabled'}>Bayar ${rm(plan.priceSen)}</button>
+    <p class="note">Pembayaran diproses dengan selamat oleh CHIP, gerbang pembayaran berdaftar dengan Bank Negara Malaysia. <a href="/bayaran-balik" target="_blank" rel="noopener">Polisi bayaran balik</a></p>
+    <button class="btn btn-ghost" data-a="close">Batal</button>`;
+}
+
+async function loadPlans() {
+  const r = await api('GET', '/api/plans');
+  S.plans = r.ok ? { billingReady: r.billingReady, plans: r.plans } : { billingReady: false, plans: [] };
+  if (S.modal === 'subscribe') render();
+}
+
+async function checkPayment(id) {
+  S.modal = 'payResult'; S.payResult = { state: 'checking' }; render();
+  let r;
+  for (let i = 0; i < 4; i++) {
+    r = await api('POST', '/api/pay/confirm', { paymentId: id });
+    if (!r.ok || r.payStatus !== 'pending') break;
+    await new Promise(ok => setTimeout(ok, 2500));
+  }
+  if (r.ok && r.payStatus === 'completed') {
+    S.payResult = { state: 'completed', paidUntil: r.paidUntil, autoRenew: r.autoRenew };
+    const me = await api('GET', '/api/me'); if (me.ok) S.user = me.user;
+    loadVideos();
+  } else S.payResult = { state: r.ok && r.payStatus === 'pending' ? 'pending' : 'failed' };
+  render();
 }
 
 function modal() {
@@ -447,9 +500,30 @@ function modal() {
       <button class="btn btn-primary" type="submit">Hantar soalan</button>
       <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
     </form>`;
-  if (S.modal === 'subscribe') inner = `<h2 style="font-size:1.25rem">Langganan RM10 sebulan</h2>
-      <p>Sistem bayaran sedang disiapkan. Admin akan maklumkan dalam group WhatsApp bila bayaran dibuka.</p>
-      <button class="btn btn-primary" data-a="close">Faham</button>`;
+  if (S.modal === 'subscribe') inner = subscribeModal();
+  if (S.modal === 'payResult') {
+    const R = S.payResult || { state: 'checking' };
+    inner = R.state === 'checking' ? `<h2 style="font-size:1.25rem">Menyemak bayaran...</h2><div class="loading">Sila tunggu sebentar</div>`
+      : R.state === 'completed' ? `<div class="thanks card" style="border:0;background:none;padding:0">${I.star}<h2 style="font-size:1.35rem">Alhamdulillah, bayaran berjaya</h2>
+          <p>Langganan anda aktif hingga <b>${fmtDate(R.paidUntil)}</b>.${R.autoRenew ? ' Auto-renew dengan kad telah dihidupkan.' : ''}</p>
+          <p class="muted small">Resit telah dihantar ke emel anda.</p></div>
+          <button class="btn btn-primary" data-a="payDone">Tonton video kelas</button>`
+      : R.state === 'pending' ? `<h2 style="font-size:1.25rem">Bayaran sedang disahkan</h2>
+          <p>Bank masih memproses bayaran anda. Langganan akan aktif secara automatik dalam beberapa minit. Anda boleh tutup skrin ini.</p>
+          <button class="btn btn-primary" data-a="close">Faham</button>`
+      : `<h2 style="font-size:1.25rem">Bayaran tidak berjaya</h2>
+          <p>Tiada caj dibuat. Sila cuba lagi, atau pilih cara bayaran lain.</p>
+          <button class="btn btn-primary" data-a="subscribe">Cuba lagi</button>
+          <button class="btn btn-ghost" data-a="close">Tutup</button>`;
+  }
+  if (S.modal === 'stopAuto') inner = `<h2 style="font-size:1.25rem">Berhenti auto-renew?</h2>
+      <p>Kad anda tidak akan dicaj lagi. Langganan kekal aktif hingga <b>${fmtDate(S.user.paidUntil)}</b>, selepas itu anda perlu langgan semula untuk terus menonton.</p>
+      <button class="btn btn-primary" data-a="stopAutoGo" style="background:var(--danger)">Ya, berhenti auto-renew</button>
+      <button class="btn btn-ghost" data-a="close">Batal</button>`;
+  if (S.modal === 'history') inner = `<h2 style="font-size:1.25rem">Sejarah bayaran</h2>
+      ${!S.history ? '<div class="loading">Memuatkan...</div>' : S.history.length ? `<div class="rows">${S.history.map(h => `<div class="row"><div><b>${rm(h.amountSen)}</b><p class="muted small">${fmtDate(h.paidAt)} · ${h.months} bulan${h.auto ? ' · kad auto' : ''}</p></div><span class="pill ${h.status === 'completed' ? 'ok' : 'warn'}">${h.status === 'completed' ? 'Berjaya' : 'Disemak'}</span></div>`).join('')}</div>` : '<p class="muted">Belum ada bayaran.</p>'}
+      <p class="muted small">Resit setiap bayaran dihantar ke emel anda.</p>
+      <button class="btn btn-ghost" data-a="close">Tutup</button>`;
   return `<div class="modal-back" data-a="backdrop"><div class="modal" role="dialog" aria-modal="true">${inner}</div></div>`;
 }
 
@@ -550,7 +624,23 @@ document.addEventListener('click', async e => {
     case 'bigSet': Prefs.set('big', v); applyPrefs(); break;
     case 'install': doInstall(); return;
     case 'modal': S.modal = v; S.err = ''; break;
-    case 'subscribe': S.modal = 'subscribe'; break;
+    case 'subscribe': S.modal = 'subscribe'; S.err = ''; if (!S.plans) loadPlans(); break;
+    case 'planPick': S.pay.plan = v; break;
+    case 'payAuto': S.pay.auto = v === '1'; break;
+    case 'payGo': {
+      const r = await busy(el, () => api('POST', '/api/pay/checkout', { planId: S.pay.plan, auto: S.pay.auto }));
+      if (!r.ok) { S.err = r.error; break; }
+      el.disabled = true; el.textContent = 'Membuka halaman bayaran...';
+      location.href = r.checkoutUrl; return;
+    }
+    case 'payDone': S.modal = null; S.tab = 'video'; window.scrollTo(0, 0); loadVideos(); break;
+    case 'stopAutoGo': {
+      const r = await busy(el, () => api('POST', '/api/pay/stop-auto', {}));
+      if (!r.ok) { toast(r.error); return; }
+      S.user.autoRenew = false; S.modal = null; toast('Auto-renew dihentikan. Langganan kekal aktif hingga tarikh tamat.');
+      break;
+    }
+    case 'history': S.modal = 'history'; S.history = null; api('GET', '/api/pay/history').then(r => { S.history = r.ok ? r.payments : []; if (S.modal === 'history') render(); }); break;
     case 'close': case 'backdrop': S.modal = null; S.err = ''; break;
     case 'logout':
       await stopPlayer(); S.videos = null; S.continueId = null; S.ann = null; S.qa = null;
@@ -608,7 +698,7 @@ document.addEventListener('submit', async e => {
   if (f.id === 'fEmail') {
     const r = await busy(btn, () => api('POST', '/api/me/email', { email: val('eEmail'), pin: val('ePin') }));
     if (!r.ok) { S.err = r.error; render(); return; }
-    S.user.email = r.email; S.modal = null; S.err = '';
+    S.user.email = r.email; S.modal = S.plans && S.plans.billingReady ? 'subscribe' : null; S.err = '';
     toast('Emel disimpan.');
   }
   if (f.id === 'fPin') {
@@ -633,8 +723,16 @@ document.addEventListener('submit', async e => {
   // Pautan dari notifikasi: /?k=soaljawab atau /?k=pengumuman
   const k = new URLSearchParams(location.search).get('k');
   if (k === 'soaljawab' || k === 'pengumuman') { S.tab = 'komuniti'; S.kTab = k; history.replaceState(null, '', '/'); }
+  // Kembali dari halaman bayaran CHIP: /?bayar=berjaya|gagal|batal&p=ID
+  const qs = new URLSearchParams(location.search), bayar = qs.get('bayar'), payId = Number(qs.get('p')) || null;
+  if (bayar) history.replaceState(null, '', '/');
   const r = await api('GET', '/api/me');
-  if (r.ok) { S.user = r.user; S.view = 'app'; loadVideos(); loadAnn(); if (S.kTab === 'soaljawab') loadQa(); checkPush().then(render); }
+  if (r.ok) {
+    S.user = r.user; S.view = 'app'; loadVideos(); loadAnn(); if (S.kTab === 'soaljawab') loadQa(); checkPush().then(render);
+    if (bayar === 'berjaya' && payId) { checkPayment(payId); return; }
+    if (bayar === 'gagal' && payId) { S.modal = 'payResult'; S.payResult = { state: 'failed' }; }
+    if (bayar === 'batal') setTimeout(() => toast('Pembayaran dibatalkan. Tiada caj dibuat.'), 300);
+  }
   else S.view = 'login';
   render();
 })();

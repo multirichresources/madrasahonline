@@ -57,3 +57,12 @@ _Deploy: Cloudflare Workers Builds, root directory `app`._
 - Server hantar "ping" kosong; service worker (`public/sw.js`) ambil mesej dari `/api/push/inbox`.
 - Cron setiap 5 minit (`*/5 * * * *`): peringatan sehari & 30 minit sebelum kelas Zoom, dan hantar baki ping (40 setiap pusingan). Pembersihan harian berjalan pada 3 pagi waktu Malaysia.
 - Ujian tempatan: `.dev.vars` perlu `PUSH_ALLOW_HTTP=1`, dan jalankan `wrangler dev --test-scheduled`.
+
+## Bayaran (CHIP Collect)
+
+- Secret di Cloudflare: `CHIP_SECRET_KEY` (portal CHIP → Developers → API keys) dan `CHIP_BRAND_ID` (Developers → Brands). Selagi belum ada, pelajar nampak "Sistem bayaran sedang disiapkan".
+- Pakej & harga diurus dalam Admin → Tetapan → Pakej langganan (disimpan dalam `settings`, key `plans`).
+- Kad: auto-renew (`force_recurring`), dicaj oleh cron sehari sebelum tamat; gagal → cuba semula 24 jam kemudian, berhenti selepas 3 kali atau jika token tidak sah.
+- FPX / DuitNow QR / e-wallet: bayar sekali.
+- Callback `/api/pay/callback` tidak dipercayai terus: status sentiasa diambil semula dari `GET /purchases/{id}/` dengan secret key, dan jumlah disemak. Jumlah tak sepadan → status `semak`.
+- Ujian tempatan: `.dev.vars` dengan `CHIP_SECRET_KEY=test-secret-key`, `CHIP_BRAND_ID=brand-test`, `CHIP_API_BASE=http://127.0.0.1:8798/api/v1` (servis CHIP tiruan dalam `test/auth.test.mjs`).

@@ -7,6 +7,7 @@ let pass = 0, failCount = 0;
 function jar() {
   let c = '';
   return {
+    raw: (path) => fetch(BASE + path, { headers: c ? { cookie: c } : {} }),
     async req(method, path, body, headers = {}) {
       const r = await fetch(BASE + path, {
         method,
@@ -299,6 +300,139 @@ r = await e.req('POST', '/api/push/unsubscribe', { endpoint: 'http://127.0.0.1:8
 r = await e.req('POST', '/api/push/test', {});
 check('Selepas matikan, tiada notifikasi', r.status === 400, r.data);
 mock.close();
+
+// ---- bayaran CHIP (servis CHIP tiruan) ----
+const chipStore = new Map(), chipCalls = [];
+let failCharge = null;
+const chipMock = http.createServer((req, res) => {
+  let b = ''; req.on('data', d => b += d); req.on('end', () => {
+    const body = b ? JSON.parse(b) : {};
+    chipCalls.push({ method: req.method, url: req.url, auth: req.headers.authorization, body });
+    const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
+    if (req.headers.authorization !== 'Bearer test-secret-key') return send(401, { detail: 'unauthorized' });
+    let m;
+    if (req.method === 'POST' && req.url === '/api/v1/purchases/') {
+      const id = nodeCrypto.randomUUID();
+      const total = body.purchase.products.reduce((a, p) => a + p.price * (p.quantity || 1), 0);
+      const p = { id, status: 'created', is_recurring_token: false, recurring_token: null, purchase: { total, currency: 'MYR' }, checkout_url: `https://gate.chip-in.asia/p/${id}/`, _req: body };
+      chipStore.set(id, p); return send(201, p);
+    }
+    if (req.method === 'GET' && (m = req.url.match(/^\/api\/v1\/purchases\/([^/]+)\/$/))) {
+      const p = chipStore.get(m[1]); return p ? send(200, p) : send(404, { detail: 'not found' });
+    }
+    if (req.method === 'POST' && (m = req.url.match(/^\/api\/v1\/purchases\/([^/]+)\/charge\/$/))) {
+      const p = chipStore.get(m[1]), tok = chipStore.get(body.recurring_token);
+      if (failCharge === 'invalid_recurring_token' || !tok || !tok.is_recurring_token) return send(400, { __all__: [{ message: 'Invalid or inactive recurring token!', code: 'invalid_recurring_token' }] });
+      if (failCharge) return send(400, { __all__: [{ message: 'Charge failed', code: 'purchase_charge_error' }] });
+      p.status = 'paid'; p.recurring_token = tok.id; return send(200, p);
+    }
+    if (req.method === 'POST' && (m = req.url.match(/^\/api\/v1\/purchases\/([^/]+)\/delete_recurring_token\/$/))) {
+      const p = chipStore.get(m[1]); if (p) p.is_recurring_token = false; return send(200, p || {});
+    }
+    send(404, {});
+  });
+});
+await new Promise(ok => chipMock.listen(8798, '127.0.0.1', ok));
+const chipPay = (id, { total } = {}) => { const p = chipStore.get(id); p.status = 'paid'; p.is_recurring_token = !!p._req.force_recurring; if (total) p.purchase.total = total; };
+const lastPurchase = () => [...chipStore.values()].pop();
+const addM = (ms, n) => { const d = new Date(ms); d.setUTCMonth(d.getUTCMonth() + n); return d.getTime(); };
+const callback = id => fetch(BASE + '/api/pay/callback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, status: 'paid' }) });
+const d1 = sql => execSync(`npx wrangler d1 execute madrasah-db --local --command "${sql}"`, { stdio: 'ignore', cwd: process.cwd() });
+
+r = await e.req('GET', '/api/plans');
+check('Pakej: CHIP sedia, hanya Bulanan dibuka (lalai)', r.data.billingReady === true && r.data.plans.length === 1 && r.data.plans[0].priceSen === 1000, r.data);
+r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 50 }] });
+check('Harga pakej tak sah ditolak', r.status === 400, r.data);
+r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }, { id: '3bulan', active: false, label: '3 Bulan', priceSen: 3000 }] });
+check('Admin buka pakej Setahun', r.status === 200 && r.data.plans.find(p => p.id === 'tahunan').active === true && r.data.plans.find(p => p.id === 'tahunan').months === 12, r.data);
+r = await e.req('GET', '/api/plans');
+check('Pelajar nampak 2 pakej', r.data.plans.map(p => p.id).join() === 'bulanan,tahunan', r.data);
+
+let me0 = (await e.req('GET', '/api/me')).data.user;
+r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });
+check('Checkout auto-renew: pautan bayaran CHIP', r.status === 200 && r.data.checkoutUrl.startsWith('https://gate.chip-in.asia/'), r.data);
+const pay1 = r.data.paymentId;
+let pr = lastPurchase();
+check('Purchase CHIP: kad sahaja, force_recurring, harga & callback betul', pr._req.force_recurring === true && pr._req.payment_method_whitelist.join() === 'visa,mastercard,maestro'
+  && pr._req.purchase.products[0].price === 1000 && pr._req.client.email === 'baru@contoh.my' && pr._req.success_callback.endsWith('/api/pay/callback') && pr._req.reference === 'MO-' + pay1 && pr._req.brand_id === 'brand-test', pr._req);
+r = await e.req('POST', '/api/pay/confirm', { paymentId: pay1 });
+check('Sebelum bayar: status pending', r.data.payStatus === 'pending', r.data);
+await callback(pr.id);
+r = await e.req('GET', '/api/me');
+check('Callback palsu (belum bayar di CHIP) tidak aktifkan apa-apa', r.data.user.paidUntil === me0.paidUntil && !r.data.user.autoRenew, r.data.user);
+chipPay(pr.id);
+let cb = await callback(pr.id);
+r = await e.req('GET', '/api/me');
+const expected1 = addM(Math.max(Date.now(), me0.paidUntil), 1);
+check('Callback CHIP: langganan +1 bulan & auto-renew aktif', cb.status === 200 && Math.abs(r.data.user.paidUntil - expected1) < 60e3 && r.data.user.autoRenew === true, { got: r.data.user.paidUntil, expected1 });
+const until1 = r.data.user.paidUntil;
+const tokenId = pr.id;
+await callback(pr.id);
+r = await e.req('POST', '/api/pay/confirm', { paymentId: pay1 });
+check('Callback berulang tidak tambah tempoh lagi (idempotent)', r.data.payStatus === 'completed' && r.data.paidUntil === until1, r.data);
+r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });
+check('Tak boleh daftar auto-renew dua kali', r.status === 400, r.data);
+r = await f.req('POST', '/api/pay/confirm', { paymentId: pay1 });
+check('Pelajar lain tak boleh semak bayaran orang lain', r.status === 404, r.data);
+
+r = await e.req('POST', '/api/pay/checkout', { planId: 'tahunan', auto: false });
+pr = lastPurchase();
+check('Checkout sekali bayar: semua cara bayar, tiada force_recurring', r.status === 200 && pr._req.force_recurring === false && !pr._req.payment_method_whitelist && pr._req.purchase.products[0].price === 11000, pr._req);
+chipPay(pr.id, { total: 100 });
+await callback(pr.id);
+r = await e.req('GET', '/api/me');
+check('Jumlah tidak sepadan: tidak diaktifkan (status semak)', r.data.user.paidUntil === until1, r.data.user);
+r = await e.req('POST', '/api/pay/checkout', { planId: '3bulan', auto: false });
+check('Pakej tertutup ditolak', r.status === 400, r.data);
+
+// auto-renew oleh cron
+d1(`UPDATE users SET paid_until = ${Date.now() + 12 * 3600e3}, renew_attempt_at = NULL WHERE id = ${rid}`);
+const before12 = (await e.req('GET', '/api/me')).data.user.paidUntil;
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+r = await e.req('GET', '/api/me');
+check('Cron auto-renew: kad dicaj, +1 bulan', Math.abs(r.data.user.paidUntil - addM(before12, 1)) < 60e3 && r.data.user.autoRenew === true, { got: r.data.user.paidUntil, want: addM(before12, 1) });
+check('Caj guna token kad yang betul', chipCalls.some(c => c.url.endsWith('/charge/') && c.body.recurring_token === tokenId), chipCalls.filter(c => c.url.endsWith('/charge/')).map(c => c.body));
+r = await e.req('GET', '/api/pay/history');
+check('Sejarah bayaran: 2 berjaya + 1 semak', r.data.payments.filter(p => p.status === 'completed').length === 2 && r.data.payments.some(p => p.status === 'semak'), r.data);
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(500);
+r = await e.req('GET', '/api/pay/history');
+check('Cron tidak caj berganda', r.data.payments.filter(p => p.status === 'completed').length === 2, r.data);
+failCharge = 'purchase_charge_error';
+d1(`UPDATE users SET paid_until = ${Date.now() + 6 * 3600e3}, renew_attempt_at = NULL WHERE id = ${rid}`);
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+r = await e.req('GET', '/api/me');
+check('Kad gagal sekali: auto-renew kekal (cuba esok)', r.data.user.autoRenew === true && r.data.user.paidUntil < Date.now() + 7 * 3600e3, r.data.user);
+failCharge = 'invalid_recurring_token';
+d1(`UPDATE users SET renew_attempt_at = NULL WHERE id = ${rid}`);
+await fetch(BASE + '/cdn-cgi/handler/scheduled?cron=*%2F5+*+*+*+*'); await sleep(800);
+r = await e.req('GET', '/api/me');
+check('Token kad tidak sah: auto-renew dihentikan', r.data.user.autoRenew === false, r.data.user);
+failCharge = null;
+
+// berhenti auto-renew
+await ad.req('POST', '/api/admin/users/' + (await ad.req('GET', '/api/admin/users?q=Salmah')).data.users[0].id + '/subscription', { months: 1 });
+r = await f.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });
+pr = lastPurchase(); chipPay(pr.id); await callback(pr.id);
+r = await f.req('GET', '/api/me');
+check('Pelajar kedua: auto-renew aktif', r.data.user.autoRenew === true, r.data.user);
+r = await f.req('POST', '/api/pay/stop-auto', {});
+const r2 = await f.req('GET', '/api/me');
+check('Berhenti auto-renew: token dipadam di CHIP, akses kekal', r.status === 200 && r2.data.user.autoRenew === false && r2.data.user.active === true && chipCalls.some(c => c.url === `/api/v1/purchases/${pr.id}/delete_recurring_token/`), r2.data.user);
+r = await fetch(BASE + '/api/pay/callback', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://gate.chip-in.asia' }, body: JSON.stringify({ id: 'tiada' }) });
+check('Callback dari domain CHIP diterima (id tak dikenali diabaikan)', r.status === 200);
+
+// statistik & eksport
+r = await ad.req('GET', '/api/admin/payments');
+check('Admin: senarai bayaran', r.status === 200 && r.data.payments.length >= 3 && r.data.payments.some(p => p.status === 'semak'), r.data);
+r = await ad.req('GET', '/api/admin/insights');
+check('Admin: statistik tontonan', r.status === 200 && r.data.videos.some(v => v.title === 'Hukum Nun Mati' && v.viewers === 1), r.data);
+const csvRes = await fetch(BASE + '/api/admin/export/pelajar.csv', { headers: { cookie: '' } });
+check('Eksport CSV perlu login admin', csvRes.status === 401);
+const csv = await ad.raw('/api/admin/export/pelajar.csv');
+const csvBytes = new Uint8Array(await csv.arrayBuffer());
+const csvText = new TextDecoder().decode(csvBytes);
+check('Eksport CSV untuk Excel (BOM, tajuk, data)', csv.status === 200 && csvBytes[0] === 0xef && csvBytes[1] === 0xbb && csvBytes[2] === 0xbf && csvText.includes('Nama,No. telefon') && csvText.includes('Rohana Ismail') && csv.headers.get('content-disposition').includes('.csv'), csvText.slice(0, 200));
+chipMock.close();
 
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');

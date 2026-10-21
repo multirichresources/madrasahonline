@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS users (
   locked_until  INTEGER,                          -- epoch ms
   plan          TEXT,                             -- 'kad_bulanan' | 'fpx_bulanan' | 'fpx_tahunan'
   paid_until    INTEGER,                          -- epoch ms; akses aktif jika > sekarang
+  auto_renew    INTEGER NOT NULL DEFAULT 0,       -- 1 = caj kad automatik bila tamat
+  chip_token    TEXT,                             -- id Purchase CHIP yang menyimpan token kad
+  renew_fails   INTEGER NOT NULL DEFAULT 0,
+  renew_attempt_at INTEGER,
   created_at    INTEGER NOT NULL
 );
 
@@ -97,13 +101,14 @@ CREATE TABLE IF NOT EXISTS payments (
   user_id       INTEGER,                          -- NULL untuk penderma tanpa akaun
   purpose       TEXT    NOT NULL,                 -- 'langganan' | 'sumbangan'
   plan          TEXT,
+  months        INTEGER,                          -- tempoh langganan yang dibeli
   amount_sen    INTEGER NOT NULL,
   provider      TEXT    NOT NULL DEFAULT 'hitpay',
   provider_ref  TEXT    UNIQUE,                   -- payment_request id / recurring billing id
-  status        TEXT    NOT NULL DEFAULT 'pending', -- 'pending' | 'completed' | 'failed'
+  status        TEXT    NOT NULL DEFAULT 'pending', -- 'pending' | 'completed' | 'failed' | 'semak' (jumlah tak sepadan)
   donor_name    TEXT,
   donation_use  TEXT,                             -- 'taja' | 'umum'
-  recurring     INTEGER NOT NULL DEFAULT 0,
+  recurring     INTEGER NOT NULL DEFAULT 0,         -- 0 sekali bayar, 1 daftar auto-renew, 2 caj auto-renew
   created_at    INTEGER NOT NULL,
   completed_at  INTEGER
 );

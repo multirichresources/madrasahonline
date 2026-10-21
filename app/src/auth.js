@@ -3,6 +3,7 @@ import {
   now, json, fail, HttpError, readJson, randomToken, sha256Hex, hashSecret, newSalt, safeEqual,
   normalizePhone, displayPhone, checkPin, cleanText, validEmail, rateLimit, clientIp,
 } from './util.js';
+import { cancelToken } from './billing.js';
 
 const USER_COOKIE = 'mo_sess';
 const ADMIN_COOKIE = 'mo_admin';
@@ -58,6 +59,7 @@ export function publicUser(u) {
     plan: u.plan || null,
     paidUntil: u.paid_until || null,
     active: !!(u.paid_until && u.paid_until > t),
+    autoRenew: !!(u.auto_renew && u.chip_token),
   };
 }
 
@@ -249,6 +251,7 @@ export async function deleteAccount(env, request) {
   const body = await readJson(request);
   const hash = await hashSecret(String(body.pin || ''), u.pin_salt, iterations(env));
   if (!safeEqual(hash, u.pin_hash)) return fail(401, 'PIN salah. Akaun tidak dipadam.');
+  await cancelToken(env, u); // hentikan auto-renew kad di CHIP
   await env.DB.batch([
     env.DB.prepare("DELETE FROM sessions WHERE kind = 'user' AND subject_id = ?").bind(u.id),
     env.DB.prepare('DELETE FROM watch_progress WHERE user_id = ?').bind(u.id),
