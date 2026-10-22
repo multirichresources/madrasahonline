@@ -4,7 +4,7 @@ import { now, json, fail, readJson, sha256Hex, cleanText } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
 
 const API = 'https://video.bunnycdn.com';
-const TOPICS = ['Makhraj', 'Tajwid', 'Bacaan', 'Fardhu Ain', 'Lain-lain'];
+const TOPICS = ['Makhraj', 'Tajwid', 'Bacaan', 'Fardhu Ain', 'Sirah', 'Lain-lain'];
 const PLAY_TTL_S = 6 * 3600;      // pautan tonton sah 6 jam
 const UPLOAD_TTL_S = 24 * 3600;   // tandatangan upload sah 24 jam
 
