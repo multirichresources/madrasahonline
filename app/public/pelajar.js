@@ -178,7 +178,7 @@ function solatHero() {
       <span class="sh-label">${t('Waktu seterusnya')}</span>
       ${nx ? `<span class="sh-count">${countdown(nx.at)}</span>` : ''}
     </div>
-    ${nx ? `<div class="sh-name">${esc(nx.label)}</div><div class="sh-time">${fmtTime(nx.at)}</div>` : ''}
+    ${nx ? `<div class="sh-main"><span class="sh-name">${esc(nx.label)}</span><span class="sh-time">${fmtTime(nx.at)}</span></div>` : ''}
     <div class="sh-date">${d.hijri ? esc(fmtHijri(d.hijri)) + ' · ' : ''}${dayName(now.getDay())}, ${fmtDate(now.getTime())}</div>
     <div class="sh-links">
       <button class="sh-btn" data-a="qibla">${QI.compass}<span>${t('Arah kiblat')}</span></button>
