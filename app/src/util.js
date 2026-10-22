@@ -48,6 +48,12 @@ export async function hashSecret(secret, saltB64, iterations) {
   return b64url(new Uint8Array(bits));
 }
 
+// Bilangan pusingan untuk hash BAHARU (HASH_ITERATIONS, had Cloudflare 100,000).
+// Setiap hash simpan bilangan pusingannya sendiri (pin_iter / pass_iter), jadi hash lama kekal sah
+// bila nilai ini dinaikkan, dan dinaik taraf automatik semasa pengguna log masuk.
+export const LEGACY_ITER = 10000;
+export const hashIter = (env) => Math.min(100000, Math.max(LEGACY_ITER, Number(env.HASH_ITERATIONS) || LEGACY_ITER));
+
 export const newSalt = () => b64url(crypto.getRandomValues(new Uint8Array(16)));
 
 export function safeEqual(a, b) {

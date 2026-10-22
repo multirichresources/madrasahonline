@@ -424,7 +424,42 @@ function tTetapan() {
         <button class="btn btn-primary" type="submit">Tambah admin</button>
       </form>
     </div>
+    ${logCard()}
     ${installCard()}`;
+}
+
+// Log aktiviti admin: siapa buat apa. Login gagal ditanda merah (mungkin orang cuba teka kata laluan).
+function logDetail(d) {
+  if (!d) return '';
+  try {
+    const o = JSON.parse(d);
+    return Object.entries(o).filter(([, v]) => v !== '' && v !== null && v !== '•••' && typeof v !== 'object')
+      .map(([k, v]) => `${k}: ${v}`).join(' · ').slice(0, 160);
+  } catch { return ''; }
+}
+function logCard() {
+  const L = A.log;
+  return `<div class="card">
+    <span class="eyebrow">Log aktiviti admin</span>
+    <p class="muted small">Rekod setiap perubahan, muat turun data dan cubaan log masuk admin (disimpan 1 tahun). Kata laluan dan PIN tidak direkod.</p>
+    ${!L ? '<button class="btn btn-ghost" data-a="loadLog">Lihat log</button>' : !L.items.length ? '<p class="muted">Belum ada rekod.</p>' : `
+    <div class="rows adminlog">${L.items.map(r => `<div class="row" style="align-items:flex-start">
+      <div style="min-width:0">
+        <b${r.failed ? ' style="color:var(--danger)"' : ''}>${esc(r.failed ? 'Log masuk GAGAL' : r.action)}</b>${r.target ? ` <span class="muted">· ${esc(r.target)}</span>` : ''}
+        <div class="muted small" style="overflow-wrap:anywhere">${[r.admin, logDetail(r.detail)].filter(Boolean).map(esc).join(' · ')}${r.failed || /Log masuk/.test(r.action) ? ' · IP ' + esc(r.ip || '-') : ''}</div>
+      </div>
+      <span class="muted small" style="white-space:nowrap;text-align:right">${fmtDate(r.at)}<br>${fmtTime(r.at)}</span>
+    </div>`).join('')}</div>
+    ${L.more ? '<button class="btn btn-ghost" data-a="moreLog">Lihat lagi</button>' : ''}`}
+  </div>`;
+}
+async function loadLog(more) {
+  const before = more && A.log && A.log.items.length ? A.log.items[A.log.items.length - 1].id : '';
+  const r = await api('GET', '/api/admin/log' + (before ? '?before=' + before : ''));
+  if (r.status === 401) return toLogin();
+  if (!r.ok) return toast(r.error);
+  A.log = { items: (more && A.log ? A.log.items : []).concat(r.log), more: r.log.length === 100 };
+  render();
 }
 
 function modal() {
@@ -577,7 +612,7 @@ function openTab(t) {
   if (t === 'pelajar') loadUsers();
   if (t === 'video') loadVideos();
   if (t === 'hebahan') loadAnns();
-  if (t === 'tetapan') { loadOrg(); loadPlans(); }
+  if (t === 'tetapan') { A.log = null; loadOrg(); loadPlans(); }
   if (t === 'sumbangan') { A.don = null; loadDon(); }
   if (t === 'soalan') { A.qs = null; A.editQ = null; loadQs(); }
 }
@@ -614,6 +649,8 @@ document.addEventListener('click', async e => {
       toast('Sumbangan bulanan dihentikan.'); loadDon(); return;
     }
     case 'modal': A.modal = v; A.err = ''; break;
+    case 'loadLog': loadLog(false); return;
+    case 'moreLog': loadLog(true); return;
     case 'close': case 'backdrop': A.modal = null; A.err = ''; A.newPin = null; break;
     case 'resetPin': {
       const pin = randomPin();

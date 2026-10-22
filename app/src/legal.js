@@ -381,7 +381,7 @@ export async function renderLegal(env, path, lang = 'ms') {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <link rel="stylesheet" href="/app.css">
-<script>try{var t=localStorage.getItem('mo-theme');if(t)document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('mo-big')==='1')document.documentElement.classList.add('big')}catch(e){}</script>
+<script src="/theme-init.js"></script>
 </head>
 <body>
 <main class="shell legal">

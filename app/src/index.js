@@ -20,7 +20,23 @@ import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myP
 import { adminInsights, adminExportUsers } from './insights.js';
 import { listZones, solatToday, saveSolatPrefs, sendAzan, cleanAzan } from './solat.js';
 import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, adminDonations, adminStopDonor, adminTajaBalance, adminSponsor, adminExportDonations } from './donations.js';
+import { shouldLog, readDetail, writeLog, adminListLog, cleanAdminLog } from './adminlog.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
+
+// Pengepala keselamatan untuk jawapan dari Worker (fail statik guna public/_headers).
+const SECURITY_HEADERS = {
+  'strict-transport-security': 'max-age=31536000',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'content-security-policy': "script-src 'self' https://assets.mediadelivery.net; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+  'permissions-policy': 'camera=(), microphone=(), payment=(), usb=(), geolocation=(self), accelerometer=(self), gyroscope=(self), magnetometer=(self)',
+};
+function secure(res) {
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!out.headers.has(k)) out.headers.set(k, v);
+  return out;
+}
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
 function sameOrigin(request) {
@@ -103,6 +119,7 @@ const routes = [
   ['GET', /^\/api\/admin\/export\/sumbangan\.csv$/, (env, req) => adminExportDonations(env, req)],
   ['GET', /^\/api\/admin\/insights$/, (env, req) => adminInsights(env, req)],
   ['GET', /^\/api\/admin\/export\/pelajar\.csv$/, (env, req) => adminExportUsers(env, req)],
+  ['GET', /^\/api\/admin\/log$/, (env, req) => adminListLog(env, req)],
 
   ['GET', /^\/api\/push\/key$/, (env, req) => pushKey(env, req)],
   ['POST', /^\/api\/push\/subscribe$/, (env, req) => pushSubscribe(env, req)],
@@ -161,29 +178,42 @@ async function adminUsers(env, request) {
   return json({ ok: true, users: results.map(u => ({ ...publicUser(u), createdAt: u.created_at })) });
 }
 
+async function handle(request, env, ctx) {
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/\/$/, '');
+  if (legalPaths.includes(path) && request.method === 'GET') {
+    try { return await renderLegal(env, path, url.searchParams.get('lang') === 'en' ? 'en' : 'ms'); }
+    catch (err) { console.error(err); return new Response('Ralat sistem. Sila cuba sebentar lagi.', { status: 500 }); }
+  }
+  if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+
+  try {
+    // Callback CHIP datang dari server CHIP (bukan pelayar), jadi dikecualikan; ia hanya mencetuskan semakan status.
+    if (request.method !== 'GET' && url.pathname !== '/api/pay/callback' && url.pathname !== '/api/internal/push' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
+    for (const [method, pattern, handler] of routes) {
+      const m = url.pathname.match(pattern);
+      if (!m || request.method !== method) continue;
+      const logIt = shouldLog(method, url.pathname);
+      const detail = logIt ? await readDetail(request) : null;
+      const res = await handler(env, request, m, ctx);
+      const isLogin = url.pathname === '/api/admin/login';
+      if (logIt && (isLogin ? [200, 401, 423].includes(res.status) : res.ok)) {
+        const p = writeLog(env, request, url.pathname, detail, res.status).catch(e => console.error('log admin', e));
+        if (ctx) ctx.waitUntil(p); else await p;
+      }
+      return res;
+    }
+    return fail(404, 'Laluan tidak dijumpai.');
+  } catch (err) {
+    if (err instanceof HttpError) return fail(err.status, err.message);
+    console.error(err);
+    return fail(500, 'Ralat sistem. Sila cuba sebentar lagi.');
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname.replace(/\/$/, '');
-    if (legalPaths.includes(path) && request.method === 'GET') {
-      try { return await renderLegal(env, path, url.searchParams.get('lang') === 'en' ? 'en' : 'ms'); }
-      catch (err) { console.error(err); return new Response('Ralat sistem. Sila cuba sebentar lagi.', { status: 500 }); }
-    }
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
-
-    try {
-      // Callback CHIP datang dari server CHIP (bukan pelayar), jadi dikecualikan; ia hanya mencetuskan semakan status.
-      if (request.method !== 'GET' && url.pathname !== '/api/pay/callback' && url.pathname !== '/api/internal/push' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
-      for (const [method, pattern, handler] of routes) {
-        const m = url.pathname.match(pattern);
-        if (m && request.method === method) return await handler(env, request, m, ctx);
-      }
-      return fail(404, 'Laluan tidak dijumpai.');
-    } catch (err) {
-      if (err instanceof HttpError) return fail(err.status, err.message);
-      console.error(err);
-      return fail(500, 'Ralat sistem. Sila cuba sebentar lagi.');
-    }
+    return secure(await handle(request, env, ctx));
   },
 
   // Cron setiap minit: notifikasi azan (perlu tepat pada waktu).
@@ -205,6 +235,7 @@ export default {
         env.DB.prepare('DELETE FROM pin_resets WHERE expires_at < ?').bind(t),
         env.DB.prepare('DELETE FROM notifications WHERE created_at < ?').bind(t - 30 * 864e5),
         cleanAzan(env, t),
+        cleanAdminLog(env, t),
       ]);
     }
   },

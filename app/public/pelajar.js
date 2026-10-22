@@ -451,7 +451,7 @@ const monthLabel = m => m ? monthName(Number(m.slice(5, 7)) - 1) + ' ' + m.slice
 function vItem(v) {
   const total = Math.max(1, v.minutes * 60), pct = Math.min(100, Math.round(v.watchedSeconds / total * 100));
   return `<button class="vitem" data-a="play" data-v="${v.id}">
-    ${v.thumbUrl ? `<span class="thumb-img"><img src="${esc(v.thumbUrl)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('noimg');this.remove()">${v.arabicLabel ? `<span class="thumb-ar">${esc(v.arabicLabel)}</span>` : ''}</span>`
+    ${v.thumbUrl ? `<span class="thumb-img"><img src="${esc(v.thumbUrl)}" alt="" loading="lazy">${v.arabicLabel ? `<span class="thumb-ar">${esc(v.arabicLabel)}</span>` : ''}</span>`
       : `<span class="thumb">${v.arabicLabel ? esc(v.arabicLabel) : `<span style="font-family:var(--f-body);font-size:.8rem;direction:ltr">${esc(v.topic)}</span>`}</span>`}
     <span class="vinfo">
       <b>${esc(v.title)}</b>
@@ -861,6 +861,12 @@ document.addEventListener('change', e => {
 });
 
 // ---------- tindakan ----------
+// Thumbnail gagal dimuatkan: tunjuk latar biasa (ganti onerror sebaris, yang disekat oleh CSP)
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (img && img.tagName === 'IMG' && img.parentNode && img.parentNode.classList.contains('thumb-img')) { img.parentNode.classList.add('noimg'); img.remove(); }
+}, true);
+
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]');
   if (!el) return;

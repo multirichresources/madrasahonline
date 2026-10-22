@@ -601,6 +601,40 @@ check('Halaman /sumbang dipapar', page.status === 200 && (await page.text()).inc
 
 chipMock.close();
 
+// ---- keselamatan: pengepala, log admin, hash lama ----
+let h = await fetch(BASE + '/api/me');
+check('API ada pengepala keselamatan', /frame-ancestors 'none'/.test(h.headers.get('content-security-policy') || '') && h.headers.get('x-frame-options') === 'DENY' && h.headers.get('x-content-type-options') === 'nosniff', Object.fromEntries(h.headers));
+h = await fetch(BASE + '/');
+check('App pelajar ada pengepala keselamatan', /script-src 'self'/.test(h.headers.get('content-security-policy') || '') && h.headers.get('x-frame-options') === 'DENY', Object.fromEntries(h.headers));
+h = await fetch(BASE + '/admin');
+check('Panel admin ada pengepala keselamatan', h.headers.get('x-frame-options') === 'DENY');
+h = await fetch(BASE + '/terma');
+const termaHtml = await h.text();
+check('Halaman polisi: pengepala + tiada skrip sebaris', h.headers.get('x-frame-options') === 'DENY' && !/<script>/.test(termaHtml) && termaHtml.includes('/theme-init.js'));
+check('Fail _headers tidak boleh dimuat turun', (await fetch(BASE + '/_headers')).headers.get('content-type')?.includes('text/html') ?? true);
+
+const bad = jar();
+r = await bad.req('POST', '/api/admin/login', { email: 'admin@contoh.my', password: 'cuba-teka-salah' });
+check('Login admin salah ditolak', r.status === 401);
+await sleep(300);
+r = await ad.req('GET', '/api/admin/log');
+const logs = r.data && r.data.log || [];
+check('Log admin: login direkod', logs.some(l => l.action === 'Log masuk admin' && !l.failed && l.admin === 'Admin'), logs.slice(0, 5));
+check('Log admin: login gagal ditanda', logs.some(l => l.action === 'Log masuk admin' && l.failed && (l.detail || '').includes('admin@contoh.my')), logs.slice(0, 5));
+check('Log admin: set semula PIN dengan nama pelajar', logs.some(l => l.action === 'Set semula PIN pelajar' && /Rohana Ismail/.test(l.target || '')), logs.filter(l => /PIN/.test(l.action)));
+check('Log admin: muat turun CSV direkod', logs.some(l => l.action === 'Muat turun rekod sumbangan (CSV)'));
+check('Log admin: langganan manual direkod', logs.some(l => l.action === 'Ubah langganan pelajar'));
+check('Log admin: PIN & kata laluan tidak disimpan', !logs.some(l => /739215|624813|katalaluan-panjang|cuba-teka-salah/.test(l.detail || '')), logs.map(l => l.detail).filter(Boolean).slice(0, 8));
+r = await plain0('GET', '/api/admin/log');
+check('Orang awam tak boleh lihat log admin', r.status === 401);
+r = await e.req('GET', '/api/admin/log');
+check('Pelajar tak boleh lihat log admin', r.status === 401);
+
+// Hash lama (tanpa pin_iter) masih boleh login
+d1(`UPDATE users SET pin_iter = NULL WHERE phone = '6${phone}'`);
+r = await jar().req('POST', '/api/login', { phone, pin: '624813' });
+check('Akaun dengan hash lama masih boleh login', r.status === 200, r.data);
+
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');
 check('Pelajar tanpa sesi admin tak boleh lihat senarai', r.status === 401);

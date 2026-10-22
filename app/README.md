@@ -34,10 +34,16 @@ Fail `.dev.vars` (tidak dimuat naik ke GitHub) perlu ada `SETUP_KEY=...` untuk u
 
 ## Nota penting
 
-- **Jangan tukar `HASH_ITERATIONS` selepas ada pelajar berdaftar**, PIN sedia ada akan jadi tidak sah.
+- `HASH_ITERATIONS` boleh dinaikkan bila-bila masa (maksimum 100000). Setiap hash simpan bilangan pusingannya sendiri (`pin_iter` / `pass_iter`), jadi PIN lama kekal sah dan dinaik taraf automatik bila pelajar log masuk. Selepas naik taraf ke Workers Paid, tetapkan `"HASH_ITERATIONS": "100000"`.
 - Pelan percuma Cloudflare hadkan masa CPU 10ms setiap permintaan. Jika login gagal dengan ralat had CPU, naik taraf ke Workers Paid.
 - PIN 6 angka dilindungi oleh had cubaan per IP dan kunci akaun 15 minit selepas 5 PIN salah.
 - Lupa PIN: pelajar terima kod 6 angka melalui emel. Aktif bila servis emel dikonfigurasi (lihat bawah). Sebelum itu, admin set PIN sementara dari panel admin.
+
+## Keselamatan
+
+- Pengepala keselamatan (CSP, HSTS, X-Frame-Options dan lain-lain) untuk fail statik ada dalam `public/_headers`; untuk API & halaman polisi dalam `src/index.js` (`SECURITY_HEADERS`). Jika tambah skrip dari domain luar, tambah domainnya pada `script-src` di kedua-dua tempat. Skrip sebaris (`<script>…</script>`, `onclick="…"`) disekat.
+- Log aktiviti admin: Tetapan → Log aktiviti admin. Setiap POST admin, muat turun CSV dan cubaan login admin direkod (kata laluan/PIN dibuang), disimpan 1 tahun.
+- Video: hidupkan Token Authentication di Bunny dan tetapkan rahsia `BUNNY_TOKEN_KEY`, serta Allowed domains, supaya pautan video tidak boleh dikongsi di luar app.
 
 ## Aktifkan emel (Lupa PIN)
 

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT,
   pin_hash      TEXT    NOT NULL,
   pin_salt      TEXT    NOT NULL,
+  pin_iter      INTEGER,                          -- pusingan PBKDF2 hash ini (NULL = 10000)
   failed_logins INTEGER NOT NULL DEFAULT 0,
   locked_until  INTEGER,                          -- epoch ms
   plan          TEXT,                             -- 'kad_bulanan' | 'fpx_bulanan' | 'fpx_tahunan'
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS admins (
   name          TEXT    NOT NULL,
   pass_hash     TEXT    NOT NULL,
   pass_salt     TEXT    NOT NULL,
+  pass_iter     INTEGER,                          -- pusingan PBKDF2 hash ini (NULL = 10000)
   failed_logins INTEGER NOT NULL DEFAULT 0,
   locked_until  INTEGER,
   created_at    INTEGER NOT NULL
@@ -221,3 +223,19 @@ CREATE TABLE IF NOT EXISTS azan_sent (
   sent_at  INTEGER NOT NULL,
   PRIMARY KEY (zone, date, prayer)
 );
+
+-- Log aktiviti admin: siapa buat apa, bila (disimpan 1 tahun)
+CREATE TABLE IF NOT EXISTS admin_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id    INTEGER,
+  admin_name  TEXT,
+  method      TEXT    NOT NULL,
+  path        TEXT    NOT NULL,
+  action      TEXT    NOT NULL,                   -- huraian, cth. 'Ubah langganan pelajar'
+  target      TEXT,                               -- cth. nama pelajar / tajuk video
+  detail      TEXT,                               -- isi permintaan (kata laluan / PIN dibuang)
+  status      INTEGER NOT NULL,                   -- kod HTTP jawapan (401 = login admin gagal)
+  ip          TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_admin_log_time ON admin_log(created_at);

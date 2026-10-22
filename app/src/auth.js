@@ -1,7 +1,7 @@
 // Daftar, login PIN, sesi dan login admin.
 import {
   now, json, fail, HttpError, readJson, randomToken, sha256Hex, hashSecret, newSalt, safeEqual,
-  normalizePhone, displayPhone, checkPin, cleanText, validEmail, rateLimit, clientIp,
+  normalizePhone, displayPhone, checkPin, cleanText, validEmail, rateLimit, clientIp, hashIter, LEGACY_ITER,
 } from './util.js';
 import { cancelToken } from './billing.js';
 
@@ -12,7 +12,13 @@ const ADMIN_SESSION_MS = 12 * 3600 * 1000;       // admin 12 jam
 const MAX_FAILS = 5;
 const LOCK_MS = 15 * 60 * 1000;
 
-const iterations = (env) => Number(env.HASH_ITERATIONS || 10000);
+const iterations = hashIter;
+const pinIter = (u) => u.pin_iter || LEGACY_ITER;
+const passIter = (a) => a.pass_iter || LEGACY_ITER;
+
+// Admin yang sedang membuat permintaan ini (untuk log aktiviti admin)
+const ADMIN_OF = new WeakMap();
+export const adminOf = (request) => ADMIN_OF.get(request) || null;
 
 function readCookie(request, name) {
   const raw = request.headers.get('cookie') || '';
@@ -79,6 +85,7 @@ export async function requireAdmin(env, request) {
   if (!id) throw new HttpError(401, 'Sila log masuk sebagai admin.');
   const a = await env.DB.prepare('SELECT id, email, name FROM admins WHERE id = ?').bind(id).first();
   if (!a) throw new HttpError(401, 'Sila log masuk sebagai admin.');
+  ADMIN_OF.set(request, a);
   return a;
 }
 
@@ -103,8 +110,8 @@ export async function register(env, request) {
 
   const salt = newSalt();
   const hash = await hashSecret(String(body.pin), salt, iterations(env));
-  const res = await env.DB.prepare('INSERT INTO users (name, phone, email, pin_hash, pin_salt, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(name, phone, email || null, hash, salt, now()).run();
+  const res = await env.DB.prepare('INSERT INTO users (name, phone, email, pin_hash, pin_salt, pin_iter, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(name, phone, email || null, hash, salt, iterations(env), now()).run();
   const id = res.meta.last_row_id;
   const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
   const setCookie = await createSession(env, request, 'user', id);
@@ -128,7 +135,7 @@ export async function login(env, request) {
     const mins = Math.ceil((u.locked_until - t) / 60000);
     return fail(423, `Akaun dikunci sementara kerana PIN salah berulang kali. Cuba lagi dalam ${mins} minit, atau hubungi admin.`);
   }
-  const hash = await hashSecret(pin, u.pin_salt, iterations(env));
+  const hash = await hashSecret(pin, u.pin_salt, pinIter(u));
   if (!safeEqual(hash, u.pin_hash)) {
     const fails = u.failed_logins + 1;
     const lock = fails >= MAX_FAILS ? t + LOCK_MS : null;
@@ -137,7 +144,14 @@ export async function login(env, request) {
     if (lock) return fail(423, 'PIN salah 5 kali. Akaun dikunci 15 minit.');
     return fail(401, `${generic} Baki cubaan: ${MAX_FAILS - fails}.`);
   }
-  await env.DB.prepare('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?').bind(u.id).run();
+  if (pinIter(u) < iterations(env)) {
+    // Naik taraf hash lama ke bilangan pusingan semasa (PIN betul ada di tangan sekarang)
+    const salt = newSalt();
+    await env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ?, pin_iter = ?, failed_logins = 0, locked_until = NULL WHERE id = ?')
+      .bind(await hashSecret(pin, salt, iterations(env)), salt, iterations(env), u.id).run();
+  } else {
+    await env.DB.prepare('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?').bind(u.id).run();
+  }
   const setCookie = await createSession(env, request, 'user', u.id);
   return json({ ok: true, user: publicUser(u) }, 200, { 'set-cookie': setCookie });
 }
@@ -166,14 +180,21 @@ export async function adminLogin(env, request) {
   if (!a) return fail(401, generic);
   const t = now();
   if (a.locked_until && a.locked_until > t) return fail(423, 'Akaun admin dikunci sementara. Cuba lagi dalam 15 minit.');
-  const hash = await hashSecret(password, a.pass_salt, iterations(env));
+  const hash = await hashSecret(password, a.pass_salt, passIter(a));
   if (!safeEqual(hash, a.pass_hash)) {
     const fails = a.failed_logins + 1;
     const lock = fails >= MAX_FAILS ? t + LOCK_MS : null;
     await env.DB.prepare('UPDATE admins SET failed_logins = ?, locked_until = ? WHERE id = ?').bind(lock ? 0 : fails, lock, a.id).run();
     return fail(401, generic);
   }
-  await env.DB.prepare('UPDATE admins SET failed_logins = 0, locked_until = NULL WHERE id = ?').bind(a.id).run();
+  if (passIter(a) < iterations(env)) {
+    const salt = newSalt();
+    await env.DB.prepare('UPDATE admins SET pass_hash = ?, pass_salt = ?, pass_iter = ?, failed_logins = 0, locked_until = NULL WHERE id = ?')
+      .bind(await hashSecret(password, salt, iterations(env)), salt, iterations(env), a.id).run();
+  } else {
+    await env.DB.prepare('UPDATE admins SET failed_logins = 0, locked_until = NULL WHERE id = ?').bind(a.id).run();
+  }
+  ADMIN_OF.set(request, { id: a.id, email: a.email, name: a.name });
   const setCookie = await createSession(env, request, 'admin', a.id);
   return json({ ok: true, admin: { id: a.id, email: a.email, name: a.name } }, 200, { 'set-cookie': setCookie });
 }
@@ -207,8 +228,8 @@ export async function createAdmin(env, request) {
   const salt = newSalt();
   const hash = await hashSecret(password, salt, iterations(env));
   try {
-    await env.DB.prepare('INSERT INTO admins (email, name, pass_hash, pass_salt, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(email, name, hash, salt, now()).run();
+    await env.DB.prepare('INSERT INTO admins (email, name, pass_hash, pass_salt, pass_iter, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(email, name, hash, salt, iterations(env), now()).run();
   } catch {
     return fail(409, 'Emel admin ini sudah wujud.');
   }
@@ -223,8 +244,8 @@ export async function adminResetPin(env, request, userId) {
   if (pinErr) return fail(400, pinErr);
   const salt = newSalt();
   const hash = await hashSecret(String(body.pin), salt, iterations(env));
-  const r = await env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ?, failed_logins = 0, locked_until = NULL WHERE id = ?')
-    .bind(hash, salt, userId).run();
+  const r = await env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ?, pin_iter = ?, failed_logins = 0, locked_until = NULL WHERE id = ?')
+    .bind(hash, salt, iterations(env), userId).run();
   if (!r.meta.changes) return fail(404, 'Pelajar tidak dijumpai.');
   await env.DB.prepare("DELETE FROM sessions WHERE kind = 'user' AND subject_id = ?").bind(userId).run();
   return json({ ok: true });
@@ -234,13 +255,13 @@ export async function adminResetPin(env, request, userId) {
 export async function changePin(env, request) {
   const u = await requireUser(env, request);
   const body = await readJson(request);
-  const oldHash = await hashSecret(String(body.oldPin || ''), u.pin_salt, iterations(env));
+  const oldHash = await hashSecret(String(body.oldPin || ''), u.pin_salt, pinIter(u));
   if (!safeEqual(oldHash, u.pin_hash)) return fail(401, 'PIN lama salah.');
   const pinErr = checkPin(body.newPin);
   if (pinErr) return fail(400, pinErr);
   const salt = newSalt();
   const hash = await hashSecret(String(body.newPin), salt, iterations(env));
-  await env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?').bind(hash, salt, u.id).run();
+  await env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ?, pin_iter = ? WHERE id = ?').bind(hash, salt, iterations(env), u.id).run();
   return json({ ok: true });
 }
 
@@ -254,7 +275,7 @@ export async function setupStatus(env) {
 export async function deleteAccount(env, request) {
   const u = await requireUser(env, request);
   const body = await readJson(request);
-  const hash = await hashSecret(String(body.pin || ''), u.pin_salt, iterations(env));
+  const hash = await hashSecret(String(body.pin || ''), u.pin_salt, pinIter(u));
   if (!safeEqual(hash, u.pin_hash)) return fail(401, 'PIN salah. Akaun tidak dipadam.');
   await cancelToken(env, u); // hentikan auto-renew kad di CHIP
   await env.DB.batch([
@@ -274,15 +295,15 @@ export async function deleteAccount(env, request) {
 // Admin tukar kata laluan sendiri.
 export async function adminChangePassword(env, request) {
   const a = await requireAdmin(env, request);
-  const row = await env.DB.prepare('SELECT pass_hash, pass_salt FROM admins WHERE id = ?').bind(a.id).first();
+  const row = await env.DB.prepare('SELECT pass_hash, pass_salt, pass_iter FROM admins WHERE id = ?').bind(a.id).first();
   const body = await readJson(request);
-  const oldHash = await hashSecret(String(body.oldPassword || ''), row.pass_salt, iterations(env));
+  const oldHash = await hashSecret(String(body.oldPassword || ''), row.pass_salt, passIter(row));
   if (!safeEqual(oldHash, row.pass_hash)) return fail(401, 'Kata laluan lama salah.');
   const pw = String(body.newPassword || '');
   if (pw.length < 10) return fail(400, 'Kata laluan baharu mesti sekurang-kurangnya 10 aksara.');
   const salt = newSalt();
   const hash = await hashSecret(pw, salt, iterations(env));
-  await env.DB.prepare('UPDATE admins SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(hash, salt, a.id).run();
+  await env.DB.prepare('UPDATE admins SET pass_hash = ?, pass_salt = ?, pass_iter = ? WHERE id = ?').bind(hash, salt, iterations(env), a.id).run();
   return json({ ok: true });
 }
 

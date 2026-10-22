@@ -1,12 +1,12 @@
 // Lupa PIN melalui kod emel, dan kemas kini emel pelajar.
-import { now, json, fail, readJson, sha256Hex, hashSecret, newSalt, safeEqual, normalizePhone, checkPin, cleanText, validEmail, rateLimit, clientIp } from './util.js';
+import { now, json, fail, readJson, sha256Hex, hashSecret, newSalt, safeEqual, normalizePhone, checkPin, cleanText, validEmail, rateLimit, clientIp, hashIter, LEGACY_ITER } from './util.js';
 import { mailReady, sendMail, resetCodeEmail } from './mail.js';
 import { requireUser } from './auth.js';
 import { getOrg } from './content.js';
 
 const CODE_TTL = 15 * 60 * 1000;
 const MAX_CODE_TRIES = 5;
-const iterations = (env) => Number(env.HASH_ITERATIONS || 10000);
+const iterations = hashIter;
 
 function sixDigits() {
   return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
@@ -75,7 +75,7 @@ export async function resetPin(env, request) {
   const salt = newSalt();
   const hash = await hashSecret(String(body.pin), salt, iterations(env));
   await env.DB.batch([
-    env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ?, failed_logins = 0, locked_until = NULL WHERE id = ?').bind(hash, salt, u.id),
+    env.DB.prepare('UPDATE users SET pin_hash = ?, pin_salt = ?, pin_iter = ?, failed_logins = 0, locked_until = NULL WHERE id = ?').bind(hash, salt, iterations(env), u.id),
     env.DB.prepare('DELETE FROM pin_resets WHERE user_id = ?').bind(u.id),
     env.DB.prepare("DELETE FROM sessions WHERE kind = 'user' AND subject_id = ?").bind(u.id),
   ]);
@@ -86,7 +86,7 @@ export async function resetPin(env, request) {
 export async function updateEmail(env, request) {
   const u = await requireUser(env, request);
   const body = await readJson(request);
-  const ok = await hashSecret(String(body.pin || ''), u.pin_salt, iterations(env));
+  const ok = await hashSecret(String(body.pin || ''), u.pin_salt, u.pin_iter || LEGACY_ITER);
   if (!safeEqual(ok, u.pin_hash)) return fail(401, 'PIN salah.');
   const email = cleanText(body.email, 254).toLowerCase();
   if (!validEmail(email)) return fail(400, 'Alamat emel tidak sah.');
