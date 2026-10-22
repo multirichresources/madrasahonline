@@ -1,6 +1,17 @@
 // Terjemahan English untuk app pelajar & halaman sumbangan. Kunci = teks asal BM.
 // Tambah terjemahan di sini setiap kali menambah t('…') baharu, kemudian jalankan: node test/i18n.test.mjs
 window.EN_DICT = {
+ "Zikir & Selawat": "Dhikr & Salawat",
+ "Audio tidak dapat dimainkan. Semak sambungan internet dan cuba lagi.": "The audio could not be played. Check your internet connection and try again.",
+ "Dengar dan ikut bacaan ustaz. Percuma untuk semua pelajar.": "Listen and follow the ustaz's recitation. Free for all students.",
+ "Audio zikir dan selawat akan dipaparkan di sini tidak lama lagi.": "Dhikr and salawat audio will appear here soon.",
+ "Henti": "Pause",
+ "Main": "Play",
+ "Lihat teks": "View text",
+ "Kedudukan audio": "Audio position",
+ "Ulang": "Repeat",
+ "ON": "ON",
+ "OFF": "OFF",
  "Doa harian": "Daily duas",
  "Tasbih": "Tasbih",
  "Bantuan": "Help",

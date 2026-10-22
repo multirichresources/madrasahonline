@@ -396,6 +396,91 @@ function tSumbangan() {
     <a class="btn btn-ghost" href="/api/admin/export/sumbangan.csv" download>Muat turun rekod sumbangan (Excel)</a>`;
 }
 
+// ---------- zikir & selawat (audio) ----------
+const fmtDur = s => s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '';
+const fmtMB = b => b ? (b / 1048576).toFixed(1) + 'MB' : '';
+function tZikir() {
+  const L = A.auds;
+  if (!L) return '<div class="loading">Memuatkan audio...</div>';
+  const up = A.aup;
+  return `${A.audReady ? '' : `<div class="adminnote">${I.shield}<p><b>Storan audio belum disambung.</b> Hidupkan R2 di Cloudflare dan cipta bucket <b>madrasah-audio</b>. Teks boleh disediakan dahulu.</p></div>`}
+    <div class="adminnote">${I.shield}<p><b>Percuma untuk semua pelajar berdaftar.</b> Draf contoh disediakan tanpa audio. Muat naik rakaman ustaz (MP3/M4A), semak teks, kemudian tekan <b>Terbitkan</b>.</p></div>
+    <div class="card">
+      <div class="top"><span class="eyebrow">${L.length} audio · ${L.filter(a => a.published).length} diterbitkan</span></div>
+      <button class="btn btn-primary" data-a="audNew">Tambah audio</button>
+    </div>
+    <div class="card"><div class="qa">${L.map(a => `<div class="q">
+      <div class="top" style="align-items:flex-start"><div style="min-width:0"><b>${esc(a.title)}</b>
+        <p class="muted small">${a.hasAudio ? [fmtDur(a.durationSec), fmtMB(a.size)].filter(Boolean).join(' · ') || 'Audio ada' : 'Belum ada fail audio'}${a.source ? ' · ' + esc(a.source) : ''}</p></div>
+        ${a.published ? '<span class="pill ok">Diterbitkan</span>' : a.hasAudio ? '<span class="pill warn">Draf</span>' : '<span class="pill bad">Tiada audio</span>'}</div>
+      ${a.hasAudio ? `<audio controls preload="none" src="/api/admin/audios/${a.id}/file?v=${a.updatedAt}" style="width:100%"></audio>` : ''}
+      ${up && up.id === a.id ? `<div class="ok-box">Memuat naik... <b id="aupPct">${up.pct}%</b></div><span class="bar"><i id="aupBar" style="width:${up.pct}%"></i></span>` : ''}
+      <div class="btn-row">
+        <label class="btn ${a.hasAudio ? 'btn-ghost' : 'btn-primary'}"${up ? ' style="opacity:.5;pointer-events:none"' : ''}>${a.hasAudio ? 'Tukar audio' : 'Muat naik audio'}<input type="file" accept="audio/*,.mp3,.m4a" data-aup="${a.id}" hidden></label>
+        ${a.hasAudio ? `<button class="btn ${a.published ? 'btn-ghost' : 'btn-primary'}" data-a="audPub" data-v="${a.id}">${a.published ? 'Sembunyikan' : 'Terbitkan'}</button>` : ''}
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" data-a="audEdit" data-v="${a.id}">Edit teks</button>
+        <button class="btn btn-ghost" style="color:var(--danger)" data-a="audDel" data-v="${a.id}">Padam</button>
+      </div>
+    </div>`).join('') || '<p class="muted">Belum ada audio.</p>'}</div></div>`;
+}
+const AUD_IDS = ['zTitle', 'zTitleEn', 'zArabic', 'zRumi', 'zMeaning', 'zMeaningEn', 'zSource', 'zSort'];
+function audModal() {
+  const d = A.editAud || {};
+  return `<form id="fAud" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+    <h2 style="font-size:1.25rem">${d.id ? 'Edit teks audio' : 'Tambah audio'}</h2>
+    <label class="f" for="zTitle">Tajuk<input class="input" id="zTitle" maxlength="80" value="${esc(d.title || '')}" placeholder="Contoh: Selawat Tafrijiyah"></label>
+    <label class="f" for="zTitleEn">Tajuk (English) <span class="muted small">(pilihan)</span><input class="input" id="zTitleEn" maxlength="80" value="${esc(d.titleEn || '')}"></label>
+    <label class="f" for="zArabic">Teks Arab <span class="muted small">(pilihan)</span><textarea class="input" id="zArabic" dir="rtl" rows="4" style="font-family:var(--f-ar);font-size:1.4rem;line-height:1.9">${esc(d.arabic || '')}</textarea></label>
+    <label class="f" for="zRumi">Rumi <span class="muted small">(pilihan)</span><textarea class="input" id="zRumi" rows="3">${esc(d.rumi || '')}</textarea></label>
+    <label class="f" for="zMeaning">Maksud <span class="muted small">(pilihan)</span><textarea class="input" id="zMeaning" rows="3">${esc(d.meaning || '')}</textarea></label>
+    <label class="f" for="zMeaningEn">Maksud (English) <span class="muted small">(pilihan)</span><textarea class="input" id="zMeaningEn" rows="2">${esc(d.meaningEn || '')}</textarea></label>
+    <label class="f" for="zSource">Rujukan <span class="muted small">(pilihan)</span><input class="input" id="zSource" maxlength="120" value="${esc(d.source || '')}"></label>
+    <label class="f" for="zSort">Susunan <span class="muted small">(nombor kecil di atas)</span><input class="input" id="zSort" inputmode="numeric" value="${d.sort ?? ''}"></label>
+    ${d.id ? '' : '<p class="muted small">Selepas simpan, tekan <b>Muat naik audio</b> pada senarai untuk pilih fail rakaman.</p>'}
+    ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+    <button class="btn btn-primary" type="submit">Simpan</button>
+    <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+  </form>`;
+}
+async function uploadAudio(id, file) {
+  if (!file) return;
+  if (file.size > 95 * 1048576) { toast('Fail terlalu besar (had 95MB). Simpan sebagai MP3 atau pendekkan rakaman.'); return; }
+  const type = file.type && file.type.startsWith('audio/') ? file.type
+    : /\.m4a$/i.test(file.name) ? 'audio/mp4' : /\.mp3$/i.test(file.name) ? 'audio/mpeg' : /\.wav$/i.test(file.name) ? 'audio/wav' : file.type;
+  const dur = await new Promise(ok => {
+    const a = new Audio(), u = URL.createObjectURL(file);
+    const done = v => { ok(Number.isFinite(v) ? v : 0); URL.revokeObjectURL(u); };
+    a.preload = 'metadata'; a.onloadedmetadata = () => done(a.duration); a.onerror = () => done(0);
+    setTimeout(() => done(0), 6000); a.src = u;
+  });
+  A.aup = { id, pct: 0 }; render();
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `/api/admin/audios/${id}/file?duration=${Math.round(dur || 0)}`);
+  xhr.setRequestHeader('content-type', type || 'application/octet-stream');
+  xhr.upload.onprogress = e => {
+    if (!e.lengthComputable || !A.aup) return;
+    A.aup.pct = Math.round(e.loaded / e.total * 100);
+    const t = document.getElementById('aupPct'), b = document.getElementById('aupBar');
+    if (t) t.textContent = A.aup.pct + '%'; if (b) b.style.width = A.aup.pct + '%';
+  };
+  xhr.onload = () => {
+    let r = {}; try { r = JSON.parse(xhr.responseText); } catch {}
+    A.aup = null;
+    if (xhr.status === 401) return toLogin();
+    if (xhr.status >= 200 && xhr.status < 300 && r.ok) { A.auds = A.auds.map(x => x.id === id ? r.audio : x); toast('Audio dimuat naik. Tekan Terbitkan bila sedia.'); }
+    else toast(r.error || 'Muat naik gagal. Cuba lagi.');
+    render();
+  };
+  xhr.onerror = () => { A.aup = null; toast('Sambungan terputus. Cuba lagi dengan WiFi.'); render(); };
+  xhr.send(file);
+}
+document.addEventListener('change', e => {
+  const id = e.target.dataset && e.target.dataset.aup;
+  if (id && e.target.files && e.target.files[0]) uploadAudio(Number(id), e.target.files[0]);
+});
+
 // ---------- doa harian ----------
 function tDoa() {
   const L = A.doas;
@@ -558,6 +643,11 @@ function modal() {
     </form>`;
   }
   if (A.modal === 'doa') inner = doaModal();
+  if (A.modal === 'aud') inner = audModal();
+  if (A.modal === 'auddel') inner = `<h2 style="font-size:1.25rem">Padam audio?</h2>
+      <p><b>${esc(A.delAud.title)}</b> dan fail audionya akan dipadam. Tindakan ini tidak boleh dibatalkan.</p>
+      <button class="btn btn-primary" data-a="audDelGo" style="background:var(--danger)">Ya, padam</button>
+      <button class="btn btn-ghost" data-a="close">Batal</button>`;
   if (A.modal === 'doadel') inner = `<h2 style="font-size:1.25rem">Padam doa?</h2>
       <p><b>${esc(A.delDoa.title)}</b> akan dipadam. Tindakan ini tidak boleh dibatalkan.</p>
       <button class="btn btn-primary" data-a="doaDelGo" style="background:var(--danger)">Ya, padam</button>
@@ -604,11 +694,11 @@ function render() {
   else if (A.view === 'setup') body = vSetup();
   else if (A.view === 'login') body = vLogin();
   else {
-    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['doa', 'Doa'], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
+    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['doa', 'Doa'], ['zikir', 'Zikir'], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, doa: tDoa, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}`;
+      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, doa: tDoa, zikir: tZikir, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}`;
   }
   app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
   restoreInputs();
@@ -628,6 +718,13 @@ async function loadUsers() {
   const r = await api('GET', `/api/admin/users?q=${encodeURIComponent(A.q)}&status=${A.filter}`);
   if (r.status === 401) return toLogin();
   A.users = r.ok ? r.users : [];
+  if (!r.ok) toast(r.error);
+  render();
+}
+async function loadAuds() {
+  const r = await api('GET', '/api/admin/audios');
+  if (r.status === 401) return toLogin();
+  A.auds = r.ok ? r.audios : []; A.audReady = r.ok ? r.storageReady : false;
   if (!r.ok) toast(r.error);
   render();
 }
@@ -693,6 +790,7 @@ function openTab(t) {
   if (t === 'tetapan') { A.log = null; loadOrg(); loadPlans(); }
   if (t === 'sumbangan') { A.don = null; loadDon(); }
   if (t === 'doa') { A.doas = null; loadDoas(); }
+  if (t === 'zikir') { A.auds = null; loadAuds(); }
   if (t === 'soalan') { A.qs = null; A.editQ = null; loadQs(); }
 }
 
@@ -763,6 +861,23 @@ document.addEventListener('click', async e => {
       const r = await busy(el, () => api('POST', `/api/admin/videos/${v}`, { published: !vid.published }));
       if (!r.ok) { toast(r.error); return; }
       Object.assign(vid, r.video); toast(r.video.published ? 'Video diterbitkan. Pelajar boleh tonton.' : 'Video disembunyikan.');
+      break;
+    }
+    case 'audNew': A.editAud = null; forget(...AUD_IDS); A.err = ''; A.modal = 'aud'; break;
+    case 'audEdit': A.editAud = A.auds.find(x => String(x.id) === v); forget(...AUD_IDS); A.err = ''; A.modal = 'aud'; break;
+    case 'audPub': {
+      const d = A.auds.find(x => String(x.id) === v);
+      const r = await busy(el, () => api('POST', `/api/admin/audios/${v}`, { published: !d.published }));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { toast(r.error); return; }
+      A.auds = A.auds.map(x => x.id === d.id ? r.audio : x); toast(r.audio.published ? 'Audio diterbitkan. Pelajar boleh dengar.' : 'Audio disembunyikan.');
+      break;
+    }
+    case 'audDel': A.delAud = A.auds.find(x => String(x.id) === v); A.modal = 'auddel'; break;
+    case 'audDelGo': {
+      const r = await busy(el, () => api('POST', `/api/admin/audios/${A.delAud.id}/delete`, {}));
+      if (!r.ok) { toast(r.error); return; }
+      A.auds = A.auds.filter(x => x.id !== A.delAud.id); A.modal = null; toast('Audio dipadam.');
       break;
     }
     case 'doaNew': A.editDoa = null; forget(...DOA_IDS, 'dPub'); A.err = ''; A.modal = 'doa'; break;
@@ -860,6 +975,19 @@ document.addEventListener('submit', async e => {
     A.bunnyItems = A.bunnyItems.filter(b => b.guid !== A.imp.guid); A.modal = null; A.err = '';
     A.videos.unshift(r.video);
     toast(r.video.ready ? 'Video diimport. Tekan Terbitkan bila sedia.' : 'Video diimport. Bunny masih memproses, terbitkan bila status Sedia.');
+  }
+  if (f.id === 'fAud') {
+    const raw = id => document.getElementById(id)?.value || '';
+    const body = { title: val('zTitle'), titleEn: val('zTitleEn'), arabic: raw('zArabic').trim(), rumi: raw('zRumi').trim(),
+      meaning: raw('zMeaning').trim(), meaningEn: raw('zMeaningEn').trim(), source: val('zSource') };
+    if (val('zSort') !== '') body.sort = Number(val('zSort'));
+    const id = A.editAud && A.editAud.id;
+    const r = await busy(btn, () => api('POST', id ? `/api/admin/audios/${id}` : '/api/admin/audios', body));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { A.err = r.error; render(); return; }
+    forget(...AUD_IDS); A.modal = null; A.err = '';
+    toast(id ? 'Teks dikemas kini.' : 'Audio ditambah. Sekarang muat naik fail rakaman.');
+    loadAuds(); return;
   }
   if (f.id === 'fDoa') {
     const raw = id => document.getElementById(id)?.value || '';

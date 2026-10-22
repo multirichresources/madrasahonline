@@ -20,6 +20,7 @@ import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myP
 import { adminInsights, adminExportUsers } from './insights.js';
 import { listZones, solatToday, saveSolatPrefs, sendAzan, cleanAzan } from './solat.js';
 import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, adminDonations, adminStopDonor, adminTajaBalance, adminSponsor, adminExportDonations } from './donations.js';
+import { listAudios, streamAudio, adminListAudios, adminAudioFile, adminCreateAudio, adminUpdateAudio, adminUploadAudio, adminDeleteAudio } from './audio.js';
 import { listDoas, adminListDoas, adminCreateDoa, adminUpdateDoa, adminDeleteDoa } from './doa.js';
 import { shouldLog, readDetail, writeLog, adminListLog, cleanAdminLog } from './adminlog.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
@@ -126,6 +127,14 @@ const routes = [
   ['POST', /^\/api\/admin\/doas$/, (env, req) => adminCreateDoa(env, req)],
   ['POST', /^\/api\/admin\/doas\/(\d+)$/, (env, req, m) => adminUpdateDoa(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/doas\/(\d+)\/delete$/, (env, req, m) => adminDeleteDoa(env, req, Number(m[1]))],
+  ['GET', /^\/api\/audios$/, (env, req) => listAudios(env, req)],
+  ['GET', /^\/api\/audios\/(\d+)\/file$/, (env, req, m) => streamAudio(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/audios$/, (env, req) => adminListAudios(env, req)],
+  ['POST', /^\/api\/admin\/audios$/, (env, req) => adminCreateAudio(env, req)],
+  ['POST', /^\/api\/admin\/audios\/(\d+)$/, (env, req, m) => adminUpdateAudio(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/audios\/(\d+)\/file$/, (env, req, m) => adminAudioFile(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/audios\/(\d+)\/file$/, (env, req, m) => adminUploadAudio(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/audios\/(\d+)\/delete$/, (env, req, m) => adminDeleteAudio(env, req, Number(m[1]))],
 
   ['GET', /^\/api\/push\/key$/, (env, req) => pushKey(env, req)],
   ['POST', /^\/api\/push\/subscribe$/, (env, req) => pushSubscribe(env, req)],

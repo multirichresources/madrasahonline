@@ -256,3 +256,23 @@ CREATE TABLE IF NOT EXISTS doas (
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER
 );
+
+-- Zikir & selawat (audio ustaz). Fail audio di R2 (binding AUDIO), maklumat di sini. Percuma untuk pelajar berdaftar.
+CREATE TABLE IF NOT EXISTS audios (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  title        TEXT    NOT NULL,
+  title_en     TEXT,
+  arabic       TEXT,
+  rumi         TEXT,
+  meaning      TEXT,
+  meaning_en   TEXT,
+  source       TEXT,
+  r2_key       TEXT,                              -- NULL = belum ada fail
+  mime         TEXT,
+  size         INTEGER,
+  duration_sec INTEGER,
+  sort         INTEGER NOT NULL DEFAULT 0,
+  published    INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER
+);

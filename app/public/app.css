@@ -361,3 +361,24 @@ button.pt[disabled] { cursor: default; opacity: .6; }
 
 /* Mod gelap: kad solat hijau tua supaya tak terlalu terang */
 :root[data-theme="dark"] .solathero { background: #15534b; color: #eef6f4; box-shadow: none; }
+
+/* ---------- zikir & selawat (audio) ---------- */
+.aud-row { gap: .8rem; justify-content: flex-start; }
+.aud-play { flex: none; width: 3.2rem; height: 3.2rem; border-radius: 50%; border: 0; background: var(--green); color: var(--green-ink); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.aud-play svg { width: 1.5rem; height: 1.5rem; }
+.aud-play.on { background: var(--gold); color: #1d1405; }
+.aud-info { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; background: none; border: 0; padding: .2rem 0; text-align: left; cursor: pointer; color: var(--ink); font-size: 1rem; }
+.player-card { align-items: stretch; gap: .7rem; }
+.ap-big { align-self: center; width: 5.5rem; height: 5.5rem; border-radius: 50%; border: 0; background: var(--green); color: var(--green-ink); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 18px rgba(13, 75, 68, .22); touch-action: manipulation; }
+.ap-big svg { width: 2.4rem; height: 2.4rem; }
+.ap-big.on { background: var(--gold); color: #1d1405; }
+.ap-seek { width: 100%; accent-color: var(--green); height: 2rem; }
+.ap-times { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: -.4rem; }
+.miniplayer { max-width: 460px; margin: 0 auto .4rem; display: flex; align-items: center; gap: .5rem; background: var(--green); color: var(--green-ink); border-radius: 14px; padding: .35rem .4rem .35rem .8rem; }
+.nav .mp-info { flex: 1; flex-direction: row; border-radius: 10px; min-width: 0; display: flex; align-items: center; gap: .55rem; background: none; border: 0; color: inherit; font-weight: 700; font-size: .95rem; cursor: pointer; text-align: left; padding: .3rem 0; }
+.nav .mp-info svg { width: 1.3rem; height: 1.3rem; flex: none; }
+.nav .mp-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav .mp-btn { flex: none; padding: 0; width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .18); color: inherit; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.nav .mp-btn svg { width: 1.3rem; height: 1.3rem; }
+:root[data-theme="dark"] .miniplayer { background: #15534b; color: #eef6f4; }
+.qa-ic .dot.live { background: var(--gold); }

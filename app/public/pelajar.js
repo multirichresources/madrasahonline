@@ -139,6 +139,7 @@ const QI = {
   compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z" fill="currentColor"/></svg>',
   mosque: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v2"/><path d="M7 11a5 5 0 0 1 10 0"/><path d="M5 21V11h14v10"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/><path d="M2.5 21h19"/><path d="M2.5 21v-7.5l1.25-2 1.25 2V21M19 21v-7.5l1.25-2 1.25 2V21"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20.5s-8-4.7-8-10.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.9c0 5.9-8 10.6-8 10.6z"/></svg>',
+  audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="1.5"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.5"/></svg>',
   book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
   beads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><g fill="currentColor" stroke="none"><circle cx="12.0" cy="3.5" r="1.55"/><circle cx="16.1" cy="4.8" r="1.55"/><circle cx="18.7" cy="8.3" r="1.55"/><circle cx="18.7" cy="12.7" r="1.55"/><circle cx="16.1" cy="16.2" r="1.55"/><circle cx="7.9" cy="16.2" r="1.55"/><circle cx="5.3" cy="12.7" r="1.55"/><circle cx="5.3" cy="8.3" r="1.55"/><circle cx="7.9" cy="4.8" r="1.55"/></g><path d="M9.6 17.6 12 19l2.4-1.4M12 19v2.5"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="4"/><path d="m5.3 5.3 3.9 3.9M14.8 14.8l3.9 3.9M18.7 5.3l-3.9 3.9M9.2 14.8l-3.9 3.9"/></svg>',
@@ -201,7 +202,7 @@ function quickAccess() {
     ${tile('data-a="waktu"', QI.mosque, t('Waktu solat'))}
     ${tile('data-a="sub" data-v="doa"', QI.book, t('Doa harian'))}
     ${tile('data-a="sub" data-v="tasbih"', QI.beads, t('Tasbih'))}
-    ${tile('data-a="qibla"', QI.compass, t('Kiblat'))}
+    ${tile('data-a="sub" data-v="zikir"', QI.audio, t('Zikir & Selawat'), apIsPlaying() ? '<i class="dot live" aria-hidden="true"></i>' : '')}
     <a class="qa-tile" href="/sumbang"><span class="qa-ic">${QI.heart}</span><span class="qa-lb">${t('Sumbang')}</span></a>
     ${tile('data-a="modal" data-v="bantuan"', QI.help, t('Bantuan'))}
   </section>`;
@@ -221,6 +222,7 @@ function smartBanner() {
 function tUtama() {
   if (S.sub === 'doa') return vDoa();
   if (S.sub === 'tasbih') return vTasbih();
+  if (S.sub === 'zikir') return vZikir();
   return `${homeHead()}
     ${solatHero()}
     ${quickAccess()}
@@ -255,6 +257,109 @@ function vDoa() {
       : !L.length ? `<div class="card empty">${QI.book}<p class="muted">${t('Doa akan dipaparkan di sini selepas disemak oleh ustaz.')}</p></div>`
       : `${cats.length > 1 ? `<div class="chips" role="tablist">${['*', ...cats].map(c => `<button class="chip ${f === c ? 'on' : ''}" data-a="doaCat" data-v="${esc(c)}">${c === '*' ? t('Semua') : esc(t(c))}</button>`).join('')}</div>` : ''}
         ${L.filter(d => f === '*' || d.category === f).map(doaItem).join('')}`}`;
+}
+
+// ---------- zikir & selawat (audio ustaz) ----------
+// Satu elemen Audio global (bukan dalam DOM) supaya audio terus main bila skrin dilukis semula atau tukar tab.
+const AP = { el: null, item: null };
+const fmtSec = s => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+function apEl() {
+  if (AP.el) return AP.el;
+  const a = new Audio();
+  a.preload = 'metadata';
+  a.loop = Prefs.get('apLoop', '0') === '1';
+  a.addEventListener('timeupdate', apTick);
+  a.addEventListener('loadedmetadata', apTick);
+  ['play', 'pause', 'ended', 'waiting', 'playing'].forEach(ev => a.addEventListener(ev, () => { if (!S.playing && !S.modal) render(); }));
+  a.addEventListener('error', () => { if (AP.item) toast(t('Audio tidak dapat dimainkan. Semak sambungan internet dan cuba lagi.')); });
+  AP.el = a;
+  return a;
+}
+function apTick() {
+  const a = AP.el; if (!a) return;
+  const dur = Number.isFinite(a.duration) ? a.duration : (AP.item && AP.item.durationSec) || 0;
+  const s = document.getElementById('apSeek');
+  if (s && document.activeElement !== s) { s.max = Math.max(1, Math.floor(dur)); s.value = Math.floor(a.currentTime); }
+  const c = document.getElementById('apCur'); if (c) c.textContent = fmtSec(a.currentTime);
+  const d = document.getElementById('apDur'); if (d) d.textContent = fmtSec(dur);
+}
+function apMedia(item) {
+  if (!('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: item.title, artist: 'Madrasah Online', album: t('Zikir & Selawat'),
+      artwork: [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }] });
+    navigator.mediaSession.setActionHandler('play', () => apEl().play());
+    navigator.mediaSession.setActionHandler('pause', () => apEl().pause());
+    navigator.mediaSession.setActionHandler('seekbackward', () => apSkip(-10));
+    navigator.mediaSession.setActionHandler('seekforward', () => apSkip(10));
+  } catch {}
+}
+function apPlay(item) {
+  const a = apEl();
+  if (!AP.item || AP.item.id !== item.id) { AP.item = item; a.src = `/api/audios/${item.id}/file`; apMedia(item); }
+  a.play().catch(() => {});
+}
+function apToggle(item) { const a = apEl(); if (AP.item && AP.item.id === item.id && !a.paused) a.pause(); else apPlay(item); }
+function apSkip(sec) { const a = AP.el; if (a) a.currentTime = Math.max(0, Math.min((a.duration || 0) - 0.5, a.currentTime + sec)); apTick(); }
+function apStop() { if (AP.el) { AP.el.pause(); AP.el.removeAttribute('src'); AP.el.load(); } AP.item = null; }
+const apIsPlaying = id => !!(AP.el && AP.item && (id == null || AP.item.id === id) && !AP.el.paused);
+document.addEventListener('input', e => { if (e.target.id === 'apSeek' && AP.el) { AP.el.currentTime = Number(e.target.value); apTick(); } });
+
+async function loadAuds() {
+  const r = await api('GET', '/api/audios');
+  if (r.status === 401) return;
+  S.auds = r.ok ? r.audios : [];
+  if (S.sub === 'zikir') render();
+}
+const PLAY_IC = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
+const PAUSE_IC = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>';
+
+function vZikir() {
+  const L = S.auds;
+  const item = L && S.zikirId ? L.find(a => a.id === S.zikirId) : null;
+  if (item) return vZikirItem(item);
+  return `${subTop()}
+    <h1>${t('Zikir & Selawat')}</h1>
+    <p class="muted">${t('Dengar dan ikut bacaan ustaz. Percuma untuk semua pelajar.')}</p>
+    ${!L ? `<div class="loading">${t('Memuatkan...')}</div>`
+      : !L.length ? `<div class="card empty">${QI.audio}<p class="muted">${t('Audio zikir dan selawat akan dipaparkan di sini tidak lama lagi.')}</p></div>`
+      : `<div class="card"><div class="rows">${L.map(a => `<div class="row aud-row">
+          <button class="aud-play${apIsPlaying(a.id) ? ' on' : ''}" data-a="apToggle" data-v="${a.id}" aria-label="${apIsPlaying(a.id) ? t('Henti') : t('Main')}">${apIsPlaying(a.id) ? PAUSE_IC : PLAY_IC}</button>
+          <button class="aud-info" data-a="zikirOpen" data-v="${a.id}"><b>${esc(LANG === 'en' && a.titleEn ? a.titleEn : a.title)}</b><span class="muted small">${a.durationSec ? fmtSec(a.durationSec) + ' · ' : ''}${t('Lihat teks')} ›</span></button>
+        </div>`).join('')}</div></div>`}`;
+}
+
+function vZikirItem(a) {
+  const en = LANG === 'en', on = apIsPlaying(a.id), mine = AP.item && AP.item.id === a.id;
+  const cur = mine && AP.el ? AP.el.currentTime : 0;
+  const dur = mine && AP.el && Number.isFinite(AP.el.duration) ? AP.el.duration : a.durationSec;
+  const loop = Prefs.get('apLoop', '0') === '1';
+  return `<div class="top"><button class="iconbtn" data-a="zikirBack">${I.back} ${t('Kembali')}</button></div>
+    <h1>${esc(en && a.titleEn ? a.titleEn : a.title)}</h1>
+    <div class="card player-card">
+      <button class="ap-big${on ? ' on' : ''}" data-a="apToggle" data-v="${a.id}" aria-label="${on ? t('Henti') : t('Main')}">${on ? PAUSE_IC : PLAY_IC}</button>
+      <input type="range" id="apSeek" class="ap-seek" min="0" max="${Math.max(1, Math.floor(dur || 0))}" value="${Math.floor(cur)}" step="1" aria-label="${t('Kedudukan audio')}" ${mine ? '' : 'disabled'}>
+      <div class="ap-times"><span id="apCur">${fmtSec(cur)}</span><span id="apDur">${fmtSec(dur)}</span></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" data-a="apSkip" data-v="-10" ${mine ? '' : 'disabled'}>⟲ 10s</button>
+        <button class="btn ${loop ? 'btn-primary' : 'btn-ghost'}" data-a="apLoop" aria-pressed="${loop}">${t('Ulang')} ${loop ? t('ON') : t('OFF')}</button>
+        <button class="btn btn-ghost" data-a="apSkip" data-v="10" ${mine ? '' : 'disabled'}>10s ⟳</button>
+      </div>
+    </div>
+    ${a.arabic || a.rumi || a.meaning ? `<article class="card doa">
+      ${a.arabic ? `<p class="doa-ar" lang="ar" dir="rtl">${esc(a.arabic)}</p>` : ''}
+      ${a.rumi ? `<p class="doa-rumi">${esc(a.rumi)}</p>` : ''}
+      ${a.meaning ? `<p class="doa-mean">${esc(en && a.meaningEn ? a.meaningEn : a.meaning)}</p>` : ''}
+      ${a.source ? `<p class="note" style="text-align:left">${esc(a.source)}</p>` : ''}
+    </article>` : ''}`;
+}
+
+function miniPlayer() {
+  if (!apIsPlaying() || S.playing || (S.tab === 'utama' && S.sub === 'zikir' && S.zikirId === AP.item.id)) return '';
+  return `<div class="miniplayer">
+    <button class="mp-info" data-a="zikirGo" data-v="${AP.item.id}">${QI.audio}<span>${esc(AP.item.title)}</span></button>
+    <button class="mp-btn" data-a="apToggle" data-v="${AP.item.id}" aria-label="${t('Henti')}">${PAUSE_IC}</button>
+  </div>`;
 }
 
 // ---------- tasbih digital (dalam telefon sahaja) ----------
@@ -876,7 +981,7 @@ function tAkaun() {
 
 function nav() {
   const items = [['utama', t('Utama'), I.home], ['video', t('Video'), I.video], ['komuniti', t('Komuniti'), I.users], ['akaun', t('Akaun'), I.user]];
-  return `<nav class="nav"><div class="nav-in">${items.map(([k, l, ic]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-label="${l}"${S.tab === k ? ' aria-current="page"' : ''}>${ic}<span>${l}</span></button>`).join('')}</div></nav>`;
+  return `<nav class="nav">${miniPlayer()}<div class="nav-in">${items.map(([k, l, ic]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-label="${l}"${S.tab === k ? ' aria-current="page"' : ''}>${ic}<span>${l}</span></button>`).join('')}</div></nav>`;
 }
 
 function subscribeModal() {
@@ -1049,6 +1154,7 @@ async function stopPlayer() {
 async function openVideo(id) {
   const v = S.videos.find(x => x.id === id);
   if (!S.user.active) { S.modal = 'subscribe'; if (!S.plans) loadPlans(); render(); return; }
+  if (AP.el) AP.el.pause(); // jangan bertindih dengan audio zikir
   S.tab = 'video'; S.playing = { video: v, embedUrl: null }; S.vqa = null; window.scrollTo(0, 0); render();
   loadVqa(id);
   const r = await api('GET', `/api/videos/${id}/play`);
@@ -1122,7 +1228,13 @@ document.addEventListener('click', async e => {
     case 'waktu': S.modal = 'waktu'; if (!S.solat || S.solat.error) { S.solat = null; loadSolat(); } break;
     case 'kelas': S.modal = 'kelas'; loadAnn(); break;
     case 'bell': case 'goAnn': S.modal = null; S.tab = 'komuniti'; S.kTab = 'pengumuman'; markAnnSeen(); window.scrollTo(0, 0); loadAnn(); break;
-    case 'sub': S.sub = v; window.scrollTo(0, 0); if (v === 'doa') loadDoas(); break;
+    case 'sub': S.sub = v; S.zikirId = null; window.scrollTo(0, 0); if (v === 'doa') loadDoas(); if (v === 'zikir') loadAuds(); break;
+    case 'zikirOpen': S.zikirId = Number(v); window.scrollTo(0, 0); break;
+    case 'zikirBack': S.zikirId = null; window.scrollTo(0, 0); break;
+    case 'zikirGo': await stopPlayer(); S.tab = 'utama'; S.sub = 'zikir'; S.zikirId = Number(v); window.scrollTo(0, 0); if (!S.auds) loadAuds(); break;
+    case 'apToggle': { const it = (S.auds || []).find(x => x.id === Number(v)) || (AP.item && AP.item.id === Number(v) ? AP.item : null); if (it) apToggle(it); return; }
+    case 'apSkip': apSkip(Number(v)); return;
+    case 'apLoop': { const on = Prefs.get('apLoop', '0') !== '1'; Prefs.set('apLoop', on ? '1' : '0'); apEl().loop = on; break; }
     case 'subBack': S.sub = null; window.scrollTo(0, 0); break;
     case 'doaCat': S.doaCat = v; break;
     case 'tbTap': tbTap(); return;
@@ -1175,7 +1287,7 @@ document.addEventListener('click', async e => {
     case 'history': S.modal = 'history'; S.history = null; api('GET', '/api/pay/history').then(r => { S.history = r.ok ? r.payments : []; if (S.modal === 'history') render(); }); break;
     case 'close': case 'backdrop': S.modal = null; S.err = ''; S.sf = null; break;
     case 'logout':
-      await stopPlayer(); S.videos = null; S.continueId = null; S.ann = null; S.qa = null; S.solat = null;
+      await stopPlayer(); apStop(); S.videos = null; S.continueId = null; S.ann = null; S.qa = null; S.solat = null; S.auds = null;
       if (S.push.state === 'on') await disablePush(); // peranti ini tak lagi terima notifikasi akaun ini
       await api('POST', '/api/logout', {});
       S.user = null; S.view = 'login'; S.tab = 'utama';

@@ -8,6 +8,7 @@ function jar() {
   let c = '';
   return {
     raw: (path) => fetch(BASE + path, { headers: c ? { cookie: c } : {} }),
+    send: (method, path, body, headers = {}) => fetch(BASE + path, { method, headers: { ...(c ? { cookie: c } : {}), ...headers }, body }),
     async req(method, path, body, headers = {}) {
       const r = await fetch(BASE + path, {
         method,
@@ -625,6 +626,49 @@ r = await e.req('GET', '/api/doas');
 check('Doa dipadam hilang dari pelajar', r.data.doas.length === 1);
 r = await e.req('POST', '/api/admin/doas', { title: 'x', arabic: 'x', meaning: 'x' });
 check('Pelajar tak boleh tambah doa', r.status === 401);
+
+// ---- zikir & selawat (audio) ----
+r = await ad.req('GET', '/api/admin/audios');
+const auds = r.data && r.data.audios || [];
+check('Admin: 4 draf audio contoh, storan R2 sedia', auds.length === 4 && auds.every(a => !a.hasAudio && !a.published) && r.data.storageReady === true, r.data);
+const asma = auds.find(a => a.title === 'Asmaul Husna');
+check('Asmaul Husna ada 99 nama', asma && asma.arabic.split('، ').length === 99 && asma.rumi.split(', ').length === 99, asma && asma.arabic.split('، ').length);
+const aid = auds.find(a => a.title === 'Sayyidul Istighfar').id;
+r = await ad.req('POST', `/api/admin/audios/${aid}`, { published: true });
+check('Tak boleh terbit audio tanpa fail', r.status === 400, r.data);
+let up = await ad.send('POST', `/api/admin/audios/${aid}/file`, 'bukan audio', { 'content-type': 'text/plain' });
+check('Fail bukan audio ditolak', up.status === 415);
+const bytes = new Uint8Array(3000).map((_, i) => (i * 7) % 256);
+up = await ad.send('POST', `/api/admin/audios/${aid}/file?duration=125`, bytes, { 'content-type': 'audio/mpeg' });
+let upj = await up.json();
+check('Admin muat naik audio', up.status === 200 && upj.audio.hasAudio && upj.audio.durationSec === 125 && upj.audio.size === 3000, upj);
+r = await e.req('GET', '/api/audios');
+check('Pelajar: audio draf belum kelihatan', r.status === 200 && r.data.audios.length === 0);
+r = await ad.req('POST', `/api/admin/audios/${aid}`, { published: true });
+check('Admin terbitkan audio', r.status === 200 && r.data.audio.published, r.data);
+r = await e.req('GET', '/api/audios');
+check('Pelajar nampak audio diterbitkan', r.data.audios.length === 1 && r.data.audios[0].id === aid && r.data.audios[0].durationSec === 125, r.data);
+let fr = await e.send('GET', `/api/audios/${aid}/file`);
+let fb = new Uint8Array(await fr.arrayBuffer());
+check('Main audio penuh', fr.status === 200 && fr.headers.get('content-type') === 'audio/mpeg' && fr.headers.get('accept-ranges') === 'bytes' && fb.length === 3000 && fb[100] === bytes[100], { s: fr.status, ct: fr.headers.get('content-type'), n: fb.length });
+fr = await e.send('GET', `/api/audios/${aid}/file`, undefined, { range: 'bytes=10-19' });
+fb = new Uint8Array(await fr.arrayBuffer());
+check('Audio sokong Range (lompat / iPhone)', fr.status === 206 && fr.headers.get('content-range') === 'bytes 10-19/3000' && fb.length === 10 && fb[0] === bytes[10], { s: fr.status, cr: fr.headers.get('content-range'), n: fb.length });
+fr = await fetch(BASE + `/api/audios/${aid}/file`);
+check('Audio perlu log masuk', fr.status === 401);
+const bytes2 = new Uint8Array(2000).fill(9);
+up = await ad.send('POST', `/api/admin/audios/${aid}/file`, bytes2, { 'content-type': 'audio/mp4' });
+fr = await e.send('GET', `/api/audios/${aid}/file`);
+fb = new Uint8Array(await fr.arrayBuffer());
+check('Tukar fail audio', up.status === 200 && fb.length === 2000 && fr.headers.get('content-type') === 'audio/mp4', { n: fb.length });
+r = await ad.req('POST', '/api/admin/audios', { title: 'Zikir pagi ujian' });
+check('Admin tambah audio baharu (draf)', r.status === 201 && !r.data.audio.published && !r.data.audio.hasAudio, r.data);
+r = await ad.req('POST', `/api/admin/audios/${aid}/delete`, {});
+r = await e.req('GET', '/api/audios');
+fr = await e.send('GET', `/api/audios/${aid}/file`);
+check('Audio dipadam hilang', r.data.audios.length === 0 && fr.status === 404);
+r = await e.req('POST', '/api/admin/audios', { title: 'x' });
+check('Pelajar tak boleh tambah audio', r.status === 401);
 
 // ---- keselamatan: pengepala, log admin, hash lama ----
 let h = await fetch(BASE + '/api/me');

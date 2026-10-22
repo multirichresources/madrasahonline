@@ -16,6 +16,10 @@
       "database_id": "854d1695-7144-46f6-a73f-a2c577d4feab"
     }
   ],
+  // Fail audio zikir & selawat (src/audio.js)
+  "r2_buckets": [
+    { "binding": "AUDIO", "bucket_name": "madrasah-audio" }
+  ],
   "triggers": { "crons": ["* * * * *"] },
   // Panggil diri sendiri untuk hantar notifikasi serentak (lihat src/push.js dispatchPush)
   "services": [{ "binding": "SELF", "service": "madrasah-online" }],

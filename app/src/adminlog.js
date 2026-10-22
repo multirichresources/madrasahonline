@@ -26,6 +26,10 @@ const ACTIONS = [
   [/^\/api\/admin\/questions\/\d+\/hide$/, 'Sembunyi soalan'],
   [/^\/api\/admin\/plans$/, 'Ubah pakej langganan'],
   [/^\/api\/admin\/donors\/\d+\/stop$/, 'Hentikan sumbangan bulanan'],
+  [/^\/api\/admin\/audios\/\d+\/delete$/, 'Padam audio zikir'],
+  [/^\/api\/admin\/audios\/\d+\/file$/, 'Muat naik fail audio zikir'],
+  [/^\/api\/admin\/audios\/\d+$/, 'Ubah audio zikir'],
+  [/^\/api\/admin\/audios$/, 'Tambah audio zikir'],
   [/^\/api\/admin\/doas\/\d+\/delete$/, 'Padam doa'],
   [/^\/api\/admin\/doas\/\d+$/, 'Ubah doa'],
   [/^\/api\/admin\/doas$/, 'Tambah doa'],
@@ -69,6 +73,11 @@ async function targetOf(env, path) {
   if (m) {
     const v = await env.DB.prepare('SELECT title FROM videos WHERE id = ?').bind(Number(m[1])).first();
     return v ? `${v.title} (#${m[1]})` : `Video #${m[1]}`;
+  }
+  m = path.match(/^\/api\/admin\/audios\/(\d+)/);
+  if (m) {
+    const d = await env.DB.prepare('SELECT title FROM audios WHERE id = ?').bind(Number(m[1])).first();
+    return d ? `${d.title} (#${m[1]})` : `Audio #${m[1]}`;
   }
   m = path.match(/^\/api\/admin\/doas\/(\d+)/);
   if (m) {
