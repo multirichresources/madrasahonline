@@ -28,7 +28,7 @@ with sync_playwright() as p:
     pg.fill('#dPin', '482913'); pg.fill('#dPin2', '482913')
     pg.click('#fDaftar button[type=submit]'); pg.wait_for_selector('.homehead')
     check('Masuk skrin Utama selepas daftar', 'Rohana Ismail' in pg.inner_text('.homehead'))
-    check('Quick Access 6 ikon', pg.locator('.quick .qa-tile').count() == 6)
+    check('Quick Access 9 ikon', pg.locator('.quick .qa-tile').count() == 9)
     check('Status belum aktif', 'belum aktif' in pg.inner_text('.status'))
     pg.screenshot(path=f'{OUT}/u2-utama.png')
     pg.click('nav >> text=Akaun'); pg.wait_for_selector('text=Tukar PIN')

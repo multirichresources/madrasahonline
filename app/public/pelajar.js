@@ -139,6 +139,10 @@ const QI = {
   compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z" fill="currentColor"/></svg>',
   mosque: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v2"/><path d="M7 11a5 5 0 0 1 10 0"/><path d="M5 21V11h14v10"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/><path d="M2.5 21h19"/><path d="M2.5 21v-7.5l1.25-2 1.25 2V21M19 21v-7.5l1.25-2 1.25 2V21"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20.5s-8-4.7-8-10.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.9c0 5.9-8 10.6-8 10.6z"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
+  beads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><g fill="currentColor" stroke="none"><circle cx="12.0" cy="3.5" r="1.55"/><circle cx="16.1" cy="4.8" r="1.55"/><circle cx="18.7" cy="8.3" r="1.55"/><circle cx="18.7" cy="12.7" r="1.55"/><circle cx="16.1" cy="16.2" r="1.55"/><circle cx="7.9" cy="16.2" r="1.55"/><circle cx="5.3" cy="12.7" r="1.55"/><circle cx="5.3" cy="8.3" r="1.55"/><circle cx="7.9" cy="4.8" r="1.55"/></g><path d="M9.6 17.6 12 19l2.4-1.4M12 19v2.5"/></svg>',
+  help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="4"/><path d="m5.3 5.3 3.9 3.9M14.8 14.8l3.9 3.9M18.7 5.3l-3.9 3.9M9.2 14.8l-3.9 3.9"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" style="width:.95em;height:.95em;vertical-align:-.1em;flex:none"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
 };
 
@@ -194,9 +198,12 @@ function quickAccess() {
     ${c ? tile(`data-a="play" data-v="${c.id}"`, QI.play, t('Sambung tonton')) : tile('data-a="tab" data-v="video"', QI.play, t('Video kelas'))}
     ${tile('data-a="kelas"', QI.zoom, t('Kelas Zoom'), classBadge)}
     ${tile('data-a="goQa"', QI.ask, t('Tanya ustaz'))}
-    ${tile('data-a="qibla"', QI.compass, t('Kiblat'))}
     ${tile('data-a="waktu"', QI.mosque, t('Waktu solat'))}
+    ${tile('data-a="sub" data-v="doa"', QI.book, t('Doa harian'))}
+    ${tile('data-a="sub" data-v="tasbih"', QI.beads, t('Tasbih'))}
+    ${tile('data-a="qibla"', QI.compass, t('Kiblat'))}
     <a class="qa-tile" href="/sumbang"><span class="qa-ic">${QI.heart}</span><span class="qa-lb">${t('Sumbang')}</span></a>
+    ${tile('data-a="modal" data-v="bantuan"', QI.help, t('Bantuan'))}
   </section>`;
 }
 
@@ -212,10 +219,130 @@ function smartBanner() {
 }
 
 function tUtama() {
+  if (S.sub === 'doa') return vDoa();
+  if (S.sub === 'tasbih') return vTasbih();
   return `${homeHead()}
     ${solatHero()}
     ${quickAccess()}
     ${smartBanner()}`;
+}
+
+// ---------- doa harian ----------
+async function loadDoas() {
+  const r = await api('GET', '/api/doas');
+  if (r.status === 401) return;
+  S.doas = r.ok ? r.doas : [];
+  if (S.sub === 'doa') render();
+}
+const subTop = () => `<div class="top"><button class="iconbtn" data-a="subBack">${I.back} ${t('Kembali')}</button></div>`;
+function doaItem(d) {
+  const en = LANG === 'en';
+  return `<article class="card doa">
+    <span class="eyebrow">${esc(t(d.category))}</span>
+    <h2 class="doa-title">${esc(en && d.titleEn ? d.titleEn : d.title)}</h2>
+    <p class="doa-ar" lang="ar" dir="rtl">${esc(d.arabic)}</p>
+    ${d.rumi ? `<p class="doa-rumi">${esc(d.rumi)}</p>` : ''}
+    <p class="doa-mean">${esc(en && d.meaningEn ? d.meaningEn : d.meaning)}</p>
+    ${d.source ? `<p class="note" style="text-align:left">${esc(d.source)}</p>` : ''}
+  </article>`;
+}
+function vDoa() {
+  const L = S.doas, cats = L ? [...new Set(L.map(d => d.category))] : [];
+  const f = cats.includes(S.doaCat) ? S.doaCat : '*';
+  return `${subTop()}
+    <h1>${t('Doa harian')}</h1>
+    ${!L ? `<div class="loading">${t('Memuatkan...')}</div>`
+      : !L.length ? `<div class="card empty">${QI.book}<p class="muted">${t('Doa akan dipaparkan di sini selepas disemak oleh ustaz.')}</p></div>`
+      : `${cats.length > 1 ? `<div class="chips" role="tablist">${['*', ...cats].map(c => `<button class="chip ${f === c ? 'on' : ''}" data-a="doaCat" data-v="${esc(c)}">${c === '*' ? t('Semua') : esc(t(c))}</button>`).join('')}</div>` : ''}
+        ${L.filter(d => f === '*' || d.category === f).map(doaItem).join('')}`}`;
+}
+
+// ---------- tasbih digital (dalam telefon sahaja) ----------
+const ZIKIR = [
+  { ar: 'سُبْحَانَ اللّٰهِ', lb: 'Subhanallah', mean: 'Maha Suci Allah' },
+  { ar: 'اَلْحَمْدُ لِلّٰهِ', lb: 'Alhamdulillah', mean: 'Segala puji bagi Allah' },
+  { ar: 'اَللّٰهُ أَكْبَرُ', lb: 'Allahu Akbar', mean: 'Allah Maha Besar' },
+  { ar: 'لَا إِلٰهَ إِلَّا اللّٰهُ', lb: 'La ilaha illallah', mean: 'Tiada Tuhan melainkan Allah' },
+  { ar: 'أَسْتَغْفِرُ اللّٰهَ', lb: 'Astaghfirullah', mean: 'Aku memohon ampun kepada Allah' },
+  { ar: 'اَللّٰهُمَّ صَلِّ عَلٰى سَيِّدِنَا مُحَمَّدٍ', lb: 'Selawat', mean: 'Ya Allah, limpahkanlah selawat ke atas junjungan kami Nabi Muhammad' },
+];
+const TB_TARGETS = [33, 99, 100, 0]; // 0 = tanpa had
+const TB = (() => {
+  let st = { mode: 'solat', z: 0, target: 33, count: 0, step: 0, done: false };
+  try { st = { ...st, ...JSON.parse(Prefs.get('tasbih', '{}')) }; } catch {}
+  return st;
+})();
+const tbSave = () => Prefs.set('tasbih', JSON.stringify(TB));
+const tbZikir = () => TB.mode === 'solat' ? ZIKIR[TB.step] : ZIKIR[TB.z] || ZIKIR[0];
+const tbTarget = () => TB.mode === 'solat' ? 33 : TB.target;
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
+
+function vTasbih() {
+  const z = tbZikir(), target = tbTarget();
+  const pct = target ? Math.min(100, TB.count / target * 100) : 0;
+  return `${subTop()}
+    <h1>${t('Tasbih')}</h1>
+    <div class="chips" role="tablist">
+      <button class="chip ${TB.mode === 'solat' ? 'on' : ''}" data-a="tbMode" data-v="solat">${t('Selepas solat (33 × 3)')}</button>
+      <button class="chip ${TB.mode === 'bebas' ? 'on' : ''}" data-a="tbMode" data-v="bebas">${t('Bebas')}</button>
+    </div>
+    ${TB.mode === 'bebas' ? `
+    <label class="f" for="tbZ">${t('Zikir')}<select class="input" id="tbZ" data-tb="z">${ZIKIR.map((x, i) => `<option value="${i}"${i === TB.z ? ' selected' : ''}>${esc(x.lb)}</option>`).join('')}</select></label>
+    <div class="chips">${TB_TARGETS.map(n => `<button class="chip ${TB.target === n ? 'on' : ''}" data-a="tbTarget" data-v="${n}">${n ? n + '×' : t('Tanpa had')}</button>`).join('')}</div>` : ''}
+    <div class="card tasbih">
+      ${TB.mode === 'solat' ? `<span class="pill ok" style="align-self:center">${TB.done ? t('Selesai') : t('Zikir {n} daripada 3', { n: TB.step + 1 })}</span>` : ''}
+      <p class="tb-ar" lang="ar" dir="rtl">${z.ar}</p>
+      <p class="tb-lb"><b>${esc(z.lb)}</b> · <span class="muted">${esc(t(z.mean))}</span></p>
+      ${TB.done ? `<div class="ok-box" style="text-align:center">${t('Alhamdulillah, tasbih selepas solat selesai.')}</div>
+        <button class="btn btn-primary" data-a="tbReset">${t('Mula semula')}</button>`
+      : `<button class="tb-btn" data-a="tbTap" aria-label="${t('Tekan untuk kira')}" style="--p:${pct}%">
+          <span class="tb-count" id="tbCount">${TB.count}</span>
+          <span class="tb-target">${target ? '/ ' + target : '∞'}</span>
+        </button>
+        <p class="muted small" style="text-align:center">${t('Tekan bulatan setiap kali berzikir. Telefon bergetar bila cukup.')}</p>
+        <button class="btn btn-ghost" data-a="tbReset">${t('Ulang semula')}</button>`}
+    </div>`;
+}
+function tbTap() {
+  TB.count++;
+  const target = tbTarget();
+  if (target && TB.count >= target) {
+    buzz([120, 60, 120]);
+    if (TB.mode === 'solat') {
+      if (TB.step < 2) { TB.step++; TB.count = 0; toast(t('{n} kali selesai. Seterusnya: {z}', { n: target, z: ZIKIR[TB.step].lb })); }
+      else { TB.done = true; }
+    } else { toast(t('{n} kali selesai.', { n: target })); TB.count = 0; }
+    tbSave(); render(); return;
+  }
+  buzz(12); tbSave();
+  const el = document.getElementById('tbCount');
+  if (el) { el.textContent = TB.count; el.closest('.tb-btn').style.setProperty('--p', (target ? TB.count / target * 100 : 0) + '%'); }
+}
+document.addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.tb === 'z') { TB.z = Number(e.target.value) || 0; TB.count = 0; tbSave(); render(); }
+});
+
+// ---------- rekod solat (dalam telefon sahaja) ----------
+const SLOG = {
+  get() { try { return JSON.parse(Prefs.get('solatlog', '{}')) || {}; } catch { return {}; } },
+  set(o) {
+    const keep = Object.keys(o).sort().slice(-40); // simpan ~40 hari
+    Prefs.set('solatlog', JSON.stringify(Object.fromEntries(keep.map(k => [k, o[k]]))));
+  },
+};
+function toggleSolat(key) {
+  const log = SLOG.get(), day = myToday(), list = new Set(log[day] || []);
+  if (list.has(key)) list.delete(key); else { list.add(key); buzz(15); }
+  log[day] = AZAN_KEYS.filter(k => list.has(k));
+  SLOG.set(log);
+}
+function weekLog() {
+  const log = SLOG.get(), out = [];
+  for (let i = 6; i >= 0; i--) {
+    const key = new Date(Date.now() - i * 864e5 + 8 * 3600e3).toISOString().slice(0, 10);
+    out.push({ key, day: dayName(new Date(key + 'T12:00:00+08:00').getDay()).slice(0, 3), n: (log[key] || []).length, today: i === 0 });
+  }
+  return out;
 }
 
 // ---------- waktu solat ----------
@@ -246,11 +373,23 @@ function waktuModal() {
   const d = s.today, N = PRAY_NAMES(), nx = nextPrayer(), now = Date.now();
   const current = [...AZAN_KEYS].reverse().find(k => d[k] <= now);
   const azanOn = S.user.azan && S.user.azan.length && S.push.state === 'on';
+  const done = d.date === myToday() ? (SLOG.get()[d.date] || []) : [];
   return `<div class="solat" style="display:flex;flex-direction:column;gap:.75rem">
     <h2 style="font-size:1.25rem">${t('Waktu solat')}</h2>
     <p class="small muted">${esc(s.zone.area)}${d.hijri ? ' · ' + fmtHijri(d.hijri) : ''} · <button class="link" data-a="solatSettings" style="padding:0">${t('Tukar kawasan')}</button></p>
     ${nx ? `<div class="pnext"><span class="muted small">${t('Waktu seterusnya')}</span><b>${esc(nx.label)} · ${fmtTime(nx.at)}</b><span class="pill ok">${countdown(nx.at)}</span></div>` : ''}
-    <div class="ptimes">${['fajr', 'syuruk', 'dhuhr', 'asr', 'maghrib', 'isha'].map(k => `<div class="pt${k === current ? ' now' : ''}${nx && !nx.tomorrow && k === nx.key ? ' next' : ''}"><span>${N[k]}</span><b>${d[k] ? fmtTime(d[k]).replace(/ (pagi|tengah hari|petang|malam|am|pm)$/, '') : '-'}</b></div>`).join('')}</div>
+    <div class="ptimes">${['fajr', 'syuruk', 'dhuhr', 'asr', 'maghrib', 'isha'].map(k => {
+      const cls = `pt${k === current ? ' now' : ''}${nx && !nx.tomorrow && k === nx.key ? ' next' : ''}${done.includes(k) ? ' done' : ''}`;
+      const inner = `<span>${N[k]}</span><b>${d[k] ? fmtTime(d[k]).replace(/ (pagi|tengah hari|petang|malam|am|pm)$/, '') : '-'}</b>`;
+      if (k === 'syuruk') return `<div class="${cls}">${inner}</div>`;
+      const open = d[k] && d[k] <= now;
+      return `<button class="${cls}" data-a="sTick" data-v="${k}" ${open ? '' : 'disabled'} aria-pressed="${done.includes(k)}">${inner}<i class="pt-tick">${done.includes(k) ? QI.check : ''}</i></button>`;
+    }).join('')}</div>
+    <div class="slog">
+      <p class="small"><b>${t('Rekod solat')}</b> · ${t('Tekan waktu yang sudah ditunaikan.')}</p>
+      <div class="slog-week">${weekLog().map(w => `<div class="slog-day${w.today ? ' today' : ''}${w.n === 5 ? ' full' : ''}"><span>${esc(w.day)}</span><b>${w.n}/5</b></div>`).join('')}</div>
+      <p class="muted small">${t('Rekod ini disimpan dalam telefon ini sahaja.')}</p>
+    </div>
     ${azanOn ? `<p class="small">${I.bell} ${t('Notifikasi masuk waktu aktif ({n} waktu).', { n: S.user.azan.length })} <button class="link" data-a="solatSettings">${t('Ubah')}</button></p>`
       : `<button class="btn btn-ghost" data-a="solatSettings">${t('Hidupkan notifikasi waktu solat')}</button>`}
     <button class="btn btn-line" data-a="qibla">${I.compass} ${t('Arah kiblat')}</button>
@@ -511,7 +650,7 @@ async function loadAnn() {
 // Setiap 30 saat: kemas kini kiraan masa (kelas & solat); ambil pautan Zoom bila butang patut dibuka;
 // muat semula waktu solat bila hari bertukar.
 setInterval(() => {
-  if (S.view !== 'app' || S.modal || S.playing || !['utama', 'komuniti'].includes(S.tab)) return;
+  if (S.view !== 'app' || S.modal || S.playing || S.sub || !['utama', 'komuniti'].includes(S.tab)) return;
   if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
   if (S.solat && S.solat.today && S.solat.today.date !== myToday()) { loadSolat(); return; }
   const n = S.ann && S.ann.nextClass;
@@ -828,6 +967,21 @@ function modal() {
     </form>`;
   if (S.modal === 'solat') inner = solatModal();
   if (S.modal === 'waktu') inner = waktuModal();
+  if (S.modal === 'bantuan') {
+    const wa = S.cfg.org && S.cfg.org.whatsapp;
+    inner = `<h2 style="font-size:1.25rem">${t('Bantuan')}</h2>
+      <ol class="help-list">
+        <li>${t('<b>Video kelas:</b> tekan tab Video di bawah, pilih video dan tekan main.')}</li>
+        <li>${t('<b>Kelas Zoom:</b> butang Masuk Kelas dibuka 30 minit sebelum kelas bermula.')}</li>
+        <li>${t('<b>Tanya ustaz:</b> tulis soalan anda. Anda akan dapat notifikasi bila ustaz jawab.')}</li>
+        <li>${t('<b>Tulisan kecil?</b> Pergi ke tab Akaun dan pilih saiz tulisan Besar.')}</li>
+        <li>${t('<b>Lupa PIN?</b> Di skrin log masuk, tekan Lupa PIN.')}</li>
+      </ol>
+      ${wa ? `<a class="btn btn-primary" href="https://wa.me/${esc(wa)}?text=${encodeURIComponent(t('Assalamualaikum admin, saya perlukan bantuan dengan app Madrasah Online.'))}" target="_blank" rel="noopener">${t('WhatsApp admin')}</a>`
+        : `<p class="muted small">${t('Hubungi admin melalui group WhatsApp kelas.')}</p>`}
+      ${legalLinks()}
+      <button class="btn btn-ghost" data-a="close">${t('Tutup')}</button>`;
+  }
   if (S.modal === 'kelas') inner = kelasModal();
   if (S.modal === 'qibla') inner = qiblaModal();
   if (S.modal === 'subscribe') inner = subscribeModal();
@@ -961,13 +1115,21 @@ document.addEventListener('click', async e => {
       if (S.user) { S.user.lang = LANG; api('POST', '/api/me/lang', { lang: LANG }); }
       S.err = '';
       break;
-    case 'tab': await stopPlayer(); S.tab = v; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); if (v === 'komuniti' && S.kTab === 'soaljawab') loadQa(); if (v === 'utama' && !S.solat) loadSolat(); break;
+    case 'tab': await stopPlayer(); S.tab = v; S.sub = null; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); if (v === 'komuniti' && S.kTab === 'soaljawab') loadQa(); if (v === 'utama' && !S.solat) loadSolat(); break;
     case 'vfilter': S.filter = v; break;
     case 'kTab': S.kTab = v; if (v === 'soaljawab') loadQa(); else { markAnnSeen(); loadAnn(); } break;
     case 'solatSettings': openSolatSettings(); break;
     case 'waktu': S.modal = 'waktu'; if (!S.solat || S.solat.error) { S.solat = null; loadSolat(); } break;
     case 'kelas': S.modal = 'kelas'; loadAnn(); break;
     case 'bell': case 'goAnn': S.modal = null; S.tab = 'komuniti'; S.kTab = 'pengumuman'; markAnnSeen(); window.scrollTo(0, 0); loadAnn(); break;
+    case 'sub': S.sub = v; window.scrollTo(0, 0); if (v === 'doa') loadDoas(); break;
+    case 'subBack': S.sub = null; window.scrollTo(0, 0); break;
+    case 'doaCat': S.doaCat = v; break;
+    case 'tbTap': tbTap(); return;
+    case 'tbMode': TB.mode = v; TB.count = 0; TB.step = 0; TB.done = false; tbSave(); break;
+    case 'tbTarget': TB.target = Number(v); TB.count = 0; tbSave(); break;
+    case 'tbReset': TB.count = 0; TB.step = 0; TB.done = false; tbSave(); break;
+    case 'sTick': toggleSolat(v); break;
     case 'goQa': S.tab = 'komuniti'; S.kTab = 'soaljawab'; window.scrollTo(0, 0); loadQa(); break;
     case 'solatRetry': S.solat = null; loadSolat(); break;
     case 'qibla': openQibla(); return;

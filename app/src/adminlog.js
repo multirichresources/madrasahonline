@@ -26,6 +26,9 @@ const ACTIONS = [
   [/^\/api\/admin\/questions\/\d+\/hide$/, 'Sembunyi soalan'],
   [/^\/api\/admin\/plans$/, 'Ubah pakej langganan'],
   [/^\/api\/admin\/donors\/\d+\/stop$/, 'Hentikan sumbangan bulanan'],
+  [/^\/api\/admin\/doas\/\d+\/delete$/, 'Padam doa'],
+  [/^\/api\/admin\/doas\/\d+$/, 'Ubah doa'],
+  [/^\/api\/admin\/doas$/, 'Tambah doa'],
   [/^\/api\/admin\/export\/pelajar\.csv$/, 'Muat turun senarai pelajar (CSV)'],
   [/^\/api\/admin\/export\/sumbangan\.csv$/, 'Muat turun rekod sumbangan (CSV)'],
 ];
@@ -66,6 +69,11 @@ async function targetOf(env, path) {
   if (m) {
     const v = await env.DB.prepare('SELECT title FROM videos WHERE id = ?').bind(Number(m[1])).first();
     return v ? `${v.title} (#${m[1]})` : `Video #${m[1]}`;
+  }
+  m = path.match(/^\/api\/admin\/doas\/(\d+)/);
+  if (m) {
+    const d = await env.DB.prepare('SELECT title FROM doas WHERE id = ?').bind(Number(m[1])).first();
+    return d ? `${d.title} (#${m[1]})` : `Doa #${m[1]}`;
   }
   m = path.match(/^\/api\/admin\/(announcements|questions|donors)\/(\d+)/);
   if (m) return `#${m[2]}`;

@@ -20,6 +20,7 @@ import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myP
 import { adminInsights, adminExportUsers } from './insights.js';
 import { listZones, solatToday, saveSolatPrefs, sendAzan, cleanAzan } from './solat.js';
 import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, adminDonations, adminStopDonor, adminTajaBalance, adminSponsor, adminExportDonations } from './donations.js';
+import { listDoas, adminListDoas, adminCreateDoa, adminUpdateDoa, adminDeleteDoa } from './doa.js';
 import { shouldLog, readDetail, writeLog, adminListLog, cleanAdminLog } from './adminlog.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
 
@@ -120,6 +121,11 @@ const routes = [
   ['GET', /^\/api\/admin\/insights$/, (env, req) => adminInsights(env, req)],
   ['GET', /^\/api\/admin\/export\/pelajar\.csv$/, (env, req) => adminExportUsers(env, req)],
   ['GET', /^\/api\/admin\/log$/, (env, req) => adminListLog(env, req)],
+  ['GET', /^\/api\/doas$/, (env, req) => listDoas(env, req)],
+  ['GET', /^\/api\/admin\/doas$/, (env, req) => adminListDoas(env, req)],
+  ['POST', /^\/api\/admin\/doas$/, (env, req) => adminCreateDoa(env, req)],
+  ['POST', /^\/api\/admin\/doas\/(\d+)$/, (env, req, m) => adminUpdateDoa(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/doas\/(\d+)\/delete$/, (env, req, m) => adminDeleteDoa(env, req, Number(m[1]))],
 
   ['GET', /^\/api\/push\/key$/, (env, req) => pushKey(env, req)],
   ['POST', /^\/api\/push\/subscribe$/, (env, req) => pushSubscribe(env, req)],

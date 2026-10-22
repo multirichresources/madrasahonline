@@ -317,3 +317,43 @@ textarea.input { min-height: 6rem; resize: vertical; line-height: 1.45; }
 .qa-ic .dot { top: 0; right: 0; }
 .qa-lb { font-weight: 700; font-size: .95rem; text-align: center; line-height: 1.2; }
 .qa-badge { position: absolute; top: -.35rem; right: -.9rem; font-style: normal; font-size: .65rem; font-weight: 700; letter-spacing: .04em; background: var(--danger); color: #fff; border-radius: 99px; padding: .1rem .4rem; }
+
+/* ---------- doa harian ---------- */
+.doa { gap: .6rem; }
+.doa-title { font-size: 1.2rem; }
+.doa-ar { font-family: var(--f-ar); font-size: 1.75rem; line-height: 2.1; direction: rtl; text-align: right; color: var(--green); white-space: pre-line; }
+.doa-rumi { font-style: italic; color: var(--muted); white-space: pre-line; }
+.doa-mean { white-space: pre-line; }
+.card .doa-ar { margin: .2rem 0; }
+.qa .q .doa-ar { font-size: 1.4rem; line-height: 1.9; }
+
+/* ---------- tasbih ---------- */
+.tasbih { align-items: stretch; gap: .8rem; }
+.tb-ar { font-family: var(--f-ar); font-size: 2.1rem; line-height: 1.7; text-align: center; color: var(--green); }
+.tb-lb { text-align: center; }
+.tb-btn { --p: 0%; align-self: center; width: min(68vw, 15rem); aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer; color: var(--green-ink);
+  background: radial-gradient(closest-side, var(--green) 86%, transparent 87% 100%), conic-gradient(var(--gold) var(--p), var(--green-soft) 0);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; box-shadow: 0 8px 22px rgba(13, 75, 68, .22); }
+.tb-btn:active { transform: scale(.97); }
+.tb-count { font-size: 3.6rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.tb-target { font-size: 1rem; font-weight: 700; opacity: .85; }
+
+/* ---------- rekod solat ---------- */
+button.pt { font: inherit; color: inherit; cursor: pointer; position: relative; }
+button.pt[disabled] { cursor: default; opacity: .6; }
+.pt.done { background: var(--green); color: var(--green-ink); border-color: var(--green); }
+.pt.done span { color: inherit; opacity: .9; }
+.pt-tick { position: absolute; top: .3rem; right: .35rem; width: 1rem; height: 1rem; font-style: normal; }
+.pt-tick svg { width: 100%; height: 100%; }
+.slog { display: flex; flex-direction: column; gap: .45rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.slog-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
+.slog-day { display: flex; flex-direction: column; align-items: center; border-radius: 10px; padding: .35rem 0; background: var(--surface2); font-size: .75rem; }
+.slog-day span { color: var(--muted); font-weight: 700; }
+.slog-day b { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.slog-day.full { background: var(--green); color: var(--green-ink); }
+.slog-day.full span { color: inherit; }
+.slog-day.today { outline: 2px solid var(--gold); outline-offset: -2px; }
+
+/* ---------- bantuan ---------- */
+.help-list { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .55rem; }

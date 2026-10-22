@@ -601,6 +601,31 @@ check('Halaman /sumbang dipapar', page.status === 200 && (await page.text()).inc
 
 chipMock.close();
 
+// ---- doa harian ----
+r = await plain0('GET', '/api/doas');
+check('Doa perlu log masuk', r.status === 401);
+r = await e.req('GET', '/api/doas');
+check('Pelajar: doa contoh belum diterbitkan', r.status === 200 && r.data.doas.length === 0, r.data);
+r = await ad.req('GET', '/api/admin/doas');
+const doas = r.data && r.data.doas || [];
+check('Admin: doa contoh dimasukkan sebagai draf', doas.length >= 14 && doas.every(d => !d.published) && doas.some(d => d.title === 'Sebelum tidur'), doas.length);
+r = await ad.req('GET', '/api/admin/doas');
+check('Doa contoh tidak bertindih bila dibuka semula', r.data.doas.length === doas.length);
+r = await ad.req('POST', `/api/admin/doas/${doas[0].id}`, { published: true });
+check('Admin terbitkan doa', r.status === 200 && r.data.doa.published && r.data.doa.arabic === doas[0].arabic, r.data);
+r = await ad.req('POST', '/api/admin/doas', { title: 'Uji', meaning: 'x' });
+check('Doa tanpa teks Arab ditolak', r.status === 400);
+r = await ad.req('POST', '/api/admin/doas', { category: 'Ujian', title: 'Doa ujian', arabic: 'رَبِّ زِدْنِيْ عِلْمًا', meaning: 'Tambahkan ilmuku', published: true });
+const newDoa = r.data && r.data.doa;
+check('Admin tambah doa', r.status === 201 && newDoa.category === 'Ujian' && newDoa.sort > doas[doas.length - 1].sort, r.data);
+r = await e.req('GET', '/api/doas');
+check('Pelajar nampak doa diterbitkan sahaja', r.data.doas.length === 2 && r.data.doas.every(d => d.published), r.data.doas.map(d => d.title));
+r = await ad.req('POST', `/api/admin/doas/${newDoa.id}/delete`, {});
+r = await e.req('GET', '/api/doas');
+check('Doa dipadam hilang dari pelajar', r.data.doas.length === 1);
+r = await e.req('POST', '/api/admin/doas', { title: 'x', arabic: 'x', meaning: 'x' });
+check('Pelajar tak boleh tambah doa', r.status === 401);
+
 // ---- keselamatan: pengepala, log admin, hash lama ----
 let h = await fetch(BASE + '/api/me');
 check('API ada pengepala keselamatan', /frame-ancestors 'none'/.test(h.headers.get('content-security-policy') || '') && h.headers.get('x-frame-options') === 'DENY' && h.headers.get('x-content-type-options') === 'nosniff', Object.fromEntries(h.headers));

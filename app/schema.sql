@@ -239,3 +239,20 @@ CREATE TABLE IF NOT EXISTS admin_log (
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_admin_log_time ON admin_log(created_at);
+
+-- Doa harian (diurus admin/ustaz). Doa contoh dimasukkan sebagai draf, ustaz semak sebelum terbit.
+CREATE TABLE IF NOT EXISTS doas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  category    TEXT    NOT NULL,                   -- cth. 'Harian', 'Belajar & mengaji'
+  title       TEXT    NOT NULL,
+  title_en    TEXT,
+  arabic      TEXT    NOT NULL,
+  rumi        TEXT,
+  meaning     TEXT    NOT NULL,
+  meaning_en  TEXT,
+  source      TEXT,                               -- rujukan, cth. 'Riwayat al-Bukhari'
+  sort        INTEGER NOT NULL DEFAULT 0,
+  published   INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER
+);

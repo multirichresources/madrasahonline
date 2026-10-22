@@ -396,6 +396,56 @@ function tSumbangan() {
     <a class="btn btn-ghost" href="/api/admin/export/sumbangan.csv" download>Muat turun rekod sumbangan (Excel)</a>`;
 }
 
+// ---------- doa harian ----------
+function tDoa() {
+  const L = A.doas;
+  if (!L) return '<div class="loading">Memuatkan doa...</div>';
+  const drafts = L.filter(d => !d.published).length;
+  const cats = [...new Set(L.map(d => d.category))];
+  return `<div class="adminnote">${I.shield}<p><b>Semak sebelum terbit.</b> Doa contoh disediakan sebagai draf. Sila minta ustaz semak teks Arab, rumi, maksud dan rujukan, kemudian tekan <b>Terbitkan</b>. Pelajar hanya nampak doa yang diterbitkan.</p></div>
+    <div class="card">
+      <div class="top"><span class="eyebrow">${L.length} doa · ${L.length - drafts} diterbitkan${drafts ? ' · ' + drafts + ' draf' : ''}</span></div>
+      <button class="btn btn-primary" data-a="doaNew">Tambah doa</button>
+    </div>
+    ${cats.map(c => `<div class="card">
+      <span class="eyebrow">${esc(c)}</span>
+      <div class="qa">${L.filter(d => d.category === c).map(d => `<div class="q">
+        <div class="top" style="align-items:flex-start"><div style="min-width:0"><b>${esc(d.title)}</b>${d.source ? `<p class="muted small">${esc(d.source)}</p>` : ''}</div>
+          ${d.published ? '<span class="pill ok">Diterbitkan</span>' : '<span class="pill warn">Draf</span>'}</div>
+        <p class="doa-ar">${esc(d.arabic)}</p>
+        ${d.rumi ? `<p class="small muted" style="font-style:italic">${esc(d.rumi)}</p>` : ''}
+        <p class="small">${esc(d.meaning)}</p>
+        <div class="btn-row">
+          <button class="btn ${d.published ? 'btn-ghost' : 'btn-primary'}" data-a="doaPub" data-v="${d.id}">${d.published ? 'Sembunyikan' : 'Terbitkan'}</button>
+          <button class="btn btn-ghost" data-a="doaEdit" data-v="${d.id}">Edit</button>
+          <button class="btn btn-ghost" data-a="doaDel" data-v="${d.id}" style="color:var(--danger)">Padam</button>
+        </div>
+      </div>`).join('')}</div>
+    </div>`).join('')}
+    ${!L.length ? '<div class="card"><p class="muted">Belum ada doa.</p></div>' : ''}`;
+}
+const DOA_IDS = ['dCat', 'dTitle', 'dTitleEn', 'dArabic', 'dRumi', 'dMeaning', 'dMeaningEn', 'dSource', 'dSort'];
+function doaModal() {
+  const d = A.editDoa || {}, cats = [...new Set([...(A.doas || []).map(x => x.category), 'Harian', 'Belajar & mengaji', 'Doa pilihan'])];
+  return `<form id="fDoa" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+    <h2 style="font-size:1.25rem">${d.id ? 'Edit doa' : 'Tambah doa'}</h2>
+    <label class="f" for="dCat">Kategori<input class="input" id="dCat" list="dCats" maxlength="40" value="${esc(d.category || 'Harian')}"></label>
+    <datalist id="dCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+    <label class="f" for="dTitle">Tajuk<input class="input" id="dTitle" maxlength="80" value="${esc(d.title || '')}" placeholder="Contoh: Sebelum tidur"></label>
+    <label class="f" for="dTitleEn">Tajuk (English) <span class="muted small">(pilihan)</span><input class="input" id="dTitleEn" maxlength="80" value="${esc(d.titleEn || '')}"></label>
+    <label class="f" for="dArabic">Teks Arab<textarea class="input" id="dArabic" dir="rtl" rows="3" style="font-family:var(--f-ar);font-size:1.45rem;line-height:1.9">${esc(d.arabic || '')}</textarea></label>
+    <label class="f" for="dRumi">Rumi <span class="muted small">(cara sebut)</span><textarea class="input" id="dRumi" rows="2">${esc(d.rumi || '')}</textarea></label>
+    <label class="f" for="dMeaning">Maksud<textarea class="input" id="dMeaning" rows="3">${esc(d.meaning || '')}</textarea></label>
+    <label class="f" for="dMeaningEn">Maksud (English) <span class="muted small">(pilihan)</span><textarea class="input" id="dMeaningEn" rows="2">${esc(d.meaningEn || '')}</textarea></label>
+    <label class="f" for="dSource">Rujukan <span class="muted small">(pilihan)</span><input class="input" id="dSource" maxlength="120" value="${esc(d.source || '')}" placeholder="Contoh: Riwayat al-Bukhari"></label>
+    <label class="f" for="dSort">Susunan <span class="muted small">(nombor kecil di atas)</span><input class="input" id="dSort" inputmode="numeric" value="${d.sort ?? ''}"></label>
+    <label class="check" for="dPub"><input type="checkbox" id="dPub" ${d.published ? 'checked' : ''}><span>Terbitkan (pelajar boleh nampak)</span></label>
+    ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+    <button class="btn btn-primary" type="submit">Simpan</button>
+    <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+  </form>`;
+}
+
 function tTetapan() {
   const o = A.org;
   return `${plansCard()}
@@ -507,6 +557,11 @@ function modal() {
       <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
     </form>`;
   }
+  if (A.modal === 'doa') inner = doaModal();
+  if (A.modal === 'doadel') inner = `<h2 style="font-size:1.25rem">Padam doa?</h2>
+      <p><b>${esc(A.delDoa.title)}</b> akan dipadam. Tindakan ini tidak boleh dibatalkan.</p>
+      <button class="btn btn-primary" data-a="doaDelGo" style="background:var(--danger)">Ya, padam</button>
+      <button class="btn btn-ghost" data-a="close">Batal</button>`;
   if (A.modal === 'vedit') {
     const v = A.editVideo;
     const topics = A.vmeta.topics.includes(v.topic) ? A.vmeta.topics : [v.topic, ...A.vmeta.topics];
@@ -549,11 +604,11 @@ function render() {
   else if (A.view === 'setup') body = vSetup();
   else if (A.view === 'login') body = vLogin();
   else {
-    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
+    const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['doa', 'Doa'], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}`;
+      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, doa: tDoa, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}`;
   }
   app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
   restoreInputs();
@@ -573,6 +628,13 @@ async function loadUsers() {
   const r = await api('GET', `/api/admin/users?q=${encodeURIComponent(A.q)}&status=${A.filter}`);
   if (r.status === 401) return toLogin();
   A.users = r.ok ? r.users : [];
+  if (!r.ok) toast(r.error);
+  render();
+}
+async function loadDoas() {
+  const r = await api('GET', '/api/admin/doas');
+  if (r.status === 401) return toLogin();
+  A.doas = r.ok ? r.doas : [];
   if (!r.ok) toast(r.error);
   render();
 }
@@ -630,6 +692,7 @@ function openTab(t) {
   if (t === 'hebahan') loadAnns();
   if (t === 'tetapan') { A.log = null; loadOrg(); loadPlans(); }
   if (t === 'sumbangan') { A.don = null; loadDon(); }
+  if (t === 'doa') { A.doas = null; loadDoas(); }
   if (t === 'soalan') { A.qs = null; A.editQ = null; loadQs(); }
 }
 
@@ -700,6 +763,23 @@ document.addEventListener('click', async e => {
       const r = await busy(el, () => api('POST', `/api/admin/videos/${v}`, { published: !vid.published }));
       if (!r.ok) { toast(r.error); return; }
       Object.assign(vid, r.video); toast(r.video.published ? 'Video diterbitkan. Pelajar boleh tonton.' : 'Video disembunyikan.');
+      break;
+    }
+    case 'doaNew': A.editDoa = null; forget(...DOA_IDS, 'dPub'); A.err = ''; A.modal = 'doa'; break;
+    case 'doaEdit': A.editDoa = A.doas.find(x => String(x.id) === v); forget(...DOA_IDS, 'dPub'); A.err = ''; A.modal = 'doa'; break;
+    case 'doaPub': {
+      const d = A.doas.find(x => String(x.id) === v);
+      const r = await busy(el, () => api('POST', `/api/admin/doas/${v}`, { published: !d.published }));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { toast(r.error); return; }
+      A.doas = A.doas.map(x => x.id === d.id ? r.doa : x); toast(r.doa.published ? 'Doa diterbitkan.' : 'Doa disembunyikan.');
+      break;
+    }
+    case 'doaDel': A.delDoa = A.doas.find(x => String(x.id) === v); A.modal = 'doadel'; break;
+    case 'doaDelGo': {
+      const r = await busy(el, () => api('POST', `/api/admin/doas/${A.delDoa.id}/delete`, {}));
+      if (!r.ok) { toast(r.error); return; }
+      A.doas = A.doas.filter(x => x.id !== A.delDoa.id); A.modal = null; toast('Doa dipadam.');
       break;
     }
     case 'vEdit': A.editVideo = A.videos.find(x => String(x.id) === v); forget('eTitle', 'eTopic', 'eArabic', 'eMonth'); A.err = ''; A.modal = 'vedit'; break;
@@ -780,6 +860,19 @@ document.addEventListener('submit', async e => {
     A.bunnyItems = A.bunnyItems.filter(b => b.guid !== A.imp.guid); A.modal = null; A.err = '';
     A.videos.unshift(r.video);
     toast(r.video.ready ? 'Video diimport. Tekan Terbitkan bila sedia.' : 'Video diimport. Bunny masih memproses, terbitkan bila status Sedia.');
+  }
+  if (f.id === 'fDoa') {
+    const raw = id => document.getElementById(id)?.value || '';
+    const body = { category: val('dCat'), title: val('dTitle'), titleEn: val('dTitleEn'), arabic: raw('dArabic').trim(), rumi: raw('dRumi').trim(),
+      meaning: raw('dMeaning').trim(), meaningEn: raw('dMeaningEn').trim(), source: val('dSource'), published: document.getElementById('dPub').checked };
+    if (val('dSort') !== '') body.sort = Number(val('dSort'));
+    const id = A.editDoa && A.editDoa.id;
+    const r = await busy(btn, () => api('POST', id ? `/api/admin/doas/${id}` : '/api/admin/doas', body));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { A.err = r.error; render(); return; }
+    forget(...DOA_IDS, 'dPub'); A.modal = null; A.err = '';
+    toast(id ? 'Doa dikemas kini.' : 'Doa ditambah.');
+    loadDoas(); return;
   }
   if (f.id === 'fVEdit') {
     const id = A.editVideo.id;

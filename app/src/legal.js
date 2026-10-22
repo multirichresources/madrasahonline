@@ -3,7 +3,7 @@
 // dan boleh dibaca oleh penyemak payment gateway tanpa perlu log masuk.
 import { getOrg } from './content.js';
 
-const UPDATED = { ms: '21 Oktober 2026', en: '21 October 2026' };
+const UPDATED = { ms: '22 Oktober 2026', en: '22 October 2026' };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const waLocal = p => p ? '0' + p.slice(2, 4) + '-' + p.slice(4, p.length - 4) + ' ' + p.slice(-4) : '';
@@ -98,6 +98,7 @@ ${contactBlock(o)}`,
   <li><b>Penyumbang:</b> nama, emel, no. telefon (pilihan) dan mesej, untuk resit dan rekod sumbangan. Nama tidak dipaparkan jika anda memilih untuk tidak menunjukkannya.</li>
   <li><b>Tetapan app:</b> bahasa, kawasan waktu solat dan pilihan notifikasi anda.</li>
   <li><b>Lokasi (arah kiblat):</b> dikira dalam telefon anda sahaja dan <b>tidak dihantar</b> atau disimpan oleh kami.</li>
+  <li><b>Rekod solat dan kiraan tasbih:</b> disimpan dalam telefon anda sahaja dan <b>tidak dihantar</b> kepada kami. Ia hilang jika anda kosongkan data pelayar atau tukar telefon.</li>
 </ol>
 <p>Kami <b>tidak</b> menyimpan nombor kad bank anda. Butiran kad diproses terus oleh gerbang pembayaran berlesen.</p>
 
@@ -265,6 +266,7 @@ ${contactBlock(o, 'en')}`,
   <li><b>Donors:</b> name, email, phone number (optional) and message, for receipts and donation records. Your name is not displayed if you choose to hide it.</li>
   <li><b>App settings:</b> your language, prayer time area and notification choices.</li>
   <li><b>Location (Qibla direction):</b> calculated on your phone only and <b>not sent</b> to or stored by us.</li>
+  <li><b>Prayer log and tasbih count:</b> stored on your phone only and <b>not sent</b> to us. They are lost if you clear your browser data or change phones.</li>
 </ol>
 <p>We do <b>not</b> store your bank card number. Card details are processed directly by the licensed payment gateway.</p>
 
