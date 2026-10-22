@@ -135,6 +135,7 @@ function videoRow(v) {
       <p class="muted small">${esc(v.topic)}${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}${v.minutes ? ' · ' + v.minutes + ' minit' : ''}</p></div>${pill}</div>
     <div class="btn-row">
       ${v.ready ? `<button class="btn ${v.published ? 'btn-ghost' : 'btn-primary'}" data-a="vPublish" data-v="${v.id}">${v.published ? 'Sembunyikan' : 'Terbitkan'}</button>` : ''}
+      <button class="btn btn-ghost" data-a="vEdit" data-v="${v.id}">Edit</button>
       <button class="btn btn-ghost" data-a="vDelete" data-v="${v.id}" style="color:var(--danger)">Padam</button>
     </div>
   </div>`;
@@ -506,6 +507,21 @@ function modal() {
       <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
     </form>`;
   }
+  if (A.modal === 'vedit') {
+    const v = A.editVideo;
+    const topics = A.vmeta.topics.includes(v.topic) ? A.vmeta.topics : [v.topic, ...A.vmeta.topics];
+    inner = `<form id="fVEdit" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+      <h2 style="font-size:1.25rem">Edit video</h2>
+      <label class="f" for="eTitle">Tajuk dalam app<input class="input" id="eTitle" maxlength="120" value="${esc(v.title)}"></label>
+      <label class="f" for="eTopic">Topik<select class="input" id="eTopic">${topics.map(t => `<option${t === v.topic ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      <label class="f" for="eArabic">Label Arab <span class="muted small">(pilihan)</span><input class="input" id="eArabic" dir="rtl" maxlength="40" value="${esc(v.arabicLabel || '')}" style="font-family:var(--f-ar);font-size:1.2rem"></label>
+      <label class="f" for="eMonth">Bulan kelas<input class="input" id="eMonth" type="month" value="${esc(v.classMonth || '')}"></label>
+      <p class="muted small">Perubahan terus dilihat pelajar. Fail video tidak berubah.</p>
+      ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+      <button class="btn btn-primary" type="submit">Simpan</button>
+      <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+    </form>`;
+  }
   if (A.modal === 'vdelete') inner = `<h2 style="font-size:1.25rem">Padam video?</h2>
       <p><b>${esc(A.delVideo.title)}</b> akan dipadam dari app dan dari Bunny. Tindakan ini tidak boleh dibatalkan.</p>
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
@@ -686,6 +702,7 @@ document.addEventListener('click', async e => {
       Object.assign(vid, r.video); toast(r.video.published ? 'Video diterbitkan. Pelajar boleh tonton.' : 'Video disembunyikan.');
       break;
     }
+    case 'vEdit': A.editVideo = A.videos.find(x => String(x.id) === v); forget('eTitle', 'eTopic', 'eArabic', 'eMonth'); A.err = ''; A.modal = 'vedit'; break;
     case 'vDelete': A.delVideo = A.videos.find(x => String(x.id) === v); A.modal = 'vdelete'; A.err = ''; break;
     case 'vDeleteGo': {
       const r = await busy(el, () => api('POST', `/api/admin/videos/${A.delVideo.id}/delete`, {}));
@@ -763,6 +780,15 @@ document.addEventListener('submit', async e => {
     A.bunnyItems = A.bunnyItems.filter(b => b.guid !== A.imp.guid); A.modal = null; A.err = '';
     A.videos.unshift(r.video);
     toast(r.video.ready ? 'Video diimport. Tekan Terbitkan bila sedia.' : 'Video diimport. Bunny masih memproses, terbitkan bila status Sedia.');
+  }
+  if (f.id === 'fVEdit') {
+    const id = A.editVideo.id;
+    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth') }));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { A.err = r.error; render(); return; }
+    forget('eTitle', 'eTopic', 'eArabic', 'eMonth');
+    A.videos = A.videos.map(x => x.id === id ? r.video : x); A.modal = null; A.err = '';
+    toast('Video dikemas kini.');
   }
   if (f.id === 'fPass') {
     const r = await busy(btn, () => api('POST', '/api/admin/password', { oldPassword: document.getElementById('cOld').value, newPassword: document.getElementById('cNew').value }));
