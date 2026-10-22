@@ -1,6 +1,14 @@
 // Terjemahan English untuk app pelajar & halaman sumbangan. Kunci = teks asal BM.
 // Tambah terjemahan di sini setiap kali menambah t('…') baharu, kemudian jalankan: node test/i18n.test.mjs
 window.EN_DICT = {
+ "Pengumuman baharu": "New announcements",
+ "Lihat semua waktu solat": "See all prayer times",
+ "Semua waktu": "All times",
+ "LIVE": "LIVE",
+ "Akses pantas": "Quick access",
+ "Kelas Zoom": "Zoom class",
+ "Kiblat": "Qibla",
+ "Sumbang": "Donate",
  "(pilihan)": "(optional)",
  "1. Tujuan": "1. Purpose",
  "2. Kekerapan": "2. Frequency",

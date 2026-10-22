@@ -129,34 +129,93 @@ function statusCard() {
   </div>`;
 }
 
-function tUtama() {
-  const big = Prefs.get('big', '0') === '1';
-  return `<div class="toolbar">
+// ---------- utama ----------
+// Skrin pertama ringkas: kad solat, Quick Access (6 ikon) dan SATU banner ikut keutamaan.
+// Tetapan (bahasa, tulisan, tema, install, notifikasi) ada di tab Akaun.
+const QI = {
+  play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>',
+  zoom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="m15.5 10.5 6-3.5v10l-6-3.5z"/></svg>',
+  ask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z"/><path d="M10 8a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2"/><circle cx="12" cy="13.2" r=".4" fill="currentColor"/></svg>',
+  compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z" fill="currentColor"/></svg>',
+  mosque: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v2"/><path d="M7 11a5 5 0 0 1 10 0"/><path d="M5 21V11h14v10"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/><path d="M2.5 21h19"/><path d="M2.5 21v-7.5l1.25-2 1.25 2V21M19 21v-7.5l1.25-2 1.25 2V21"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20.5s-8-4.7-8-10.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.9c0 5.9-8 10.6-8 10.6z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" style="width:.95em;height:.95em;vertical-align:-.1em;flex:none"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+};
+
+// Pengumuman yang belum dilihat di telefon ini (titik merah pada loceng)
+const annSeenId = () => Number(Prefs.get('annSeen', '0')) || 0;
+const annUnseen = () => !!(S.ann && S.ann.announcements.some(a => a.id > annSeenId()));
+function markAnnSeen() {
+  if (S.ann && S.ann.announcements.length) Prefs.set('annSeen', String(Math.max(annSeenId(), ...S.ann.announcements.map(a => a.id))));
+}
+
+function homeHead() {
+  const zone = S.solat && S.solat.zone, unseen = annUnseen();
+  return `<p class="bism home-bism">بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
+    <div class="homehead">
       <img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608">
-      <button class="iconbtn" data-a="big" aria-label="${big ? t('Kecilkan tulisan') : t('Besarkan tulisan')}">${big ? 'A−' : 'A+'}</button>
-      ${langBtn()}
-      ${themeBtn()}
+      <div class="hh-text">
+        <span class="muted small">Assalamualaikum,</span>
+        <b>${esc(S.user.name)}</b>
+        ${zone ? `<button class="hh-zone" data-a="solatSettings">${QI.pin}<span>${esc(zone.area)}</span></button>` : ''}
+      </div>
+      <button class="iconbtn bellbtn" data-a="bell" aria-label="${unseen ? t('Pengumuman baharu') : t('Pengumuman')}">${I.bell}${unseen ? '<i class="dot" aria-hidden="true"></i>' : ''}</button>
+    </div>`;
+}
+
+function solatHero() {
+  const s = S.solat;
+  if (!s) return `<div class="solathero"><span class="eyebrow">${t('Waktu solat')}</span><div class="loading" style="padding:1rem 0">${t('Memuatkan...')}</div></div>`;
+  if (s.error) return `<div class="card"><span class="eyebrow">${t('Waktu solat')}</span><p class="small">${esc(s.error)}</p><button class="btn btn-ghost" data-a="solatRetry">${t('Cuba lagi')}</button></div>`;
+  const d = s.today, nx = nextPrayer(), now = new Date();
+  return `<div class="solathero" data-a="waktu" role="button" tabindex="0" aria-label="${t('Lihat semua waktu solat')}">
+    ${pattern('patSolat')}
+    <div class="sh-row">
+      <span class="sh-label">${t('Waktu seterusnya')}</span>
+      ${nx ? `<span class="sh-count">${countdown(nx.at)}</span>` : ''}
     </div>
-    <div class="hero">
-      ${pattern('patHero')}
-      <p class="bism">بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
-      <p class="muted">Assalamualaikum,</p>
-      <h1>${esc(S.user.name)}</h1>
-      ${orn()}
+    ${nx ? `<div class="sh-name">${esc(nx.label)}</div><div class="sh-time">${fmtTime(nx.at)}</div>` : ''}
+    <div class="sh-date">${d.hijri ? esc(fmtHijri(d.hijri)) + ' · ' : ''}${dayName(now.getDay())}, ${fmtDate(now.getTime())}</div>
+    <div class="sh-links">
+      <button class="sh-btn" data-a="qibla">${QI.compass}<span>${t('Arah kiblat')}</span></button>
+      <span class="sh-btn">${t('Semua waktu')} ›</span>
     </div>
-    ${statusCard()}
-    ${solatCard()}
-    ${(() => { const c = S.videos && S.continueId && S.videos.find(v => v.id === S.continueId); return c && S.user.active ? `<div class="card"><span class="eyebrow">${t('Sambung tonton')}</span><div class="vlist">${vItem(c)}</div></div>` : ''; })()}
-    ${S.videos && S.videos.length && !S.continueId ? `<div class="card"><span class="eyebrow">${t('Video kelas')}</span><p>${t('{n} rakaman kelas sedia ditonton.', { n: S.videos.length })}</p><button class="btn btn-ghost" data-a="tab" data-v="video">${t('Lihat video')}</button></div>` : ''}
-    ${classCard()}
-    ${S.ann && S.ann.nextClass ? pushCard(true) : ''}
-    ${latestAnnCard()}
-    <div class="card">
-      <span class="eyebrow">${t('Sumbang & taja pelajar')}</span>
-      <p class="small">${t('Bantu orang lain belajar mengaji dengan menaja langganan mereka, atau sumbang untuk kos kelas.')}</p>
-      <a class="btn btn-ghost" href="/sumbang">${I.star} ${t('Sumbang sekarang')}</a>
-    </div>
-    ${installCard()}`;
+  </div>`;
+}
+
+function quickAccess() {
+  const u = S.user, now = Date.now();
+  const c = u.active && S.videos && S.continueId && S.videos.find(v => v.id === S.continueId);
+  const n = S.ann && S.ann.nextClass;
+  const classBadge = n && n.joinOpen && !n.locked ? `<em class="qa-badge live">${t('LIVE')}</em>`
+    : n && n.classAt > now && n.classAt - now < 7 * 864e5 ? '<i class="dot" aria-hidden="true"></i>' : '';
+  const tile = (attrs, icon, label, extra = '') => `<button class="qa-tile" ${attrs}><span class="qa-ic">${icon}${extra}</span><span class="qa-lb">${label}</span></button>`;
+  return `<section class="quick" aria-label="${t('Akses pantas')}">
+    ${c ? tile(`data-a="play" data-v="${c.id}"`, QI.play, t('Sambung tonton')) : tile('data-a="tab" data-v="video"', QI.play, t('Video kelas'))}
+    ${tile('data-a="kelas"', QI.zoom, t('Kelas Zoom'), classBadge)}
+    ${tile('data-a="goQa"', QI.ask, t('Tanya ustaz'))}
+    ${tile('data-a="qibla"', QI.compass, t('Kiblat'))}
+    ${tile('data-a="waktu"', QI.mosque, t('Waktu solat'))}
+    <a class="qa-tile" href="/sumbang"><span class="qa-ic">${QI.heart}</span><span class="qa-lb">${t('Sumbang')}</span></a>
+  </section>`;
+}
+
+// Satu banner sahaja, ikut keutamaan
+function smartBanner() {
+  const u = S.user, now = Date.now(), n = S.ann && S.ann.nextClass;
+  if (!u.active) return statusCard();
+  const days = Math.ceil((u.paidUntil - now) / 864e5);
+  if (!u.autoRenew && days <= 7) return statusCard();
+  if (n && (n.joinOpen || (n.classAt > now && n.classAt - now < 7 * 864e5))) return classCard();
+  if (S.push.state === 'off' || S.push.state === 'ios-install') return pushCard(true);
+  return latestAnnCard();
+}
+
+function tUtama() {
+  return `${homeHead()}
+    ${solatHero()}
+    ${quickAccess()}
+    ${smartBanner()}`;
 }
 
 // ---------- waktu solat ----------
@@ -179,23 +238,33 @@ function nextPrayer() {
   return tm ? { key: 'fajr', at: tm.fajr, label: t('{p} (esok)', { p: N.fajr }), tomorrow: true } : null;
 }
 
-function solatCard() {
+function waktuModal() {
   const s = S.solat;
-  if (!s) return '';
-  if (s.error) return `<div class="card"><span class="eyebrow">${t('Waktu solat')}</span><p class="small">${esc(s.error)}</p><button class="btn btn-ghost" data-a="solatRetry">${t('Cuba lagi')}</button></div>`;
+  const close = `<button class="btn btn-ghost" data-a="close">${t('Tutup')}</button>`;
+  if (!s) return `<h2 style="font-size:1.25rem">${t('Waktu solat')}</h2><div class="loading">${t('Memuatkan...')}</div>${close}`;
+  if (s.error) return `<h2 style="font-size:1.25rem">${t('Waktu solat')}</h2><p class="small">${esc(s.error)}</p><button class="btn btn-ghost" data-a="solatRetry">${t('Cuba lagi')}</button>${close}`;
   const d = s.today, N = PRAY_NAMES(), nx = nextPrayer(), now = Date.now();
   const current = [...AZAN_KEYS].reverse().find(k => d[k] <= now);
   const azanOn = S.user.azan && S.user.azan.length && S.push.state === 'on';
-  return `<div class="card solat">
-    <div class="top"><span class="eyebrow">${t('Waktu solat')}</span><button class="link" data-a="solatSettings">${t('Tukar kawasan')}</button></div>
-    <p class="small muted">${esc(s.zone.area)}${d.hijri ? ' · ' + fmtHijri(d.hijri) : ''}</p>
+  return `<div class="solat" style="display:flex;flex-direction:column;gap:.75rem">
+    <h2 style="font-size:1.25rem">${t('Waktu solat')}</h2>
+    <p class="small muted">${esc(s.zone.area)}${d.hijri ? ' · ' + fmtHijri(d.hijri) : ''} · <button class="link" data-a="solatSettings" style="padding:0">${t('Tukar kawasan')}</button></p>
     ${nx ? `<div class="pnext"><span class="muted small">${t('Waktu seterusnya')}</span><b>${esc(nx.label)} · ${fmtTime(nx.at)}</b><span class="pill ok">${countdown(nx.at)}</span></div>` : ''}
     <div class="ptimes">${['fajr', 'syuruk', 'dhuhr', 'asr', 'maghrib', 'isha'].map(k => `<div class="pt${k === current ? ' now' : ''}${nx && !nx.tomorrow && k === nx.key ? ' next' : ''}"><span>${N[k]}</span><b>${d[k] ? fmtTime(d[k]).replace(/ (pagi|tengah hari|petang|malam|am|pm)$/, '') : '-'}</b></div>`).join('')}</div>
     ${azanOn ? `<p class="small">${I.bell} ${t('Notifikasi masuk waktu aktif ({n} waktu).', { n: S.user.azan.length })} <button class="link" data-a="solatSettings">${t('Ubah')}</button></p>`
       : `<button class="btn btn-ghost" data-a="solatSettings">${t('Hidupkan notifikasi waktu solat')}</button>`}
     <button class="btn btn-line" data-a="qibla">${I.compass} ${t('Arah kiblat')}</button>
     <p class="note">${t('Sumber: JAKIM e-Solat')}</p>
+    ${close}
   </div>`;
+}
+
+function kelasModal() {
+  return `<h2 style="font-size:1.25rem">${t('Kelas Zoom')}</h2>
+    ${S.ann ? classCard() : `<div class="loading">${t('Memuatkan...')}</div>`}
+    ${S.ann && S.ann.nextClass ? pushCard(true) : ''}
+    <button class="btn btn-ghost" data-a="goAnn">${t('Lihat semua pengumuman')}</button>
+    <button class="btn btn-ghost" data-a="close">${t('Tutup')}</button>`;
 }
 
 // ---------- arah kiblat ----------
@@ -347,7 +416,7 @@ async function loadSolat() {
   const r = await api('GET', '/api/solat');
   if (r.status === 401) return;
   S.solat = r.ok ? { zone: r.zone, today: r.today, tomorrow: r.tomorrow } : { error: r.error };
-  if (S.view === 'app' && !S.playing && !S.modal) render();
+  if (S.view === 'app' && !S.playing && (!S.modal || S.modal === 'waktu')) render();
 }
 async function loadZones() {
   if (S.zones) return;
@@ -432,7 +501,11 @@ function annItem(a) {
 async function loadAnn() {
   const r = await api('GET', '/api/announcements');
   if (r.status === 401) return;
-  if (r.ok) { S.ann = { nextClass: r.nextClass, announcements: r.announcements }; if (S.view === 'app' && !S.playing) render(); }
+  if (r.ok) {
+    S.ann = { nextClass: r.nextClass, announcements: r.announcements };
+    if (S.tab === 'komuniti' && S.kTab === 'pengumuman') markAnnSeen();
+    if (S.view === 'app' && !S.playing) render();
+  }
 }
 
 // Setiap 30 saat: kemas kini kiraan masa (kelas & solat); ambil pautan Zoom bila butang patut dibuka;
@@ -754,6 +827,8 @@ function modal() {
       <button class="btn btn-ghost" type="button" data-a="close">${t('Batal')}</button>
     </form>`;
   if (S.modal === 'solat') inner = solatModal();
+  if (S.modal === 'waktu') inner = waktuModal();
+  if (S.modal === 'kelas') inner = kelasModal();
   if (S.modal === 'qibla') inner = qiblaModal();
   if (S.modal === 'subscribe') inner = subscribeModal();
   if (S.modal === 'payResult') {
@@ -867,6 +942,11 @@ document.addEventListener('error', e => {
   if (img && img.tagName === 'IMG' && img.parentNode && img.parentNode.classList.contains('thumb-img')) { img.parentNode.classList.add('noimg'); img.remove(); }
 }, true);
 
+// Kad yang boleh ditekan (role=button) juga berfungsi dengan papan kekunci
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[role="button"][data-a]')) { e.preventDefault(); e.target.click(); }
+});
+
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]');
   if (!el) return;
@@ -883,8 +963,12 @@ document.addEventListener('click', async e => {
       break;
     case 'tab': await stopPlayer(); S.tab = v; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); if (v === 'komuniti' && S.kTab === 'soaljawab') loadQa(); if (v === 'utama' && !S.solat) loadSolat(); break;
     case 'vfilter': S.filter = v; break;
-    case 'kTab': S.kTab = v; if (v === 'soaljawab') loadQa(); else loadAnn(); break;
+    case 'kTab': S.kTab = v; if (v === 'soaljawab') loadQa(); else { markAnnSeen(); loadAnn(); } break;
     case 'solatSettings': openSolatSettings(); break;
+    case 'waktu': S.modal = 'waktu'; if (!S.solat || S.solat.error) { S.solat = null; loadSolat(); } break;
+    case 'kelas': S.modal = 'kelas'; loadAnn(); break;
+    case 'bell': case 'goAnn': S.modal = null; S.tab = 'komuniti'; S.kTab = 'pengumuman'; markAnnSeen(); window.scrollTo(0, 0); loadAnn(); break;
+    case 'goQa': S.tab = 'komuniti'; S.kTab = 'soaljawab'; window.scrollTo(0, 0); loadQa(); break;
     case 'solatRetry': S.solat = null; loadSolat(); break;
     case 'qibla': openQibla(); return;
     case 'qiblaStart': startCompass(); return;
