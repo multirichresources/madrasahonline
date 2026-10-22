@@ -226,7 +226,7 @@ textarea.input { min-height: 6rem; resize: vertical; line-height: 1.45; }
 
 /* ---- halaman polisi ---- */
 .legal { padding-bottom: 48px; }
-.legal .iconbtn { text-decoration: none; }
+.legal .iconbtn, a.iconbtn { text-decoration: none; }
 .legal article h1 { font-size: 1.7rem; }
 .legal article h2 { font-family: var(--f-body); font-size: 1.05rem; margin-top: .5rem; }
 .legal article ol, .legal article ul { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .4rem; }

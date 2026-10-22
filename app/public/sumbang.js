@@ -36,7 +36,7 @@ function amountUI() {
 }
 
 function header() {
-  return `<div class="toolbar"><a href="/" aria-label="Madrasah Online" style="margin-right:auto"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"></a>${langBtn()}${themeBtn()}</div>`;
+  return `<div class="toolbar"><a class="iconbtn" href="/">${I.back} ${t('Kembali')}</a><a href="/" aria-label="Madrasah Online" style="margin-right:auto"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"></a>${langBtn()}${themeBtn()}</div>`;
 }
 
 function vForm() {
