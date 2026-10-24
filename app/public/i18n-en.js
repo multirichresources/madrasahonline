@@ -1,6 +1,22 @@
 // Terjemahan English untuk app pelajar & halaman sumbangan. Kunci = teks asal BM.
 // Tambah terjemahan di sini setiap kali menambah t('…') baharu, kemudian jalankan: node test/i18n.test.mjs
 window.EN_DICT = {
+ "Langganan melalui App Store akan dibuka tidak lama lagi.": "Subscriptions through the App Store will open soon.",
+ "Langganan melalui Google Play akan dibuka tidak lama lagi.": "Subscriptions through Google Play will open soon.",
+ "Ke app": "To the app",
+ "Padam akaun": "Delete account",
+ "Akaun anda telah dipadam. Terima kasih kerana belajar bersama kami.": "Your account has been deleted. Thank you for learning with us.",
+ "Gunakan borang ini untuk memadam akaun Madrasah Online anda tanpa membuka apps. Anda juga boleh memadam akaun dalam apps di menu <b>Akaun → Padam akaun saya</b>.": "Use this form to delete your Madrasah Online account without opening the app. You can also delete your account in the app under <b>Account → Delete my account</b>.",
+ "Yang dipadam serta-merta:": "Deleted immediately:",
+ "nama, no. telefon, emel, PIN, progres tontonan, soalan anda, langganan notifikasi dan sesi log masuk. Auto-renew kad juga dihentikan.": "your name, phone number, email, PIN, viewing progress, your questions, notification subscriptions and login sessions. Card auto-renew is also stopped.",
+ "Yang disimpan:": "Kept:",
+ "rekod transaksi bayaran disimpan sehingga 7 tahun untuk tujuan perakaunan dan cukai, tanpa dikaitkan lagi dengan anda.": "payment transaction records are kept for up to 7 years for accounting and tax purposes, no longer linked to you.",
+ "Langganan yang masih berbaki <b>tidak boleh dipulangkan</b> dan tindakan ini <b>tidak boleh dibatalkan</b>.": "Any remaining subscription <b>is not refundable</b> and this action <b>cannot be undone</b>.",
+ "No. telefon berdaftar": "Registered phone number",
+ "Taip PADAM untuk sahkan": "Type PADAM to confirm",
+ "Lupa PIN? Hubungi admin untuk minta akaun dipadam:": "Forgot your PIN? Contact the admin to request account deletion:",
+ "melalui group WhatsApp kelas.": "through the class WhatsApp group.",
+ "Sila taip PADAM untuk sahkan.": "Please type PADAM to confirm.",
  "Zikir & Selawat": "Dhikr & Salawat",
  "Audio tidak dapat dimainkan. Semak sambungan internet dan cuba lagi.": "The audio could not be played. Check your internet connection and try again.",
  "Dengar dan ikut bacaan ustaz. Percuma untuk semua pelajar.": "Listen and follow the ustaz's recitation. Free for all students.",

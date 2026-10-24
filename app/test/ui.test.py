@@ -109,6 +109,19 @@ with sync_playwright() as p:
     check('Watermark nama pelajar', 'Rohana Ismail' in pg.inner_text('.wm-name'))
     pg.screenshot(path=f'{OUT}/u8-player.png')
     pg.click('text=Kembali'); pg.wait_for_selector('.vitem')
+
+    # versi store (Google Play): tiada sumbangan, tiada bayaran CHIP
+    pg.goto(BASE + '/?store=play'); pg.wait_for_selector('.homehead')
+    tiles = pg.inner_text('.quick')
+    check('Versi store: tiada ikon Sumbang, ada Kiblat', 'Sumbang' not in tiles and 'Kiblat' in tiles)
+    pg.click('nav >> text=Akaun'); pg.wait_for_selector('text=Akaun Saya')
+    check('Versi store: tiada pautan sumbang di Akaun', pg.locator('a[href="/sumbang"]').count() == 0)
+    pg.reload(); pg.wait_for_selector('.nav')
+    check('Versi store kekal selepas muat semula', pg.evaluate('STORE') == 'play')
+    pg.evaluate("S.modal='subscribe'; loadPlans(); render()"); pg.wait_for_timeout(800)
+    check('Versi store: langganan guna Google Play, bukan CHIP', 'Google Play' in pg.inner_text('.modal') and pg.locator('[data-a=payGo]').count() == 0)
+    pg.evaluate("sessionStorage.removeItem('mo-store')")
+
     check('Tiada ralat JavaScript', not errs)
     if errs: print(errs)
     b.close()

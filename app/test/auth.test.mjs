@@ -670,6 +670,26 @@ check('Audio dipadam hilang', r.data.audios.length === 0 && fr.status === 404);
 r = await e.req('POST', '/api/admin/audios', { title: 'x' });
 check('Pelajar tak boleh tambah audio', r.status === 401);
 
+// ---- padam akaun dari web (syarat Google Play) ----
+const delPhone = '01' + String(Date.now() + 913).slice(-8);
+const g = jar();
+r = await g.req('POST', '/api/register', { name: 'Pelajar Padam', phone: delPhone, email: 'padam@contoh.my', pin: '482913' });
+check('Daftar akaun untuk dipadam', r.status === 201, r.data);
+r = await plain0('POST', '/api/account/delete', { phone: delPhone, pin: '482913' });
+check('Padam web perlu taip PADAM', r.status === 400, r.data);
+r = await plain0('POST', '/api/account/delete', { phone: delPhone, pin: '111222', confirm: 'PADAM' });
+check('Padam web: PIN salah ditolak', r.status === 401, r.data);
+r = await plain0('POST', '/api/account/delete', { phone: delPhone, pin: '482913', confirm: 'PADAM' });
+check('Padam web: akaun dipadam', r.status === 200 && r.data.ok, r.data);
+r = await g.req('GET', '/api/me');
+check('Sesi akaun dipadam tamat', r.status === 401);
+r = await plain0('POST', '/api/login', { phone: delPhone, pin: '482913' });
+check('Akaun dipadam tak boleh log masuk', r.status === 401);
+let pg2 = await fetch(BASE + '/padam-akaun');
+check('Halaman /padam-akaun wujud', pg2.status === 200 && (await pg2.text()).includes('/padam-akaun.js'));
+pg2 = await fetch(BASE + '/privasi');
+check('Polisi privasi pautkan halaman padam akaun', (await pg2.text()).includes('/padam-akaun'));
+
 // ---- laman web syarikat ----
 // fetch() tak benarkan tukar Host, jadi guna node:http
 const hostGet = (host, path) => new Promise((ok, bad) => {

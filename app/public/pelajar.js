@@ -203,7 +203,7 @@ function quickAccess() {
     ${tile('data-a="sub" data-v="doa"', QI.book, t('Doa harian'))}
     ${tile('data-a="sub" data-v="tasbih"', QI.beads, t('Tasbih'))}
     ${tile('data-a="sub" data-v="zikir"', QI.audio, t('Zikir & Selawat'), apIsPlaying() ? '<i class="dot live" aria-hidden="true"></i>' : '')}
-    <a class="qa-tile" href="/sumbang"><span class="qa-ic">${QI.heart}</span><span class="qa-lb">${t('Sumbang')}</span></a>
+    ${STORE ? tile('data-a="qibla"', QI.compass, t('Kiblat')) : `<a class="qa-tile" href="/sumbang"><span class="qa-ic">${QI.heart}</span><span class="qa-lb">${t('Sumbang')}</span></a>`}
     ${tile('data-a="modal" data-v="bantuan"', QI.help, t('Bantuan'))}
   </section>`;
 }
@@ -971,7 +971,7 @@ function tAkaun() {
     <div class="card">
       <span class="eyebrow">${t('Maklumat & bantuan')}</span>
       ${S.cfg.org && S.cfg.org.whatsapp ? `<a class="btn btn-ghost" href="https://wa.me/${esc(S.cfg.org.whatsapp)}" target="_blank" rel="noopener">${t('WhatsApp admin')}</a>` : ''}
-      <a class="btn btn-ghost" href="/sumbang">${t('Sumbang / taja pelajar')}</a>
+      ${STORE ? '' : `<a class="btn btn-ghost" href="/sumbang">${t('Sumbang / taja pelajar')}</a>`}
       ${legalLinks()}
     </div>
     ${installCard()}
@@ -987,6 +987,11 @@ function nav() {
 function subscribeModal() {
   const P = S.plans;
   if (!P) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2><div class="loading">${t('Memuatkan pakej...')}</div>`;
+  // Versi store: bayaran melalui Google Play / App Store (disambung bila akaun store siap). Tiada CHIP di sini.
+  if (STORE) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2>
+    ${P.plans.length ? `<div class="rows">${P.plans.map(p => `<div class="row"><b>${esc(t(p.label))}</b><span>${rm(p.priceSen)}</span></div>`).join('')}</div>` : ''}
+    <p>${STORE === 'ios' ? t('Langganan melalui App Store akan dibuka tidak lama lagi.') : t('Langganan melalui Google Play akan dibuka tidak lama lagi.')}</p>
+    <button class="btn btn-primary" data-a="close">${t('Faham')}</button>`;
   if (!P.billingReady || !P.plans.length) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2>
     <p>${t('Sistem bayaran sedang disiapkan. Admin akan maklumkan dalam group WhatsApp bila bayaran dibuka.')}</p>
     <button class="btn btn-primary" data-a="close">${t('Faham')}</button>`;

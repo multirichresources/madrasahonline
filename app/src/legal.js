@@ -3,7 +3,7 @@
 // dan boleh dibaca oleh penyemak payment gateway tanpa perlu log masuk.
 import { getOrg } from './content.js';
 
-const UPDATED = { ms: '22 Oktober 2026', en: '22 October 2026' };
+const UPDATED = { ms: '24 Oktober 2026', en: '24 October 2026' };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const waLocal = p => p ? '0' + p.slice(2, 4) + '-' + p.slice(4, p.length - 4) + ' ' + p.slice(-4) : '';
@@ -126,7 +126,7 @@ ${contactBlock(o)}`,
 <p>Sesetengah penyedia di atas memproses data di pelayan luar Malaysia. Kami memilih penyedia yang mempunyai langkah perlindungan data yang munasabah.</p>
 
 <h2>5. Tempoh simpanan</h2>
-<p>Data akaun disimpan selagi akaun anda wujud. Apabila anda memadam akaun, maklumat akaun, rekod tontonan dan soalan anda dipadam serta-merta. Rekod transaksi disimpan sehingga 7 tahun untuk tujuan perakaunan dan cukai, tanpa dikaitkan lagi dengan akaun anda.</p>
+<p>Data akaun disimpan selagi akaun anda wujud. Anda boleh memadam akaun dalam apps (menu Akaun → Padam akaun saya) atau tanpa membuka apps di halaman <a href="/padam-akaun">Padam akaun</a>. Apabila anda memadam akaun, maklumat akaun, rekod tontonan dan soalan anda dipadam serta-merta. Rekod transaksi disimpan sehingga 7 tahun untuk tujuan perakaunan dan cukai, tanpa dikaitkan lagi dengan akaun anda.</p>
 
 <h2>6. Keselamatan</h2>
 <p>Sambungan disulitkan (HTTPS), PIN disimpan dalam bentuk hash, sesi log masuk dilindungi, dan akaun dikunci sementara selepas beberapa cubaan PIN yang salah.</p>
@@ -294,7 +294,7 @@ ${contactBlock(o, 'en')}`,
 <p>Some of the providers above process data on servers outside Malaysia. We choose providers with reasonable data protection measures.</p>
 
 <h2>5. Retention</h2>
-<p>Account data is kept for as long as your account exists. When you delete your account, your account details, viewing records and questions are deleted immediately. Transaction records are kept for up to 7 years for accounting and tax purposes, no longer linked to your account.</p>
+<p>Account data is kept for as long as your account exists. You can delete your account in the app (Account → Delete my account) or without opening the app on the <a href="/padam-akaun?lang=en">Delete account</a> page. When you delete your account, your account details, viewing records and questions are deleted immediately. Transaction records are kept for up to 7 years for accounting and tax purposes, no longer linked to your account.</p>
 
 <h2>6. Security</h2>
 <p>Connections are encrypted (HTTPS), PINs are stored as hashes, login sessions are protected, and accounts are temporarily locked after several wrong PIN attempts.</p>

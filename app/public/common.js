@@ -17,6 +17,21 @@ const I = {
 const pattern = id => `<svg class="pat" aria-hidden="true"><defs><pattern id="${id}" width="44" height="44" patternUnits="userSpaceOnUse"><g fill="none" stroke-width="1.1"><rect x="12" y="12" width="20" height="20"/><rect x="12" y="12" width="20" height="20" transform="rotate(45 22 22)"/><circle cx="22" cy="22" r="3.5"/><path d="M0 0l7.5 7.5M44 0l-7.5 7.5M0 44l7.5-7.5M44 44l-7.5-7.5"/></g></pattern></defs><rect width="100%" height="100%" fill="url(#${id})"/></svg>`;
 const orn = () => `<div class="orn" aria-hidden="true">${I.star}</div>`;
 
+// ---------- versi store (Google Play / App Store) ----------
+// Apps store dilancarkan dengan /?store=play atau /?store=ios (atau Capacitor iOS).
+// Dalam versi store: tiada sumbangan & tiada bayaran CHIP (polisi Google/Apple) — guna bayaran store.
+const STORE = (() => {
+  try {
+    const q = new URLSearchParams(location.search).get('store');
+    if (q === 'play' || q === 'ios') sessionStorage.setItem('mo-store', q);
+    const saved = sessionStorage.getItem('mo-store');
+    if (saved) return saved;
+    if (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'ios') return 'ios';
+    if (document.referrer.startsWith('android-app://')) { sessionStorage.setItem('mo-store', 'play'); return 'play'; }
+  } catch {}
+  return '';
+})();
+
 // ---------- bahasa (BM / EN) ----------
 // Teks asal dalam BM menjadi kunci; terjemahan EN dalam /i18n-en.js (window.EN_DICT).
 // Panel admin sentiasa BM (admin.js tetapkan LANG = 'ms').
@@ -126,7 +141,7 @@ const isStandalone = () => { try { return matchMedia('(display-mode: standalone)
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (window.render) window.render(); });
 function installCard() {
-  if (isStandalone()) return '';
+  if (STORE || isStandalone()) return '';
   if (installEvt) return `<button class="btn btn-ghost" data-a="install">${I.home} ${t('Pasang app di telefon')}</button>`;
   if (isIOS()) return `<p class="note">${t('Untuk pasang di iPhone: tekan butang Share di Safari, kemudian pilih <b>Add to Home Screen</b>.')}</p>`;
   return '';

@@ -6,7 +6,7 @@ const ctx = { window: {} };
 vm.runInNewContext(fs.readFileSync('public/i18n-en.js', 'utf8'), ctx);
 const EN = ctx.window.EN_DICT;
 const keys = new Set();
-for (const f of ['public/pelajar.js', 'public/sumbang.js', 'public/common.js']) {
+for (const f of ['public/pelajar.js', 'public/sumbang.js', 'public/common.js', 'public/padam-akaun.js']) {
   const s = fs.readFileSync(f, 'utf8');
   for (const m of s.matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
   for (const m of s.matchAll(/\bt\((?:D\.f\.monthly|R\.monthly) \? '((?:[^'\\]|\\.)*)' : '((?:[^'\\]|\\.)*)'/g)) { keys.add(m[1]); keys.add(m[2]); }

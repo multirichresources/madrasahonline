@@ -271,12 +271,8 @@ export async function setupStatus(env) {
   return json({ ok: true, needsSetup: n === 0 });
 }
 
-// Pelajar padam akaun sendiri (syarat Play Store / App Store). Sahkan dengan PIN.
-export async function deleteAccount(env, request) {
-  const u = await requireUser(env, request);
-  const body = await readJson(request);
-  const hash = await hashSecret(String(body.pin || ''), u.pin_salt, pinIter(u));
-  if (!safeEqual(hash, u.pin_hash)) return fail(401, 'PIN salah. Akaun tidak dipadam.');
+// Padam semua data pelajar (rekod bayaran dikekalkan tanpa nama pelajar untuk akaun kewangan).
+async function purgeUser(env, u) {
   await cancelToken(env, u); // hentikan auto-renew kad di CHIP
   await env.DB.batch([
     env.DB.prepare("DELETE FROM sessions WHERE kind = 'user' AND subject_id = ?").bind(u.id),
@@ -285,11 +281,47 @@ export async function deleteAccount(env, request) {
     env.DB.prepare('DELETE FROM push_jobs WHERE sub_id IN (SELECT id FROM push_subs WHERE user_id = ?)').bind(u.id),
     env.DB.prepare('DELETE FROM push_subs WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM notifications WHERE user_id = ?').bind(u.id),
+    env.DB.prepare('DELETE FROM pin_resets WHERE user_id = ?').bind(u.id),
     // Rekod bayaran disimpan untuk akaun kewangan, tetapi tidak lagi dikaitkan dengan pelajar.
     env.DB.prepare('UPDATE payments SET user_id = NULL WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id),
   ]);
+}
+
+// Pelajar padam akaun sendiri dalam apps (syarat Play Store / App Store). Sahkan dengan PIN.
+export async function deleteAccount(env, request) {
+  const u = await requireUser(env, request);
+  const body = await readJson(request);
+  const hash = await hashSecret(String(body.pin || ''), u.pin_salt, pinIter(u));
+  if (!safeEqual(hash, u.pin_hash)) return fail(401, 'PIN salah. Akaun tidak dipadam.');
+  await purgeUser(env, u);
   return json({ ok: true }, 200, { 'set-cookie': cookie(USER_COOKIE, '', 0, isSecure(request)) });
+}
+
+// Padam akaun dari laman web tanpa buka apps (syarat Google Play): no. telefon + PIN.
+// Kunci akaun sama seperti log masuk supaya PIN tidak boleh diteka.
+export async function deleteAccountWeb(env, request) {
+  if (!(await rateLimit(env.DB, 'webdel:' + clientIp(request), 30, 3600 * 1000)))
+    return fail(429, 'Terlalu banyak cubaan. Cuba lagi dalam sejam.');
+  const body = await readJson(request);
+  const phone = normalizePhone(body.phone);
+  const pin = String(body.pin || '');
+  if (!phone || !/^\d{6}$/.test(pin)) return fail(400, 'Masukkan no. telefon dan PIN 6 angka.');
+  if (body.confirm !== 'PADAM') return fail(400, 'Sila taip PADAM untuk sahkan.');
+  const generic = 'No. telefon atau PIN salah.';
+  const u = await env.DB.prepare('SELECT * FROM users WHERE phone = ?').bind(phone).first();
+  if (!u) return fail(401, generic);
+  const t = now();
+  if (u.locked_until && u.locked_until > t) return fail(423, 'Akaun dikunci sementara kerana PIN salah berulang kali. Cuba lagi dalam 15 minit.');
+  const hash = await hashSecret(pin, u.pin_salt, pinIter(u));
+  if (!safeEqual(hash, u.pin_hash)) {
+    const fails = u.failed_logins + 1;
+    const lock = fails >= MAX_FAILS ? t + LOCK_MS : null;
+    await env.DB.prepare('UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?').bind(lock ? 0 : fails, lock, u.id).run();
+    return fail(lock ? 423 : 401, lock ? 'PIN salah 5 kali. Akaun dikunci 15 minit.' : generic);
+  }
+  await purgeUser(env, u);
+  return json({ ok: true });
 }
 
 // Admin tukar kata laluan sendiri.

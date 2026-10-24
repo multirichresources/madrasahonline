@@ -1,7 +1,7 @@
 // Madrasah Online — Cloudflare Worker: API + fail statik (public/).
 import { json, fail, HttpError, now } from './util.js';
 import {
-  register, login, logout, me, changePin, deleteAccount,
+  register, login, logout, me, changePin, deleteAccount, deleteAccountWeb,
   adminLogin, adminMe, createAdmin, adminResetPin, requireAdmin, publicUser,
   setupStatus, adminChangePassword, setLang,
 } from './auth.js';
@@ -56,6 +56,7 @@ const routes = [
   ['GET', /^\/api\/me$/, (env, req) => me(env, req)],
   ['POST', /^\/api\/me\/pin$/, (env, req) => changePin(env, req)],
   ['POST', /^\/api\/me\/delete$/, (env, req) => deleteAccount(env, req)],
+  ['POST', /^\/api\/account\/delete$/, (env, req) => deleteAccountWeb(env, req)],
   ['POST', /^\/api\/me\/email$/, (env, req) => updateEmail(env, req)],
   ['POST', /^\/api\/me\/lang$/, (env, req) => setLang(env, req)],
   ['POST', /^\/api\/me\/solat$/, (env, req) => saveSolatPrefs(env, req)],
