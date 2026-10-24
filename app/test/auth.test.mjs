@@ -670,6 +670,27 @@ check('Audio dipadam hilang', r.data.audios.length === 0 && fr.status === 404);
 r = await e.req('POST', '/api/admin/audios', { title: 'x' });
 check('Pelajar tak boleh tambah audio', r.status === 401);
 
+// ---- laman web syarikat ----
+// fetch() tak benarkan tukar Host, jadi guna node:http
+const hostGet = (host, path) => new Promise((ok, bad) => {
+  const u = new URL(BASE + path);
+  http.get({ hostname: u.hostname, port: u.port, path: u.pathname, headers: { host } }, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => ok({ status: res.statusCode, body: b })); }).on('error', bad);
+});
+let siteRes = await hostGet('baitalsalihin.com', '/');
+check('Domain syarikat: halaman utama ialah laman web', siteRes.status === 200 && siteRes.body.includes('Tak pernah terlambat') && siteRes.body.includes('/site/site.js'), siteRes.status);
+siteRes = await hostGet('www.baitalsalihin.com', '/sumbang');
+check('Domain syarikat: /sumbang tersedia', siteRes.status === 200 && siteRes.body.includes('/sumbang.js'));
+let site = await fetch(BASE + '/');
+check('Domain app: halaman utama kekal apps', (await site.text()).includes('/pelajar.js'));
+r = await plain0('GET', '/api/site');
+check('API laman web awam (pakej & syarikat, tanpa login)', r.status === 200 && Array.isArray(r.data.plans) && r.data.plans.length >= 1 && 'playUrl' in r.data.links && !('users' in r.data), r.data);
+r = await ad.req('POST', '/api/admin/settings', { name: 'Bait Al Salihin Resources', playUrl: 'https://contoh.com/apps' });
+check('Pautan Play Store palsu ditolak', r.status === 400, r.data);
+r = await ad.req('POST', '/api/admin/settings', { name: 'Bait Al Salihin Resources', playUrl: 'https://play.google.com/store/apps/details?id=com.baitalsalihin.madrasah', appStoreUrl: '' });
+check('Admin simpan pautan Play Store', r.status === 200 && r.data.links.playUrl.includes('play.google.com'), r.data);
+r = await plain0('GET', '/api/site');
+check('Laman web nampak pautan Play Store', r.data.links.playUrl.includes('com.baitalsalihin.madrasah') && r.data.links.appStoreUrl === '');
+
 // ---- keselamatan: pengepala, log admin, hash lama ----
 let h = await fetch(BASE + '/api/me');
 check('API ada pengepala keselamatan', /frame-ancestors 'none'/.test(h.headers.get('content-security-policy') || '') && h.headers.get('x-frame-options') === 'DENY' && h.headers.get('x-content-type-options') === 'nosniff', Object.fromEntries(h.headers));

@@ -1390,6 +1390,10 @@ document.addEventListener('submit', async e => {
     if (bayar === 'gagal' && payId) { S.modal = 'payResult'; S.payResult = { state: 'failed' }; }
     if (bayar === 'batal') setTimeout(() => toast(t('Pembayaran dibatalkan. Tiada caj dibuat.')), 300);
   }
-  else S.view = 'login';
+  else {
+    // Dari laman web: /?daftar=1 terus ke borang daftar
+    S.view = qs.get('daftar') ? 'daftar' : 'login';
+    if (qs.get('daftar')) history.replaceState(null, '', '/');
+  }
   render();
 })();

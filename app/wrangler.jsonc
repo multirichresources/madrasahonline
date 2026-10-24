@@ -6,7 +6,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/terma", "/terma/", "/privasi", "/privasi/", "/bayaran-balik", "/bayaran-balik/"],
+    "run_worker_first": ["/", "/api/*", "/terma", "/terma/", "/privasi", "/privasi/", "/bayaran-balik", "/bayaran-balik/"],
     "not_found_handling": "single-page-application"
   },
   "d1_databases": [
@@ -26,7 +26,9 @@
   // Log & ralat boleh dilihat di Cloudflare → Workers → madrasah-online → Observability
   "observability": { "enabled": true },
   // PUSH_BATCH × PUSH_FANOUT = telefon seminit. Pelan percuma: 40 × 1. Workers Paid: 500 × 4.
-  "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074", "PUSH_BATCH": "40", "PUSH_FANOUT": "1" }
+  // SITE_HOSTS: domain laman web syarikat (halaman utama = public/site/). APP_URL: alamat app untuk butang Daftar/Log masuk di laman web.
+  "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074", "PUSH_BATCH": "40", "PUSH_FANOUT": "1",
+    "SITE_HOSTS": "baitalsalihin.com,www.baitalsalihin.com", "APP_URL": "https://madrasah-online.multirichresources.workers.dev" }
   // Rahsia (tetapkan dengan: npx wrangler secret put NAMA):
   //   SETUP_KEY       — kunci sekali guna untuk cipta admin pertama (min 16 aksara)
   //   BUNNY_API_KEY   — API key library Bunny Stream

@@ -2,6 +2,7 @@
 import { now, json, fail, readJson, cleanText, cleanMultiline as cleanBody, validEmail, normalizePhone } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
 import { notify, dispatchPush, classWhen } from './push.js';
+import { getPlans } from './billing.js';
 
 // ---------- maklumat pengendali ----------
 const ORG_KEYS = ['org_name', 'org_reg', 'contact_email', 'contact_whatsapp', 'address'];
@@ -18,9 +19,27 @@ export async function getOrg(env) {
   };
 }
 
+// Pautan apps di Play Store / App Store (dipaparkan di laman web)
+const LINK_KEYS = ['play_url', 'appstore_url'];
+async function getLinks(env) {
+  const { results } = await env.DB.prepare('SELECT key, value FROM settings WHERE key IN (?, ?)').bind(...LINK_KEYS).all();
+  const m = Object.fromEntries(results.map(r => [r.key, r.value || '']));
+  return { playUrl: m.play_url || '', appStoreUrl: m.appstore_url || '' };
+}
+
 export async function adminGetSettings(env, request) {
   await requireAdmin(env, request);
-  return json({ ok: true, org: await getOrg(env) });
+  return json({ ok: true, org: await getOrg(env), links: await getLinks(env) });
+}
+
+// Laman web awam (baitalsalihin.com): maklumat syarikat, pakej, pautan apps. Tiada data peribadi.
+export async function siteInfo(env) {
+  const [org, links, plans] = await Promise.all([getOrg(env), getLinks(env), getPlans(env)]);
+  return json({
+    ok: true, org, links,
+    appUrl: (env.APP_URL || '').replace(/\/$/, ''),
+    plans: plans.filter(p => p.active).map(p => ({ id: p.id, label: p.label, months: p.months, priceSen: p.priceSen })),
+  }, 200, { 'cache-control': 'public, max-age=300' });
 }
 
 export async function adminSaveSettings(env, request) {
@@ -37,10 +56,16 @@ export async function adminSaveSettings(env, request) {
   }
   if (email && !validEmail(email)) return fail(400, 'Alamat emel tidak sah.');
   const vals = { org_name: name, org_reg: reg, contact_email: email, contact_whatsapp: whatsapp, address };
+  for (const [key, field, host] of [['play_url', 'playUrl', /(^|\.)play\.google\.com$/], ['appstore_url', 'appStoreUrl', /(^|\.)apps\.apple\.com$/]]) {
+    if (b[field] === undefined) continue;
+    const u = cleanUrl(b[field]);
+    if (u === null || (u && !host.test(new URL(u).hostname))) return fail(400, field === 'playUrl' ? 'Pautan Google Play tidak sah. Salin pautan penuh dari Play Store (play.google.com).' : 'Pautan App Store tidak sah. Salin pautan penuh dari App Store (apps.apple.com).');
+    vals[key] = u;
+  }
   const t = now();
   await env.DB.batch(Object.entries(vals).map(([k, v]) =>
     env.DB.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at').bind(k, v, t)));
-  return json({ ok: true, org: await getOrg(env) });
+  return json({ ok: true, org: await getOrg(env), links: await getLinks(env) });
 }
 
 // ---------- pengumuman & kelas Zoom ----------

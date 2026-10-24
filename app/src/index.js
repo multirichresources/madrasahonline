@@ -11,7 +11,7 @@ import {
   listVideos, playVideo, saveProgress, adminSetSubscription, adminBunnyVideos, adminImportVideo,
 } from './videos.js';
 import {
-  adminGetSettings, adminSaveSettings, listAnnouncements,
+  adminGetSettings, adminSaveSettings, listAnnouncements, siteInfo,
   adminListAnnouncements, adminCreateAnnouncement, adminUpdateAnnouncement, adminDeleteAnnouncement,
 } from './content.js';
 import { legalPaths, renderLegal } from './legal.js';
@@ -40,6 +40,8 @@ function secure(res) {
   return out;
 }
 
+const siteHost = (env, host) => String(env.SITE_HOSTS || '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean).includes(host.toLowerCase());
+
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
 function sameOrigin(request) {
   const origin = request.headers.get('origin');
@@ -60,6 +62,7 @@ const routes = [
   ['GET', /^\/api\/solat$/, (env, req) => solatToday(env, req)],
   ['GET', /^\/api\/solat\/zones$/, () => listZones()],
   ['GET', /^\/api\/config$/, (env) => publicConfig(env)],
+  ['GET', /^\/api\/site$/, (env) => siteInfo(env)],
   ['POST', /^\/api\/pin\/forgot$/, (env, req) => forgotPin(env, req)],
   ['POST', /^\/api\/pin\/reset$/, (env, req) => resetPin(env, req)],
 
@@ -200,6 +203,8 @@ async function handle(request, env, ctx) {
     try { return await renderLegal(env, path, url.searchParams.get('lang') === 'en' ? 'en' : 'ms'); }
     catch (err) { console.error(err); return new Response('Ralat sistem. Sila cuba sebentar lagi.', { status: 500 }); }
   }
+  // Laman web syarikat (cth. baitalsalihin.com): halaman utama ialah /site/, selebihnya (/sumbang, /terma, ...) dikongsi dengan app
+  if (url.pathname === '/' && siteHost(env, url.hostname)) return env.ASSETS.fetch(new Request(new URL('/site/', url), request));
   if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
   try {

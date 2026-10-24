@@ -543,6 +543,9 @@ function tTetapan() {
       <label class="f" for="oEmail">Emel hubungan<input class="input" id="oEmail" type="email" inputmode="email" value="${esc(o.email)}"></label>
       <label class="f" for="oWa">No. WhatsApp admin<input class="input" id="oWa" inputmode="tel" value="${o.whatsapp ? '0' + esc(o.whatsapp.slice(2)) : ''}" placeholder="Contoh: 012-345 6789"></label>
       <label class="f" for="oAddr">Alamat perniagaan<textarea class="input" id="oAddr" maxlength="300" rows="3">${esc(o.address)}</textarea></label>
+      <label class="f" for="oPlay">Pautan apps di Google Play <span class="muted small">(kosongkan jika belum ada)</span><input class="input" id="oPlay" inputmode="url" value="${esc((A.links || {}).playUrl || '')}" placeholder="https://play.google.com/store/apps/details?id=..."></label>
+      <label class="f" for="oIos">Pautan apps di App Store <span class="muted small">(kosongkan jika belum ada)</span><input class="input" id="oIos" inputmode="url" value="${esc((A.links || {}).appStoreUrl || '')}" placeholder="https://apps.apple.com/my/app/..."></label>
+      <p class="muted small">Pautan apps dipaparkan sebagai butang muat turun di laman web. Jika kosong, butang tertulis "Akan datang".</p>
       <button class="btn btn-primary" type="submit">Simpan maklumat</button>
       <div class="legal-links"><a href="/terma" target="_blank" rel="noopener">Lihat Terma</a><a href="/privasi" target="_blank" rel="noopener">Lihat Privasi</a><a href="/bayaran-balik" target="_blank" rel="noopener">Lihat Bayaran Balik</a></div>`}
     </form>
@@ -764,7 +767,7 @@ async function loadPlans() {
 async function loadOrg() {
   const r = await api('GET', '/api/admin/settings');
   if (r.status === 401) return toLogin();
-  if (r.ok) { A.org = r.org; forget('oName', 'oReg', 'oEmail', 'oWa', 'oAddr'); } else toast(r.error);
+  if (r.ok) { A.org = r.org; A.links = r.links; forget('oName', 'oReg', 'oEmail', 'oWa', 'oAddr', 'oPlay', 'oIos'); } else toast(r.error);
   render();
 }
 // Simpan isian borang hebahan ke A.annForm sebelum lukis semula (contoh bila tukar jenis)
@@ -1056,10 +1059,10 @@ document.addEventListener('submit', async e => {
     toast('Pakej disimpan.');
   }
   if (f.id === 'fOrg') {
-    const r = await busy(btn, () => api('POST', '/api/admin/settings', { name: val('oName'), reg: val('oReg'), email: val('oEmail'), whatsapp: val('oWa'), address: document.getElementById('oAddr').value }));
+    const r = await busy(btn, () => api('POST', '/api/admin/settings', { name: val('oName'), reg: val('oReg'), email: val('oEmail'), whatsapp: val('oWa'), address: document.getElementById('oAddr').value, playUrl: val('oPlay'), appStoreUrl: val('oIos') }));
     if (r.status === 401) return toLogin();
     if (!r.ok) { toast(r.error); return; }
-    A.org = r.org; forget('oName', 'oReg', 'oEmail', 'oWa', 'oAddr');
+    A.org = r.org; A.links = r.links; forget('oName', 'oReg', 'oEmail', 'oWa', 'oAddr', 'oPlay', 'oIos');
     toast('Maklumat disimpan.');
   }
   if (f.id === 'fNewAdmin') {
