@@ -500,6 +500,24 @@ window.EN_DICT = {
  "Pembelian ini sudah digunakan oleh akaun lain. Log masuk dengan akaun yang membuat pembelian.": "This purchase is already used by another account. Log in with the account that made the purchase.",
  "Pembelian tidak dapat disahkan sekarang. Cuba lagi sebentar.": "The purchase can't be verified right now. Please try again shortly.",
  "Pembelian tidak dijumpai. Cuba lagi atau hubungi admin.": "Purchase not found. Please try again or contact the admin.",
+ "Azan masuk waktu solat": "Azan when prayer time begins",
+ "Peringatan kelas Zoom": "Zoom class reminders",
+ "Sehari dan 30 minit sebelum kelas": "A day and 30 minutes before class",
+ "Jawapan ustaz": "Ustaz's answers",
+ "Bila soalan anda dijawab": "When your question is answered",
+ "Nak dengar azan di iPhone?": "Want to hear the azan on your iPhone?",
+ "Pasang apps ke skrin utama dahulu. Selepas itu notifikasi azan dan kelas boleh dihidupkan.": "Add the app to your home screen first. After that, azan and class notifications can be turned on.",
+ "Tekan butang <b>Share</b> di bawah Safari": "Tap the <b>Share</b> button at the bottom of Safari",
+ "Pilih <b>Add to Home Screen</b>": "Choose <b>Add to Home Screen</b>",
+ "Buka Madrasah Online dari skrin utama": "Open Madrasah Online from your home screen",
+ "Hidupkan azan waktu solat?": "Turn on the prayer-time azan?",
+ "Jangan terlepas waktu solat & kelas": "Never miss prayer times & classes",
+ "Telefon anda sudah terima notifikasi. Hidupkan azan untuk kelima-lima waktu solat?": "Your phone already receives notifications. Turn on the azan for all five prayers?",
+ "Hidupkan notifikasi supaya telefon anda berbunyi untuk:": "Turn on notifications so your phone alerts you for:",
+ "Hidupkan azan": "Turn on azan",
+ "Nanti dulu": "Not now",
+ "Telefon akan tanya kebenaran. Tekan <b>Benarkan</b> (Allow).": "Your phone will ask for permission. Tap <b>Allow</b>.",
+ "Notifikasi aktif. Telefon akan berbunyi bila masuk waktu solat.": "Notifications are on. Your phone will alert you when prayer time begins."
 };
 // Mesej ralat server yang mengandungi nombor
 window.EN_PATTERNS = [

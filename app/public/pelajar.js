@@ -1185,6 +1185,7 @@ function modal() {
     </form>`;
   if (S.modal === 'solat') inner = solatModal();
   if (S.modal === 'waktu') inner = waktuModal();
+  if (S.modal === 'notifAsk') inner = notifAskModal();
   if (S.modal === 'bantuan') {
     const wa = S.cfg.org && S.cfg.org.whatsapp;
     inner = `<h2 style="font-size:1.25rem">${t('Bantuan')}</h2>
@@ -1400,6 +1401,15 @@ document.addEventListener('click', async e => {
       break;
     }
     case 'pushOn': await enablePush(el); if (S.modal === 'solat' && S.push.state === 'on' && !S.sf.azan.length) { S.sf.azan = [...AZAN_KEYS]; render(); } return;
+    case 'nAskOn': {
+      if (S.notifAsk === 'push') { await enablePush(el); if (S.push.state !== 'on') { if (S.push.state === 'denied') { S.modal = null; render(); } return; } }
+      const r = await enableAzanAll();
+      S.modal = null; Prefs.set('notifAsk', JSON.stringify({ n: 9 })); // dah hidup: jangan tanya lagi
+      toast(r.ok ? t('Notifikasi aktif. Telefon akan berbunyi bila masuk waktu solat.') : r.error);
+      break;
+    }
+    case 'nAskLater': S.modal = null; snoozeNotifPrompt(); break;
+    case 'nAskZone': S.modal = null; snoozeNotifPrompt(); openSolatSettings(); break;
     case 'pushOff': await disablePush(); toast(t('Peringatan dimatikan di telefon ini.')); break;
     case 'pushTest': { const r = await busy(el, () => api('POST', '/api/push/test')); toast(r.ok ? t('Notifikasi ujian dihantar. Semak telefon anda.') : r.error); return; }
     case 'play': openVideo(Number(v)); return;
@@ -1453,7 +1463,7 @@ document.addEventListener('click', async e => {
       break;
     }
     case 'history': S.modal = 'history'; S.history = null; api('GET', '/api/pay/history').then(r => { S.history = r.ok ? r.payments : []; if (S.modal === 'history') render(); }); break;
-    case 'close': case 'backdrop': S.modal = null; S.err = ''; S.sf = null; break;
+    case 'close': case 'backdrop': if (S.modal === 'notifAsk') snoozeNotifPrompt(); S.modal = null; S.err = ''; S.sf = null; break;
     case 'logout':
       await stopPlayer(); apStop(); S.videos = null; S.continueId = null; S.ann = null; S.qa = null; S.solat = null; S.auds = null;
       if (S.push.state === 'on') await disablePush(); // peranti ini tak lagi terima notifikasi akaun ini
@@ -1466,8 +1476,55 @@ document.addEventListener('click', async e => {
   render();
 });
 
-function afterLogin() {
-  loadVideos(); loadAnn(); loadSolat(); checkPush().then(render);
+// ---------- popup "hidupkan notifikasi" (lepas pasang apps / daftar) ----------
+// Muncul sekali bila notifikasi belum hidup; "Nanti dulu" tangguh 3 hari, maksimum 3 kali.
+function maybeNotifPrompt(fresh) {
+  if (!S.user || S.modal || S.view !== 'app') return;
+  const st = S.push.state, azanOff = !(S.user.azan && S.user.azan.length);
+  const kind = st === 'off' ? 'push' : st === 'on' && azanOff ? 'azan' : st === 'ios-install' ? 'ios' : null;
+  if (!kind) return;
+  const installed = isStandalone() || !!STORE;
+  if (!installed && !fresh && kind !== 'azan') return; // pelayar biasa: hanya sejurus selepas daftar
+  let seen = {};
+  try { seen = JSON.parse(Prefs.get('notifAsk', '{}')) || {}; } catch {}
+  if ((seen.n || 0) >= 3 || (seen.until || 0) > Date.now()) return;
+  S.notifAsk = kind; S.modal = 'notifAsk'; render();
+}
+function snoozeNotifPrompt() {
+  let seen = {};
+  try { seen = JSON.parse(Prefs.get('notifAsk', '{}')) || {}; } catch {}
+  Prefs.set('notifAsk', JSON.stringify({ n: (seen.n || 0) + 1, until: Date.now() + 3 * 864e5 }));
+}
+// Hidupkan azan untuk kelima-lima waktu di kawasan semasa
+async function enableAzanAll() {
+  const zone = S.user.solatZone || (S.solat && S.solat.zone && S.solat.zone.code) || 'WLY01';
+  const r = await api('POST', '/api/me/solat', { zone, azan: AZAN_KEYS });
+  if (r.ok) { S.user.solatZone = r.solatZone || zone; S.user.azan = r.azan || [...AZAN_KEYS]; }
+  return r;
+}
+function notifAskModal() {
+  const kind = S.notifAsk, area = S.solat && S.solat.zone ? S.solat.zone.area : '';
+  const perks = `<ul class="nask-list">
+      <li>${QI.mosque}<span><b>${t('Azan masuk waktu solat')}</b>${area ? `<small>${esc(area)} · <button class="link" data-a="nAskZone" style="padding:0">${t('Tukar kawasan')}</button></small>` : ''}</span></li>
+      <li>${QI.zoom}<span><b>${t('Peringatan kelas Zoom')}</b><small>${t('Sehari dan 30 minit sebelum kelas')}</small></span></li>
+      <li>${QI.ask}<span><b>${t('Jawapan ustaz')}</b><small>${t('Bila soalan anda dijawab')}</small></span></li>
+    </ul>`;
+  if (kind === 'ios') return `<div class="nask"><div class="nask-ic">${I.bell}</div>
+    <h2>${t('Nak dengar azan di iPhone?')}</h2>
+    <p>${t('Pasang apps ke skrin utama dahulu. Selepas itu notifikasi azan dan kelas boleh dihidupkan.')}</p>
+    <ol class="nask-steps"><li>${t('Tekan butang <b>Share</b> di bawah Safari')}</li><li>${t('Pilih <b>Add to Home Screen</b>')}</li><li>${t('Buka Madrasah Online dari skrin utama')}</li></ol>
+    <button class="btn btn-primary" data-a="nAskLater">${t('Faham')}</button></div>`;
+  return `<div class="nask"><div class="nask-ic">${I.bell}</div>
+    <h2>${kind === 'azan' ? t('Hidupkan azan waktu solat?') : t('Jangan terlepas waktu solat & kelas')}</h2>
+    <p>${kind === 'azan' ? t('Telefon anda sudah terima notifikasi. Hidupkan azan untuk kelima-lima waktu solat?') : t('Hidupkan notifikasi supaya telefon anda berbunyi untuk:')}</p>
+    ${kind === 'azan' ? '' : perks}
+    <button class="btn btn-primary" data-a="nAskOn">${kind === 'azan' ? t('Hidupkan azan') : t('Hidupkan notifikasi')}</button>
+    <button class="btn btn-ghost" data-a="nAskLater">${t('Nanti dulu')}</button>
+    ${kind === 'push' ? `<p class="muted small">${t('Telefon akan tanya kebenaran. Tekan <b>Benarkan</b> (Allow).')}</p>` : ''}</div>`;
+}
+
+function afterLogin(fresh) {
+  loadVideos(); loadAnn(); loadSolat(); checkPush().then(() => { render(); setTimeout(() => maybeNotifPrompt(fresh), 900); });
   // Bahasa notifikasi ikut bahasa paparan peranti ini
   if (S.user.lang !== LANG) { S.user.lang = LANG; api('POST', '/api/me/lang', { lang: LANG }); }
 }
@@ -1485,7 +1542,7 @@ document.addEventListener('submit', async e => {
     if (val('dPin') !== val('dPin2')) { S.err = t('PIN tidak sama. Sila masukkan semula.'); render(); return; }
     const r = await busy(btn, () => api('POST', '/api/register', { name: val('dName'), phone: val('dPhone'), email: val('dEmail'), pin: val('dPin') }));
     if (!r.ok) { S.err = r.error; render(); return; }
-    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; afterLogin();
+    S.user = r.user; S.view = 'app'; S.tab = 'utama'; S.err = ''; afterLogin(true);
     toast(t('Pendaftaran berjaya. Selamat datang!'));
   }
   if (f.id === 'fForgot') {
