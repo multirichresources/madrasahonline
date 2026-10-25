@@ -95,7 +95,7 @@ function insightCards() {
     </div>
     <div class="card">
       <span class="eyebrow">Tontonan video</span>
-      ${d.videos.length ? `<div class="rows">${d.videos.map(v => `<div class="row"><div style="min-width:0"><b>${esc(v.title)}</b><p class="muted small">${esc(v.topic)} · ${v.finished} habis tonton</p></div><span class="pill ok">${v.viewers} pelajar</span></div>`).join('')}</div>` : '<p class="muted">Belum ada video diterbitkan.</p>'}
+      ${d.videos.length ? `<div class="rows">${d.videos.map(v => `<div class="row"><div style="min-width:0"><b>${esc(v.title)}</b><p class="muted small">${v.topic ? esc(v.topic) + ' · ' : ''}${v.finished} habis tonton</p></div><span class="pill ok">${v.viewers} pelajar</span></div>`).join('')}</div>` : '<p class="muted">Belum ada video diterbitkan.</p>'}
     </div>
     <div class="card">
       <span class="eyebrow">Bayaran terkini</span>
@@ -123,6 +123,48 @@ function tPelajar() {
     </div>`;
 }
 
+// Kategori & topik video
+const catById = id => ((A.vmeta && A.vmeta.categories) || []).find(c => c.id === id) || null;
+const vMeta = v => [catById(v.categoryId) ? catById(v.categoryId).name : '', v.topic].filter(Boolean).join(' › ');
+function catTopicFields(prefix, v = {}) {
+  const cats = (A.vmeta && A.vmeta.categories) || [];
+  return `<label class="f" for="${prefix}Cat">Kategori<select class="input" id="${prefix}Cat">
+      <option value="">— Tiada kategori —</option>
+      ${cats.map(c => `<option value="${c.id}"${c.id === v.categoryId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+    </select></label>
+    <label class="f" for="${prefix}Topic">Topik <span class="muted small">(pilihan, cth. Makhraj, Tajwid, Nabi Yusuf)</span><input class="input" id="${prefix}Topic" maxlength="40" list="topicList" value="${esc(v.topic || '')}"></label>
+    <datalist id="topicList">${((A.vmeta && A.vmeta.topics) || []).map(t => `<option value="${esc(t)}">`).join('')}</datalist>`;
+}
+function catCard() {
+  const cats = (A.vmeta && A.vmeta.categories) || [];
+  const count = id => (A.videos || []).filter(v => v.categoryId === id).length;
+  return `<div class="card">
+    <span class="eyebrow">Kategori video</span>
+    <p class="muted small">Pelajar nampak video dikumpul ikut kategori. Topik (cth. Makhraj, Tajwid) dipilih dalam setiap video.</p>
+    <div class="rows">${cats.map((c, i) => `<div class="row">
+      <div style="min-width:0"><b>${esc(c.name)}</b><p class="muted small">${c.nameEn && c.nameEn !== c.name ? esc(c.nameEn) + ' · ' : ''}${count(c.id)} video</p></div>
+      <div class="btn-row" style="flex:none;gap:.3rem">
+        <button class="iconbtn" data-a="catMove" data-v="${c.id}" data-dir="-1" aria-label="Naik" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="iconbtn" data-a="catMove" data-v="${c.id}" data-dir="1" aria-label="Turun" ${i === cats.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="iconbtn" data-a="catEdit" data-v="${c.id}">Ubah</button>
+      </div>
+    </div>`).join('') || '<p class="muted">Belum ada kategori.</p>'}</div>
+    <button class="btn btn-ghost" data-a="catNew">Tambah kategori</button>
+  </div>`;
+}
+function catModal() {
+  const c = A.editCat || {};
+  return `<form id="fCat" novalidate style="display:flex;flex-direction:column;gap:.8rem">
+    <h2 style="font-size:1.25rem">${c.id ? 'Ubah kategori' : 'Tambah kategori'}</h2>
+    <label class="f" for="cName">Nama kategori<input class="input" id="cName" maxlength="40" value="${esc(c.name || '')}" placeholder="Contoh: Kisah dari Al-Quran"></label>
+    <label class="f" for="cNameEn">Nama (English) <span class="muted small">(pilihan)</span><input class="input" id="cNameEn" maxlength="40" value="${esc(c.nameEn || '')}" placeholder="Contoh: Stories from the Quran"></label>
+    ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
+    <button class="btn btn-primary" type="submit">Simpan</button>
+    ${c.id ? `<button class="btn btn-ghost" type="button" data-a="catDel" data-v="${c.id}" style="color:var(--danger)">Padam kategori</button><p class="muted small">Video dalam kategori ini tidak dipadam, cuma jadi "tiada kategori".</p>` : ''}
+    <button class="btn btn-ghost" type="button" data-a="close">Batal</button>
+  </form>`;
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 const monthLabel = m => m ? MONTHS[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4) : '';
 
@@ -132,7 +174,7 @@ function videoRow(v) {
     : `<span class="pill warn">${esc(v.statusLabel)}${v.progress ? ' ' + v.progress + '%' : ''}</span>`;
   return `<div class="q">
     <div class="top" style="align-items:flex-start"><div style="min-width:0"><b>${esc(v.title)}</b>
-      <p class="muted small">${esc(v.topic)}${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}${v.minutes ? ' · ' + v.minutes + ' minit' : ''}</p></div>${pill}</div>
+      <p class="muted small">${[vMeta(v) ? esc(vMeta(v)) : 'Tiada kategori', v.classMonth ? monthLabel(v.classMonth) : '', v.minutes ? v.minutes + ' minit' : ''].filter(Boolean).join(' · ')}</p></div>${pill}</div>
     <div class="btn-row">
       ${v.ready ? `<button class="btn ${v.published ? 'btn-ghost' : 'btn-primary'}" data-a="vPublish" data-v="${v.id}">${v.published ? 'Sembunyikan' : 'Terbitkan'}</button>` : ''}
       <button class="btn btn-ghost" data-a="vEdit" data-v="${v.id}">Edit</button>
@@ -157,7 +199,7 @@ function tVideo() {
     <form id="fUpload" class="card" novalidate>
       <span class="eyebrow">Atau muat naik terus dari app</span>
       <label class="f" for="vTitle">Tajuk video<input class="input" id="vTitle" maxlength="120" placeholder="Contoh: Hukum Nun Mati & Tanwin"></label>
-      <label class="f" for="vTopic">Topik<select class="input" id="vTopic">${m.topics.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
+      ${catTopicFields('v')}
       <label class="f" for="vArabic">Label Arab <span class="muted small">(pilihan, untuk gambar kecil)</span><input class="input" id="vArabic" dir="rtl" maxlength="40" placeholder="النون الساكنة" style="font-family:var(--f-ar);font-size:1.2rem"></label>
       <label class="f" for="vMonth">Bulan kelas<input class="input" id="vMonth" type="month" value="${month}"></label>
       <label class="f" for="vFile">Fail video<input class="input" id="vFile" type="file" accept="video/*"></label>
@@ -167,6 +209,7 @@ function tVideo() {
       <button class="btn btn-primary" type="submit" ${!m.bunnyReady || (up && up.busy) ? 'disabled' : ''}>Muat naik video</button>
       <p class="note">Jangan tutup halaman ini semasa muat naik. Selepas siap, Bunny akan proses video beberapa minit sebelum boleh diterbitkan.</p>
     </form>
+    ${catCard()}
     <div class="card">
       <div class="top"><span class="eyebrow">Semua video · ${A.videos.length}</span><button class="iconbtn" data-a="vRefresh">Muat semula</button></div>
       <div class="qa">${A.videos.length ? A.videos.map(videoRow).join('') : '<p class="muted">Belum ada video.</p>'}</div>
@@ -177,7 +220,7 @@ async function loadVideos() {
   const r = await api('GET', '/api/admin/videos');
   if (r.status === 401) return toLogin();
   if (!r.ok) { toast(r.error); return; }
-  A.videos = r.videos; A.vmeta = { bunnyReady: r.bunnyReady, tokenReady: r.tokenReady, topics: r.topics };
+  A.videos = r.videos; A.vmeta = { bunnyReady: r.bunnyReady, tokenReady: r.tokenReady, topics: r.topics, categories: r.categories || [] };
   render();
 }
 
@@ -193,7 +236,7 @@ async function startUpload(btn) {
   if (!val('vTitle')) { A.err = 'Sila isi tajuk video.'; render(); return; }
   if (!file) { A.err = 'Sila pilih fail video.'; render(); return; }
   A.err = '';
-  const r = await busy(btn, () => api('POST', '/api/admin/videos', { title: val('vTitle'), topic: val('vTopic'), arabicLabel: val('vArabic'), classMonth: val('vMonth') }));
+  const r = await busy(btn, () => api('POST', '/api/admin/videos', { title: val('vTitle'), categoryId: val('vCat'), topic: val('vTopic'), arabicLabel: val('vArabic'), classMonth: val('vMonth') }));
   if (r.status === 401) return toLogin();
   if (!r.ok) { A.err = r.error; render(); return; }
   try { await loadTus(); } catch { A.err = 'Gagal memuatkan alat upload. Semak internet dan cuba lagi.'; render(); return; }
@@ -208,7 +251,7 @@ async function startUpload(btn) {
   log(`Fail: ${file.name} · ${(file.size / 1048576).toFixed(1)} MB · ${file.type || 'jenis tak diketahui'}`);
   log(`Video Bunny: ${t.videoId} · library ${t.libraryId}`);
   log(`Pelayar: ${navigator.userAgent.slice(0, 110)}`);
-  forget('vTitle', 'vArabic');
+  forget('vTitle', 'vTopic', 'vArabic');
   render();
   let gotResponse = false;
   // Jika 30 saat tiada apa-apa jawapan dari Bunny, beritahu (bukannya diam di 0%)
@@ -637,7 +680,7 @@ function modal() {
     inner = `<form id="fImport" novalidate style="display:flex;flex-direction:column;gap:.8rem">
       <h2 style="font-size:1.25rem">Import video</h2>
       <label class="f" for="iTitle">Tajuk dalam app<input class="input" id="iTitle" maxlength="120" value="${esc(b.title.replace(/\.[a-z0-9]{2,4}$/i, ''))}"></label>
-      <label class="f" for="iTopic">Topik<select class="input" id="iTopic">${A.vmeta.topics.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
+      ${catTopicFields('i')}
       <label class="f" for="iArabic">Label Arab <span class="muted small">(pilihan)</span><input class="input" id="iArabic" dir="rtl" maxlength="40" style="font-family:var(--f-ar);font-size:1.2rem"></label>
       <label class="f" for="iMonth">Bulan kelas<input class="input" id="iMonth" type="month" value="${month}"></label>
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
@@ -646,6 +689,7 @@ function modal() {
     </form>`;
   }
   if (A.modal === 'doa') inner = doaModal();
+  if (A.modal === 'cat') inner = catModal();
   if (A.modal === 'aud') inner = audModal();
   if (A.modal === 'auddel') inner = `<h2 style="font-size:1.25rem">Padam audio?</h2>
       <p><b>${esc(A.delAud.title)}</b> dan fail audionya akan dipadam. Tindakan ini tidak boleh dibatalkan.</p>
@@ -657,11 +701,10 @@ function modal() {
       <button class="btn btn-ghost" data-a="close">Batal</button>`;
   if (A.modal === 'vedit') {
     const v = A.editVideo;
-    const topics = A.vmeta.topics.includes(v.topic) ? A.vmeta.topics : [v.topic, ...A.vmeta.topics];
     inner = `<form id="fVEdit" novalidate style="display:flex;flex-direction:column;gap:.8rem">
       <h2 style="font-size:1.25rem">Edit video</h2>
       <label class="f" for="eTitle">Tajuk dalam app<input class="input" id="eTitle" maxlength="120" value="${esc(v.title)}"></label>
-      <label class="f" for="eTopic">Topik<select class="input" id="eTopic">${topics.map(t => `<option${t === v.topic ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      ${catTopicFields('e', v)}
       <label class="f" for="eArabic">Label Arab <span class="muted small">(pilihan)</span><input class="input" id="eArabic" dir="rtl" maxlength="40" value="${esc(v.arabicLabel || '')}" style="font-family:var(--f-ar);font-size:1.2rem"></label>
       <label class="f" for="eMonth">Bulan kelas<input class="input" id="eMonth" type="month" value="${esc(v.classMonth || '')}"></label>
       <p class="muted small">Perubahan terus dilihat pelajar. Fail video tidak berubah.</p>
@@ -900,7 +943,21 @@ document.addEventListener('click', async e => {
       A.doas = A.doas.filter(x => x.id !== A.delDoa.id); A.modal = null; toast('Doa dipadam.');
       break;
     }
-    case 'vEdit': A.editVideo = A.videos.find(x => String(x.id) === v); forget('eTitle', 'eTopic', 'eArabic', 'eMonth'); A.err = ''; A.modal = 'vedit'; break;
+    case 'catNew': A.editCat = null; forget('cName', 'cNameEn'); A.err = ''; A.modal = 'cat'; break;
+    case 'catEdit': A.editCat = A.vmeta.categories.find(x => String(x.id) === v); forget('cName', 'cNameEn'); A.err = ''; A.modal = 'cat'; break;
+    case 'catMove': {
+      const r = await busy(el, () => api('POST', `/api/admin/video-categories/${v}/move`, { dir: Number(el.dataset.dir) }));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { toast(r.error); return; }
+      A.vmeta.categories = r.categories; break;
+    }
+    case 'catDel': {
+      const r = await busy(el, () => api('POST', `/api/admin/video-categories/${v}/delete`, {}));
+      if (!r.ok) { toast(r.error); return; }
+      A.vmeta.categories = r.categories; A.videos = A.videos.map(x => String(x.categoryId) === v ? { ...x, categoryId: null } : x);
+      A.modal = null; toast('Kategori dipadam. Videonya kekal tanpa kategori.'); break;
+    }
+    case 'vEdit': A.editVideo = A.videos.find(x => String(x.id) === v); forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth'); A.err = ''; A.modal = 'vedit'; break;
     case 'vDelete': A.delVideo = A.videos.find(x => String(x.id) === v); A.modal = 'vdelete'; A.err = ''; break;
     case 'vDeleteGo': {
       const r = await busy(el, () => api('POST', `/api/admin/videos/${A.delVideo.id}/delete`, {}));
@@ -972,7 +1029,7 @@ document.addEventListener('submit', async e => {
   if (f.id === 'fSearch') { A.q = val('q'); loadUsers(); return; }
   if (f.id === 'fUpload') { await startUpload(btn); return; }
   if (f.id === 'fImport') {
-    const r = await busy(btn, () => api('POST', '/api/admin/videos/import', { guid: A.imp.guid, title: val('iTitle'), topic: val('iTopic'), arabicLabel: val('iArabic'), classMonth: val('iMonth') }));
+    const r = await busy(btn, () => api('POST', '/api/admin/videos/import', { guid: A.imp.guid, title: val('iTitle'), categoryId: val('iCat'), topic: val('iTopic'), arabicLabel: val('iArabic'), classMonth: val('iMonth') }));
     if (!r.ok) { A.err = r.error; render(); return; }
     forget('iTitle', 'iArabic');
     A.bunnyItems = A.bunnyItems.filter(b => b.guid !== A.imp.guid); A.modal = null; A.err = '';
@@ -1005,12 +1062,20 @@ document.addEventListener('submit', async e => {
     toast(id ? 'Doa dikemas kini.' : 'Doa ditambah.');
     loadDoas(); return;
   }
-  if (f.id === 'fVEdit') {
-    const id = A.editVideo.id;
-    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth') }));
+  if (f.id === 'fCat') {
+    const id = A.editCat && A.editCat.id;
+    const r = await busy(btn, () => api('POST', id ? `/api/admin/video-categories/${id}` : '/api/admin/video-categories', { name: val('cName'), nameEn: val('cNameEn') }));
     if (r.status === 401) return toLogin();
     if (!r.ok) { A.err = r.error; render(); return; }
-    forget('eTitle', 'eTopic', 'eArabic', 'eMonth');
+    forget('cName', 'cNameEn'); A.vmeta.categories = r.categories; A.modal = null; A.err = '';
+    toast(id ? 'Kategori dikemas kini.' : 'Kategori ditambah.');
+  }
+  if (f.id === 'fVEdit') {
+    const id = A.editVideo.id;
+    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), categoryId: val('eCat'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth') }));
+    if (r.status === 401) return toLogin();
+    if (!r.ok) { A.err = r.error; render(); return; }
+    forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth');
     A.videos = A.videos.map(x => x.id === id ? r.video : x); A.modal = null; A.err = '';
     toast('Video dikemas kini.');
   }

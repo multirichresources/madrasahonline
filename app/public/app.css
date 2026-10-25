@@ -382,3 +382,9 @@ button.pt[disabled] { cursor: default; opacity: .6; }
 .nav .mp-btn svg { width: 1.3rem; height: 1.3rem; }
 :root[data-theme="dark"] .miniplayer { background: #15534b; color: #eef6f4; }
 .qa-ic .dot.live { background: var(--gold); }
+
+/* ---------- kategori video ---------- */
+.chips-sub { margin-top: -.4rem; }
+.chips-sub .chip { font-size: .85rem; padding-block: .35rem; }
+.vgroup { font-family: var(--f-display); font-size: 1.3rem; margin-top: .4rem; display: flex; align-items: baseline; gap: .5rem; }
+.iconbtn[disabled] { opacity: .35; cursor: default; }

@@ -4,7 +4,7 @@
 const S = {
   view: 'loading', tab: 'utama', user: null, err: '', modal: null,
   cfg: { emailReset: false, org: {} }, reset: { step: 1, phone: '', msg: '' },
-  videos: null, continueId: null, filter: '*', playing: null,
+  videos: null, vcats: null, vcat: '*', continueId: null, filter: '*', playing: null,
   ann: null, kTab: 'pengumuman', qa: null, vqa: null, askVideo: null,
   push: { state: 'unknown' }, plans: null, pay: { plan: null, auto: true }, payResult: null, history: null,
   solat: null, zones: null, sf: null,
@@ -765,14 +765,19 @@ setInterval(() => {
 
 const monthLabel = m => m ? monthName(Number(m.slice(5, 7)) - 1) + ' ' + m.slice(0, 4) : '';
 
+// Nama kategori video (EN jika ada)
+const catName = c => LANG === 'en' && c.nameEn ? c.nameEn : c.name;
+const vCat = v => (S.vcats || []).find(c => c.id === v.categoryId) || null;
+const vLabel = v => v.topic || (vCat(v) ? catName(vCat(v)) : '');
+
 function vItem(v) {
   const total = Math.max(1, v.minutes * 60), pct = Math.min(100, Math.round(v.watchedSeconds / total * 100));
   return `<button class="vitem" data-a="play" data-v="${v.id}">
     ${v.thumbUrl ? `<span class="thumb-img"><img src="${esc(v.thumbUrl)}" alt="" loading="lazy">${v.arabicLabel ? `<span class="thumb-ar">${esc(v.arabicLabel)}</span>` : ''}</span>`
-      : `<span class="thumb">${v.arabicLabel ? esc(v.arabicLabel) : `<span style="font-family:var(--f-body);font-size:.8rem;direction:ltr">${esc(v.topic)}</span>`}</span>`}
+      : `<span class="thumb">${v.arabicLabel ? esc(v.arabicLabel) : `<span style="font-family:var(--f-body);font-size:.8rem;direction:ltr">${esc(vLabel(v))}</span>`}</span>`}
     <span class="vinfo">
       <b>${esc(v.title)}</b>
-      <span class="muted small">${esc(v.topic)} · ${t('{n} minit', { n: v.minutes })}${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}</span>
+      <span class="muted small">${vLabel(v) ? esc(vLabel(v)) + ' · ' : ''}${t('{n} minit', { n: v.minutes })}${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}</span>
       ${pct > 0 ? `<span class="bar" aria-label="${t('Ditonton {p}%', { p: pct })}"><i style="width:${pct}%"></i></span><span class="muted small">${pct >= 95 ? t('Dah habis tonton') : t('Ditonton {p}%', { p: pct })}</span>` : ''}
     </span>
   </button>`;
@@ -785,26 +790,36 @@ function lockCard() {
 function tVideo() {
   if (S.playing) return vPlayer();
   if (!S.videos) return `<div class="top"><h1>${t('Video Kelas')}</h1></div><div class="loading">${t('Memuatkan video...')}</div>`;
-  const topics = ['*', ...new Set(S.videos.map(v => v.topic))];
-  const list = S.videos.filter(v => S.filter === '*' || v.topic === S.filter);
+  // Kategori (lapis 1) → topik (lapis 2). "Semua" = dikumpul ikut kategori.
+  const cats = (S.vcats || []).filter(c => S.videos.some(v => v.categoryId === c.id));
+  const loose = S.videos.filter(v => !vCat(v));
+  const groups = [...cats.map(c => ({ key: String(c.id), name: catName(c), list: S.videos.filter(v => v.categoryId === c.id) })),
+    ...(loose.length ? [{ key: 'lain', name: t('Lain-lain'), list: loose }] : [])];
+  const g = groups.find(x => x.key === S.vcat) || null;
+  if (!g) S.vcat = '*';
+  const topics = g ? [...new Set(g.list.map(v => v.topic).filter(Boolean))] : [];
+  if (!topics.includes(S.filter)) S.filter = '*';
+  const list = g ? g.list.filter(v => S.filter === '*' || v.topic === S.filter) : [];
   return `<div class="top"><h1>${t('Video Kelas')}</h1>${S.videos.length ? `<span class="pill ok">${t('{n} video', { n: S.videos.length })}</span>` : ''}</div>
     ${S.user.active ? '' : lockCard()}
     ${S.videos.length ? `
-      ${topics.length > 2 ? `<div class="chips" role="tablist" aria-label="${t('Tapis topik')}">${topics.map(tp => `<button class="chip ${S.filter === tp ? 'on' : ''}" data-a="vfilter" data-v="${esc(tp)}">${tp === '*' ? t('Semua') : esc(tp)}</button>`).join('')}</div>` : ''}
-      <div class="vlist">${list.map(vItem).join('')}</div>`
+      ${groups.length > 1 ? `<div class="chips" role="tablist" aria-label="${t('Kategori')}">${[{ key: '*', name: t('Semua') }, ...groups].map(x => `<button class="chip ${S.vcat === x.key ? 'on' : ''}" role="tab" aria-selected="${S.vcat === x.key}" data-a="vcat" data-v="${esc(x.key)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+      ${g && topics.length > 1 ? `<div class="chips chips-sub" role="tablist" aria-label="${t('Tapis topik')}">${['*', ...topics].map(tp => `<button class="chip ${S.filter === tp ? 'on' : ''}" data-a="vfilter" data-v="${esc(tp)}">${tp === '*' ? t('Semua topik') : esc(tp)}</button>`).join('')}</div>` : ''}
+      ${g ? `<div class="vlist">${list.map(vItem).join('')}</div>`
+        : groups.map(x => `${groups.length > 1 ? `<h2 class="vgroup">${esc(x.name)} <span class="muted small">${x.list.length}</span></h2>` : ''}<div class="vlist">${x.list.map(vItem).join('')}</div>`).join('')}`
     : `<div class="card empty">${I.video}<h2 style="font-size:1.15rem">${t('Rakaman kelas akan dimuat naik')}</h2><p class="muted">${t('Admin sedang menyediakan video kelas lepas. Video baharu akan muncul di sini.')}</p></div>`}`;
 }
 
 function vPlayer() {
   const P = S.playing, v = P.video;
-  return `<div class="top"><button class="iconbtn" data-a="stopPlay">${I.back} ${t('Kembali')}</button><span class="pill ok">${esc(v.topic)}</span></div>
+  return `<div class="top"><button class="iconbtn" data-a="stopPlay">${I.back} ${t('Kembali')}</button>${vLabel(v) ? `<span class="pill ok">${esc(vLabel(v))}</span>` : ''}</div>
     ${P.embedUrl ? `<div class="player-frame">
         <iframe id="vframe" src="${esc(P.embedUrl)}" loading="eager" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe>
         <span class="wm-name" aria-hidden="true">Madrasah Online · ${esc(P.watermark)}</span>
       </div>` : `<div class="player-frame"><div class="loading" style="color:#fff">${P.error ? esc(P.error) : t('Memuatkan video...')}</div></div>`}
     <div class="card">
       <h1 style="font-size:1.25rem">${esc(v.title)}</h1>
-      <p class="muted small">${esc(v.topic)} · ${t('{n} minit', { n: v.minutes })}${v.classMonth ? ' · ' + t('Kelas {m}', { m: monthLabel(v.classMonth) }) : ''}</p>
+      <p class="muted small">${vLabel(v) ? esc(vLabel(v)) + ' · ' : ''}${t('{n} minit', { n: v.minutes })}${v.classMonth ? ' · ' + t('Kelas {m}', { m: monthLabel(v.classMonth) }) : ''}</p>
       <p class="small">${t('Nak ikut bacaan perlahan-lahan? Tekan ikon <b>tetapan</b> dalam video, kemudian pilih kelajuan <b>0.75</b>.')}</p>
       ${P.resumeAt > 30 ? `<p class="muted small">${t('Video disambung dari tempat terakhir anda tonton.')}</p>` : ''}
     </div>
@@ -1137,7 +1152,7 @@ window.render = render;
 async function loadVideos() {
   const r = await api('GET', '/api/videos');
   if (r.status === 401) { S.user = null; S.view = 'login'; render(); return; }
-  if (r.ok) { S.videos = r.videos; S.continueId = r.continueId; if (!S.playing) render(); }
+  if (r.ok) { S.videos = r.videos; S.vcats = r.categories || []; S.continueId = r.continueId; if (!S.playing) render(); }
 }
 
 let pj = null, lastSaved = 0, lastSeconds = 0, lastDuration = 0;
@@ -1228,6 +1243,7 @@ document.addEventListener('click', async e => {
       break;
     case 'tab': await stopPlayer(); S.tab = v; S.sub = null; window.scrollTo(0, 0); if (v === 'video' || v === 'utama') loadVideos(); if (v === 'utama' || v === 'komuniti') loadAnn(); if (v === 'komuniti' && S.kTab === 'soaljawab') loadQa(); if (v === 'utama' && !S.solat) loadSolat(); break;
     case 'vfilter': S.filter = v; break;
+    case 'vcat': S.vcat = v; S.filter = '*'; break;
     case 'kTab': S.kTab = v; if (v === 'soaljawab') loadQa(); else { markAnnSeen(); loadAnn(); } break;
     case 'solatSettings': openSolatSettings(); break;
     case 'waktu': S.modal = 'waktu'; if (!S.solat || S.solat.error) { S.solat = null; loadSolat(); } break;

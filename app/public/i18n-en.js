@@ -1,6 +1,9 @@
 // Terjemahan English untuk app pelajar & halaman sumbangan. Kunci = teks asal BM.
 // Tambah terjemahan di sini setiap kali menambah t('…') baharu, kemudian jalankan: node test/i18n.test.mjs
 window.EN_DICT = {
+ "Lain-lain": "Others",
+ "Kategori": "Categories",
+ "Semua topik": "All topics",
  "Langganan melalui App Store akan dibuka tidak lama lagi.": "Subscriptions through the App Store will open soon.",
  "Langganan melalui Google Play akan dibuka tidak lama lagi.": "Subscriptions through Google Play will open soon.",
  "Ke app": "To the app",

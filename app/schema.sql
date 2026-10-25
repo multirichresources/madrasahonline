@@ -48,7 +48,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_subject ON sessions(kind, subject_id);
 CREATE TABLE IF NOT EXISTS videos (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   title         TEXT    NOT NULL,
-  topic         TEXT    NOT NULL,                 -- 'Makhraj' | 'Tajwid' | 'Bacaan' | ...
+  topic         TEXT    NOT NULL,                 -- topik bebas dalam kategori, cth. 'Makhraj' ('' = tiada)
+  category_id   INTEGER,                          -- video_categories.id (NULL = tiada kategori)
   arabic_label  TEXT,
   bunny_id      TEXT,                             -- GUID video di Bunny Stream
   minutes       INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +59,15 @@ CREATE TABLE IF NOT EXISTS videos (
   encode_progress INTEGER NOT NULL DEFAULT 0,
   thumb_url     TEXT,                             -- gambar kecil dari Bunny
   created_at    INTEGER NOT NULL
+);
+
+-- Kategori video (diurus admin), cth. 'Belajar Al-Quran', 'Sirah', 'Kisah dari Al-Quran'
+CREATE TABLE IF NOT EXISTS video_categories (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL,
+  name_en     TEXT,
+  sort        INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS watch_progress (

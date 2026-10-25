@@ -9,6 +9,7 @@ import { publicConfig, forgotPin, resetPin, updateEmail } from './reset.js';
 import {
   adminCreateVideo, adminUploadTicket, adminListVideos, adminUpdateVideo, adminDeleteVideo,
   listVideos, playVideo, saveProgress, adminSetSubscription, adminBunnyVideos, adminImportVideo,
+  adminCreateCategory, adminUpdateCategory, adminMoveCategory, adminDeleteCategory,
 } from './videos.js';
 import {
   adminGetSettings, adminSaveSettings, listAnnouncements, siteInfo,
@@ -84,6 +85,10 @@ const routes = [
   ['GET', /^\/api\/admin\/videos$/, (env, req) => adminListVideos(env, req)],
   ['GET', /^\/api\/admin\/bunny-videos$/, (env, req) => adminBunnyVideos(env, req)],
   ['POST', /^\/api\/admin\/videos\/import$/, (env, req) => adminImportVideo(env, req)],
+  ['POST', /^\/api\/admin\/video-categories$/, (env, req) => adminCreateCategory(env, req)],
+  ['POST', /^\/api\/admin\/video-categories\/(\d+)$/, (env, req, m) => adminUpdateCategory(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/video-categories\/(\d+)\/move$/, (env, req, m) => adminMoveCategory(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/video-categories\/(\d+)\/delete$/, (env, req, m) => adminDeleteCategory(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/videos$/, (env, req) => adminCreateVideo(env, req)],
   ['POST', /^\/api\/admin\/videos\/(\d+)$/, (env, req, m) => adminUpdateVideo(env, req, Number(m[1]))],
   ['POST', /^\/api\/admin\/videos\/(\d+)\/delete$/, (env, req, m) => adminDeleteVideo(env, req, Number(m[1]))],
