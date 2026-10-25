@@ -9,6 +9,7 @@ import { now, json, fail, readJson, cleanText, cleanMultiline, validEmail, norma
 import { requireAdmin } from './auth.js';
 import { chip, billingReady, CARD_METHODS, addMonths, syncPayment, getPlans } from './billing.js';
 import { getOrg } from './content.js';
+import { webBase, setWebUntilStmt } from './store.js';
 
 const MIN_SEN = 500, MAX_SEN = 1000000;
 const USES = { taja: 'Taja Pelajar', umum: 'Sumbangan Am' };
@@ -236,18 +237,19 @@ export async function adminSponsor(env, request, userId) {
   const b = await readJson(request);
   const months = Number(b.months);
   if (![1, 3, 6, 12].includes(months)) return fail(400, 'Pilih 1, 3, 6 atau 12 bulan.');
-  const u = await env.DB.prepare('SELECT id, paid_until FROM users WHERE id = ?').bind(userId).first();
+  const u = await env.DB.prepare('SELECT id, paid_until, web_paid_until FROM users WHERE id = ?').bind(userId).first();
   if (!u) return fail(404, 'Pelajar tidak dijumpai.');
   const cost = months * await monthlyPriceSen(env);
   const bal = await tajaBalance(env);
   if (bal.balanceSen < cost) return fail(400, `Baki dana taja tidak mencukupi (baki RM${(bal.balanceSen / 100).toFixed(2)}, perlu RM${(cost / 100).toFixed(2)}).`);
   const t = now();
-  const until = addMonths(Math.max(t, u.paid_until || 0), months);
+  const until = addMonths(Math.max(t, webBase(u)), months);
   await env.DB.batch([
     env.DB.prepare('INSERT INTO sponsorships (user_id, months, amount_sen, admin_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(userId, months, cost, a.id, cleanText(b.note, 120) || null, t),
-    env.DB.prepare("UPDATE users SET paid_until = ?, plan = 'taja' WHERE id = ?").bind(until, userId),
+    setWebUntilStmt(env, userId, until, "plan = 'taja'"),
   ]);
-  return json({ ok: true, paidUntil: until, active: true, balanceSen: bal.balanceSen - cost });
+  const fresh = await env.DB.prepare('SELECT paid_until FROM users WHERE id = ?').bind(userId).first();
+  return json({ ok: true, paidUntil: fresh.paid_until, active: true, balanceSen: bal.balanceSen - cost });
 }
 
 const cell = v => {

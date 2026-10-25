@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   failed_logins INTEGER NOT NULL DEFAULT 0,
   locked_until  INTEGER,                          -- epoch ms
   plan          TEXT,                             -- 'kad_bulanan' | 'fpx_bulanan' | 'fpx_tahunan'
-  paid_until    INTEGER,                          -- epoch ms; akses aktif jika > sekarang
+  paid_until    INTEGER,                          -- epoch ms; akses aktif jika > sekarang (= MAX(web_paid_until, langganan store))
+  web_paid_until INTEGER,                         -- tempoh dari web: CHIP, manual admin, taja (NULL = sama dengan paid_until)
   auto_renew    INTEGER NOT NULL DEFAULT 0,       -- 1 = caj kad automatik bila tamat
   chip_token    TEXT,                             -- id Purchase CHIP yang menyimpan token kad
   renew_fails   INTEGER NOT NULL DEFAULT 0,
@@ -286,3 +287,22 @@ CREATE TABLE IF NOT EXISTS audios (
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER
 );
+
+-- Langganan melalui Google Play / App Store (apps versi store). Disahkan terus dengan API Google/Apple.
+CREATE TABLE IF NOT EXISTS store_subscriptions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id),
+  platform    TEXT    NOT NULL,                   -- 'google' | 'apple'
+  store_key   TEXT    NOT NULL,                   -- Google: purchaseToken; Apple: originalTransactionId
+  product_id  TEXT,
+  plan        TEXT,                               -- id pelan yang sepadan (cth. 'bulanan'), jika ada
+  expires_at  INTEGER NOT NULL DEFAULT 0,         -- epoch ms
+  status      TEXT    NOT NULL,                   -- active | grace | canceled | on_hold | paused | pending | expired | revoked
+  auto_renew  INTEGER NOT NULL DEFAULT 0,
+  verified_at INTEGER,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER,
+  UNIQUE (platform, store_key)
+);
+CREATE INDEX IF NOT EXISTS idx_store_subs_user ON store_subscriptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_store_subs_expiry ON store_subscriptions (status, expires_at);

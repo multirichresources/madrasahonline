@@ -4,6 +4,7 @@ import {
   normalizePhone, displayPhone, checkPin, cleanText, validEmail, rateLimit, clientIp, hashIter, LEGACY_ITER,
 } from './util.js';
 import { cancelToken } from './billing.js';
+import { myStoreSubs } from './store.js';
 
 const USER_COOKIE = 'mo_sess';
 const ADMIN_COOKIE = 'mo_admin';
@@ -165,7 +166,7 @@ export async function logout(env, request, kind) {
 
 export async function me(env, request) {
   const u = await requireUser(env, request);
-  return json({ ok: true, user: publicUser(u) });
+  return json({ ok: true, user: { ...publicUser(u), store: await myStoreSubs(env, u.id) } });
 }
 
 // ---------- admin ----------
@@ -282,6 +283,8 @@ async function purgeUser(env, u) {
     env.DB.prepare('DELETE FROM push_subs WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM notifications WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM pin_resets WHERE user_id = ?').bind(u.id),
+    // Langganan store dibatalkan sendiri oleh pengguna di Google Play / App Store
+    env.DB.prepare('DELETE FROM store_subscriptions WHERE user_id = ?').bind(u.id),
     // Rekod bayaran disimpan untuk akaun kewangan, tetapi tidak lagi dikaitkan dengan pelajar.
     env.DB.prepare('UPDATE payments SET user_id = NULL WHERE user_id = ?').bind(u.id),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id),

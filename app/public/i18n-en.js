@@ -466,7 +466,14 @@ window.EN_DICT = {
  "Jauhkan telefon daripada besi atau magnet. Jika arah kelihatan salah, gerakkan telefon membentuk angka 8 untuk kalibrasi kompas. Lokasi anda tidak dihantar ke server.": "Keep your phone away from metal or magnets. If the direction looks wrong, move your phone in a figure-8 to calibrate the compass. Your location is not sent to our server.",
  "Pegang telefon di hadapan anda dan pusing badan perlahan-lahan sehingga ikon Kaabah berada di atas.": "Hold your phone in front of you and turn slowly until the Kaaba icon is at the top.",
  "Kompas telefon belum dikalibrasi. Gerakkan telefon membentuk angka 8 beberapa kali.": "Your phone's compass needs calibrating. Move your phone in a figure-8 a few times.",
- "Arah tak tepat? Lihat butiran teknikal": "Direction looks wrong? See technical details"
+ "Arah tak tepat? Lihat butiran teknikal": "Direction looks wrong? See technical details",
+ // Langganan store
+ "Langganan melalui <b>App Store</b>.": "Subscribed through the <b>App Store</b>.",
+ "Langganan melalui <b>Google Play</b>.": "Subscribed through <b>Google Play</b>.",
+ "Diperbaharui automatik pada {d}.": "Renews automatically on {d}.",
+ "Tidak diperbaharui. Tamat pada {d}.": "Won't renew. Ends on {d}.",
+ "Urus di App Store": "Manage in the App Store",
+ "Urus di Google Play": "Manage in Google Play",
 };
 // Mesej ralat server yang mengandungi nombor
 window.EN_PATTERNS = [

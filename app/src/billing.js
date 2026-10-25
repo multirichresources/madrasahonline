@@ -14,6 +14,7 @@ import { now, json, fail, readJson, cleanText, rateLimit } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
 import { notify, processJobs } from './push.js';
 import { chargeDonors } from './donations.js';
+import { webBase, setWebUntilStmt } from './store.js';
 
 export const CARD_METHODS = ['visa', 'mastercard', 'maestro'];
 const MAX_RENEW_FAILS = 3;
@@ -105,16 +106,14 @@ async function fulfil(env, pay, purchase) {
     return true;
   }
   if (!pay.user_id) return true;
-  const u = await env.DB.prepare('SELECT paid_until FROM users WHERE id = ?').bind(pay.user_id).first();
+  const u = await env.DB.prepare('SELECT paid_until, web_paid_until FROM users WHERE id = ?').bind(pay.user_id).first();
   if (!u) return true;
-  const until = addMonths(Math.max(t, u.paid_until || 0), pay.months || 1);
+  const until = addMonths(Math.max(t, webBase(u)), pay.months || 1);
   const tokenSaved = !!(purchase && purchase.is_recurring_token);
   if (tokenSaved) {
-    await env.DB.prepare('UPDATE users SET paid_until = ?, plan = ?, auto_renew = 1, chip_token = ?, renew_fails = 0, renew_attempt_at = NULL WHERE id = ?')
-      .bind(until, pay.plan, purchase.id, pay.user_id).run();
+    await setWebUntilStmt(env, pay.user_id, until, 'plan = ?, auto_renew = 1, chip_token = ?, renew_fails = 0, renew_attempt_at = NULL', [pay.plan, purchase.id]).run();
   } else {
-    await env.DB.prepare('UPDATE users SET paid_until = ?, plan = ?, renew_fails = 0, renew_attempt_at = NULL WHERE id = ?')
-      .bind(until, pay.plan, pay.user_id).run();
+    await setWebUntilStmt(env, pay.user_id, until, 'plan = ?, renew_fails = 0, renew_attempt_at = NULL', [pay.plan]).run();
   }
   return true;
 }

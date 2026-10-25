@@ -110,10 +110,23 @@ function vLupa() {
 }
 
 // ---------- dalam app ----------
+// Langganan Google Play / App Store yang diperbaharui automatik
+const storeAuto = u => (u.store || []).some(s => s.autoRenew && s.expiresAt >= u.paidUntil - 60e3);
+const STORE_MANAGE = { google: 'https://play.google.com/store/account/subscriptions', apple: 'https://apps.apple.com/account/subscriptions' };
+function storeSubLines(u) {
+  return (u.store || []).map(s => `<p class="small">${s.platform === 'apple' ? t('Langganan melalui <b>App Store</b>.') : t('Langganan melalui <b>Google Play</b>.')} ${s.autoRenew ? t('Diperbaharui automatik pada {d}.', { d: fmtDate(s.expiresAt) }) : t('Tidak diperbaharui. Tamat pada {d}.', { d: fmtDate(s.expiresAt) })}</p>
+    <a class="btn btn-ghost" href="${STORE_MANAGE[s.platform]}" target="_blank" rel="noopener">${s.platform === 'apple' ? t('Urus di App Store') : t('Urus di Google Play')}</a>`).join('');
+}
+
 function statusCard() {
   const u = S.user;
   if (u.active) {
     const days = Math.max(0, Math.ceil((u.paidUntil - Date.now()) / 864e5));
+    if (storeAuto(u)) return `<div class="status ok">
+      <span class="eyebrow">${t('Langganan')}</span>
+      <div class="top"><span class="big">${t('Aktif')}</span><span class="pill ok">${t('{n} hari lagi', { n: days })}</span></div>
+      <p>${t('Diperbaharui automatik pada <b>{d}</b>.', { d: fmtDate(u.paidUntil) })} ${t('Semua video kelas boleh ditonton.')}</p>
+    </div>`;
     return `<div class="status ok">
       <span class="eyebrow">${t('Langganan')}</span>
       <div class="top"><span class="big">${t('Aktif')}</span><span class="pill ok">${t('{n} hari lagi', { n: days })}</span></div>
@@ -213,7 +226,7 @@ function smartBanner() {
   const u = S.user, now = Date.now(), n = S.ann && S.ann.nextClass;
   if (!u.active) return statusCard();
   const days = Math.ceil((u.paidUntil - now) / 864e5);
-  if (!u.autoRenew && days <= 7) return statusCard();
+  if (!u.autoRenew && !storeAuto(u) && days <= 7) return statusCard();
   if (n && (n.joinOpen || (n.classAt > now && n.classAt - now < 7 * 864e5))) return classCard();
   if (S.push.state === 'off' || S.push.state === 'ios-install') return pushCard(true);
   return latestAnnCard();
@@ -945,8 +958,9 @@ function tAkaun() {
       <p>${u.active ? t('Aktif hingga <b>{d}</b>', { d: fmtDate(u.paidUntil) }) : u.paidUntil ? t('Tamat pada <b>{d}</b>.', { d: fmtDate(u.paidUntil) }) : t('Belum melanggan')}</p>
       ${u.active && u.autoRenew ? `<p class="small">${t('<b>Auto-renew aktif.</b> Kad anda akan dicaj secara automatik pada {d}.', { d: fmtDate(u.paidUntil - 864e5) })}</p>
         <button class="btn btn-ghost" data-a="modal" data-v="stopAuto">${t('Berhenti auto-renew')}</button>` : ''}
+      ${storeSubLines(u)}
       ${!u.active ? `<button class="btn btn-primary" data-a="subscribe">${t('Langgan sekarang')}</button>`
-        : !u.autoRenew ? `<button class="btn btn-ghost" data-a="subscribe">${t('Sambung / tambah tempoh')}</button>` : ''}
+        : !u.autoRenew && !storeAuto(u) ? `<button class="btn btn-ghost" data-a="subscribe">${t('Sambung / tambah tempoh')}</button>` : ''}
       <button class="link" data-a="history" style="align-self:flex-start">${t('Sejarah bayaran')}</button>
     </div>
     <div class="card">

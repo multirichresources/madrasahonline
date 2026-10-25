@@ -24,6 +24,7 @@ import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, admi
 import { listAudios, streamAudio, adminListAudios, adminAudioFile, adminCreateAudio, adminUpdateAudio, adminUploadAudio, adminDeleteAudio } from './audio.js';
 import { listDoas, adminListDoas, adminCreateDoa, adminUpdateDoa, adminDeleteDoa } from './doa.js';
 import { shouldLog, readDetail, writeLog, adminListLog, cleanAdminLog } from './adminlog.js';
+import { storeVerify, googleRtdn, appleNotify, syncStoreSubs } from './store.js';
 import { listQuestions, askQuestion, deleteOwnQuestion, adminListQuestions, adminAnswer, adminHideQuestion } from './questions.js';
 
 // Pengepala keselamatan untuk jawapan dari Worker (fail statik guna public/_headers).
@@ -114,6 +115,9 @@ const routes = [
   ['POST', /^\/api\/pay\/confirm$/, (env, req) => confirmPayment(env, req)],
   ['POST', /^\/api\/pay\/callback$/, (env, req) => chipCallback(env, req)],
   ['POST', /^\/api\/pay\/stop-auto$/, (env, req) => stopAutoRenew(env, req)],
+  ['POST', /^\/api\/store\/verify$/, (env, req) => storeVerify(env, req)],
+  ['POST', /^\/api\/store\/google\/rtdn$/, (env, req) => googleRtdn(env, req)],
+  ['POST', /^\/api\/store\/apple\/notify$/, (env, req) => appleNotify(env, req)],
   ['GET', /^\/api\/pay\/history$/, (env, req) => myPayments(env, req)],
   ['GET', /^\/api\/admin\/plans$/, (env, req) => adminGetPlans(env, req)],
   ['POST', /^\/api\/admin\/plans$/, (env, req) => adminSavePlans(env, req)],
@@ -202,6 +206,8 @@ async function adminUsers(env, request) {
   return json({ ok: true, users: results.map(u => ({ ...publicUser(u), createdAt: u.created_at })) });
 }
 
+const SERVER_CALLBACKS = ['/api/pay/callback', '/api/internal/push', '/api/store/google/rtdn', '/api/store/apple/notify'];
+
 async function handle(request, env, ctx) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '');
@@ -214,8 +220,9 @@ async function handle(request, env, ctx) {
   if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
   try {
-    // Callback CHIP datang dari server CHIP (bukan pelayar), jadi dikecualikan; ia hanya mencetuskan semakan status.
-    if (request.method !== 'GET' && url.pathname !== '/api/pay/callback' && url.pathname !== '/api/internal/push' && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
+    // Callback CHIP & notifikasi Google/Apple datang dari server mereka (bukan pelayar), jadi dikecualikan;
+    // ia hanya mencetuskan semakan status terus dengan API rasmi.
+    if (request.method !== 'GET' && !SERVER_CALLBACKS.includes(url.pathname) && !sameOrigin(request)) return fail(403, 'Permintaan ditolak.');
     for (const [method, pattern, handler] of routes) {
       const m = url.pathname.match(pattern);
       if (!m || request.method !== method) continue;
@@ -252,6 +259,7 @@ export default {
     if (d.getUTCMinutes() % 5 === 0) {
       try { await sendClassReminders(env); } catch (e) { console.error('peringatan', e); }
       try { await runBilling(env); } catch (e) { console.error('bayaran', e); }
+      try { await syncStoreSubs(env); } catch (e) { console.error('store', e); }
     }
     try { await dispatchPush(env); } catch (e) { console.error('push', e); }
     if (d.getUTCHours() === 19 && d.getUTCMinutes() === 0) {

@@ -768,6 +768,171 @@ d1(`UPDATE users SET pin_iter = NULL WHERE phone = '6${phone}'`);
 r = await jar().req('POST', '/api/login', { phone, pin: '624813' });
 check('Akaun dengan hash lama masih boleh login', r.status === 200, r.data);
 
+// ---- langganan Google Play & App Store (API tiruan, tandatangan JWT disemak) ----
+const devVars = Object.fromEntries(fs.readFileSync('.dev.vars', 'utf8').split('\n').filter(l => /^[A-Z_]+=/.test(l))
+  .map(l => { const i = l.indexOf('='); let v = l.slice(i + 1).trim(); if (v.startsWith("'") && v.endsWith("'")) v = v.slice(1, -1); return [l.slice(0, i), v]; }));
+const saInfo = JSON.parse(devVars.GOOGLE_SERVICE_ACCOUNT);
+const gPub = nodeCrypto.createPublicKey(saInfo.private_key);
+const aPub = nodeCrypto.createPublicKey(devVars.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n'));
+const PKG = devVars.GOOGLE_PLAY_PACKAGE, BID = devVars.APPLE_BUNDLE_ID;
+const storeJwtOk = (tok, key, alg) => {
+  const [h, p, s] = String(tok).split('.');
+  const ok = nodeCrypto.verify('sha256', Buffer.from(h + '.' + p), alg === 'ES256' ? { key, dsaEncoding: 'ieee-p1363' } : key, Buffer.from(s || '', 'base64url'));
+  return ok ? { header: JSON.parse(Buffer.from(h, 'base64url')), claims: JSON.parse(Buffer.from(p, 'base64url')) } : null;
+};
+const storeJws = o => `${Buffer.from('{"alg":"ES256"}').toString('base64url')}.${Buffer.from(JSON.stringify(o)).toString('base64url')}.c2ln`;
+const gSubs = new Map(), aSubs = new Map(), storeCalls = [];
+const storeMock = http.createServer((req, res) => {
+  let b = ''; req.on('data', d => b += d); req.on('end', () => {
+    const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
+    storeCalls.push({ method: req.method, url: req.url });
+    let m;
+    if (req.method === 'POST' && req.url === '/token') {
+      const q = new URLSearchParams(b);
+      const j = storeJwtOk(q.get('assertion'), gPub, 'RS256');
+      if (!j || j.claims.iss !== saInfo.client_email || !/androidpublisher/.test(j.claims.scope) || q.get('grant_type') !== 'urn:ietf:params:oauth:grant-type:jwt-bearer') return send(400, { error: 'invalid_grant' });
+      return send(200, { access_token: 'g-access-123', expires_in: 3600 });
+    }
+    const gBase = `/androidpublisher/v3/applications/${PKG}/purchases/`;
+    if (req.url.startsWith(gBase)) {
+      if (req.headers.authorization !== 'Bearer g-access-123') return send(401, {});
+      if (req.method === 'GET' && (m = req.url.slice(gBase.length).match(/^subscriptionsv2\/tokens\/([^/]+)$/))) {
+        const s = gSubs.get(decodeURIComponent(m[1])); return s ? send(200, s) : send(404, { error: { code: 404 } });
+      }
+      if (req.method === 'POST' && (m = req.url.slice(gBase.length).match(/^subscriptions\/([^/]+)\/tokens\/([^/]+):acknowledge$/))) {
+        const s = gSubs.get(decodeURIComponent(m[2])); if (s) s.acknowledgementState = 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED'; return send(200, {});
+      }
+    }
+    if ((m = req.url.match(/^\/(prod|sandbox)\/inApps\/v1\/subscriptions\/([^/]+)$/))) {
+      const j = storeJwtOk((req.headers.authorization || '').replace(/^Bearer /, ''), aPub, 'ES256');
+      if (!j || j.header.kid !== devVars.APPLE_KEY_ID || j.claims.iss !== devVars.APPLE_ISSUER_ID || j.claims.bid !== BID || j.claims.aud !== 'appstoreconnect-v1') return send(401, {});
+      const s = aSubs.get(m[2]);
+      if (!s || s.env !== m[1]) return send(404, { errorCode: 4040010 });
+      return send(200, { environment: m[1] === 'prod' ? 'Production' : 'Sandbox', bundleId: s.bundleId || BID, data: [{ subscriptionGroupIdentifier: 'g1', lastTransactions: [{
+        originalTransactionId: m[2], status: s.status,
+        signedTransactionInfo: storeJws({ originalTransactionId: m[2], productId: s.productId, expiresDate: s.expiresDate, bundleId: s.bundleId || BID, ...(s.revoked ? { revocationDate: Date.now() } : {}) }),
+        signedRenewalInfo: storeJws({ autoRenewStatus: s.autoRenew ? 1 : 0 }),
+      }] }] });
+    }
+    send(404, {});
+  });
+});
+await new Promise(ok => storeMock.listen(8799, '127.0.0.1', ok));
+const storeMock2 = http.createServer((req, res) => storeMock.emit('request', req, res));
+await new Promise(ok => storeMock2.listen(8800, '127.0.0.1', ok));
+const gState = (expiresAt, state = 'SUBSCRIPTION_STATE_ACTIVE', autoRenew = true, ack = 'ACKNOWLEDGEMENT_STATE_PENDING', productId = 'madrasah.bulanan') => ({
+  subscriptionState: state, acknowledgementState: ack,
+  lineItems: [{ productId, expiryTime: new Date(expiresAt).toISOString(), autoRenewingPlan: { autoRenewEnabled: autoRenew } }],
+});
+const SDAY = 864e5;
+const nearT = (a, b, tol = 5 * 60e3) => Math.abs(a - b) < tol;
+const storeStudent = async (name, ph) => { const j = jar(); const x = await j.req('POST', '/api/register', { name, phone: ph, email: `${ph}@contoh.my`, pin: '482913' }); return { j, id: x.data && x.data.user && x.data.user.id }; };
+const phS1 = '011' + String(Date.now()).slice(-7), phS2 = '012' + String(Date.now()).slice(-7), phS3 = '013' + String(Date.now()).slice(-7);
+const s1 = await storeStudent('Pelajar Play', phS1), s2 = await storeStudent('Pelajar Apple', phS2), s3 = await storeStudent('Pelajar Lama', phS3);
+r = await ad.req('GET', '/api/admin/users?q=Pelajar');
+const st_uid = n => r.data.users.find(u => u.name === n).id;
+const id1 = st_uid('Pelajar Play'), id2 = st_uid('Pelajar Apple'), id3 = st_uid('Pelajar Lama');
+
+r = await jar().req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'x' });
+check('Store: sahkan pembelian perlu log masuk', r.status === 401, r.data);
+r = await s1.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'tiada-token' });
+check('Store: token Google tak wujud ditolak', r.status === 404, r.data);
+r = await s1.j.req('POST', '/api/store/verify', { platform: 'paypal', purchaseToken: 'x' });
+check('Store: platform tak sah ditolak', r.status === 400, r.data);
+
+const gExp1 = Date.now() + 60 * SDAY;
+gSubs.set('gtok-1', gState(gExp1));
+r = await s1.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'gtok-1' });
+check('Store Google: pembelian disahkan, langganan aktif', r.status === 200 && r.data.active && r.data.status === 'active' && nearT(r.data.paidUntil, gExp1), r.data);
+check('Store Google: pembelian di-acknowledge', gSubs.get('gtok-1').acknowledgementState === 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED');
+r = await s1.j.req('GET', '/api/me');
+check('Store Google: /api/me tunjuk langganan Google Play', r.data.user.active && r.data.user.store.length === 1 && r.data.user.store[0].platform === 'google' && r.data.user.store[0].autoRenew && r.data.user.autoRenew === false, r.data.user);
+r = await s2.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'gtok-1' });
+check('Store Google: token yang sama tak boleh dipakai akaun lain', r.status === 409, r.data);
+r = await s1.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'gtok-1' });
+check('Store Google: sahkan semula (pulihkan) oleh pemilik OK', r.status === 200 && r.data.active, r.data);
+
+// Langganan web (manual admin) + store: tempoh tidak bercampur
+r = await ad.req('POST', `/api/admin/users/${id1}/subscription`, { months: 1 });
+check('Web + store: langganan manual tidak memendekkan tempoh store', r.status === 200 && nearT(r.data.paidUntil, gExp1) && r.data.storeActive === true, r.data);
+const webUntil1 = addM(Date.now(), 1);
+
+// RTDN Google: langganan tamat → kembali kepada tempoh web
+gSubs.set('gtok-1', gState(Date.now() - 1000, 'SUBSCRIPTION_STATE_EXPIRED', false, 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED'));
+const rtdnBody = JSON.stringify({ message: { data: Buffer.from(JSON.stringify({ version: '1.0', packageName: PKG, subscriptionNotification: { notificationType: 13, purchaseToken: 'gtok-1' } })).toString('base64'), messageId: '1' }, subscription: 'projects/x/subscriptions/y' });
+let res2 = await fetch(BASE + '/api/store/google/rtdn?token=salah', { method: 'POST', headers: { 'content-type': 'application/json' }, body: rtdnBody });
+check('RTDN Google: token rahsia salah ditolak', res2.status === 401);
+res2 = await fetch(BASE + '/api/store/google/rtdn?token=' + devVars.STORE_RTDN_TOKEN, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://pubsub.googleapis.com' }, body: rtdnBody });
+check('RTDN Google: diterima walaupun dari server luar', res2.status === 200);
+r = await s1.j.req('GET', '/api/me');
+check('RTDN Google: tamat store → tempoh web kekal', r.data.user.active && nearT(r.data.user.paidUntil, webUntil1, 2 * SDAY) && r.data.user.store.length === 0, r.data.user);
+r = await ad.req('POST', `/api/admin/users/${id1}/subscription`, { action: 'tamat' });
+check('Web + store: admin tamatkan → tidak aktif', r.status === 200 && r.data.active === false, r.data);
+
+// Naik taraf pelan Google (linkedPurchaseToken): token lama tidak lagi beri akses
+gSubs.set('gtok-a', gState(Date.now() + 20 * SDAY));
+r = await s1.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'gtok-a' });
+gSubs.set('gtok-b', { ...gState(Date.now() + 365 * SDAY, 'SUBSCRIPTION_STATE_ACTIVE', true, 'ACKNOWLEDGEMENT_STATE_PENDING', 'madrasah.tahunan'), linkedPurchaseToken: 'gtok-a' });
+r = await s1.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'gtok-b' });
+r = await s1.j.req('GET', '/api/me');
+check('Store Google: naik taraf pelan → hanya token baharu dikira', r.data.user.store.length === 1 && nearT(r.data.user.paidUntil, Date.now() + 365 * SDAY), r.data.user);
+
+// App Store: production tiada → cuba sandbox
+const aExp1 = Date.now() + 30 * SDAY;
+aSubs.set('2000000111', { env: 'sandbox', status: 1, productId: 'madrasah.bulanan', expiresDate: aExp1, autoRenew: true });
+r = await s2.j.req('POST', '/api/store/verify', { platform: 'apple', originalTransactionId: '2000000111' });
+check('Store Apple: disahkan (sandbox), langganan aktif', r.status === 200 && r.data.active && r.data.status === 'active' && nearT(r.data.paidUntil, aExp1), r.data);
+check('Store Apple: JWT ES256 diterima API (production dicuba dahulu)', storeCalls.some(c => c.url === '/prod/inApps/v1/subscriptions/2000000111') && storeCalls.some(c => c.url === '/sandbox/inApps/v1/subscriptions/2000000111'));
+aSubs.set('2000000222', { env: 'prod', status: 1, productId: 'lain.bulanan', expiresDate: aExp1, autoRenew: true, bundleId: 'com.app.lain' });
+r = await s2.j.req('POST', '/api/store/verify', { platform: 'apple', originalTransactionId: '2000000222' });
+check('Store Apple: pembelian app lain (bundle berbeza) ditolak', r.status === 404, r.data);
+r = await s2.j.req('POST', '/api/store/verify', { platform: 'apple', originalTransactionId: '' });
+check('Store Apple: tanpa id transaksi ditolak', r.status === 400, r.data);
+
+// Notifikasi App Store: status diambil dari API Apple, bukan dari notifikasi
+aSubs.get('2000000111').status = 2; aSubs.get('2000000111').expiresDate = Date.now() - 1000;
+const notif = { signedPayload: storeJws({ notificationType: 'EXPIRED', data: { bundleId: BID, signedTransactionInfo: storeJws({ originalTransactionId: '2000000111' }) } }) };
+res2 = await fetch(BASE + '/api/store/apple/notify', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://apple.com' }, body: JSON.stringify(notif) });
+r = await s2.j.req('GET', '/api/me');
+check('Notifikasi Apple: langganan tamat → tidak aktif', res2.status === 200 && r.data.user.active === false, r.data.user);
+aSubs.get('2000000111').status = 1; aSubs.get('2000000111').expiresDate = Date.now() + 40 * SDAY;
+res2 = await fetch(BASE + '/api/store/apple/notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ signedPayload: storeJws({ notificationType: 'DID_RENEW', data: { signedTransactionInfo: storeJws({ originalTransactionId: '2000000111', expiresDate: Date.now() + 999 * SDAY }) } }) }) });
+r = await s2.j.req('GET', '/api/me');
+check('Notifikasi Apple: tarikh dari API, bukan dari notifikasi', r.data.user.active && nearT(r.data.user.paidUntil, Date.now() + 40 * SDAY), r.data.user);
+aSubs.get('2000000111').autoRenew = false;
+await fetch(BASE + '/api/store/apple/notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(notif) });
+r = await s2.j.req('GET', '/api/me');
+check('Store Apple: auto-renew dimatikan → masih aktif hingga tamat', r.data.user.active && r.data.user.store[0].autoRenew === false && r.data.user.store[0].status === 'canceled', r.data.user);
+
+// Cron: sahkan semula langganan yang hampir tamat
+aSubs.get('2000000111').autoRenew = true; aSubs.get('2000000111').expiresDate = Date.now() + 33 * SDAY;
+d1(`UPDATE store_subscriptions SET expires_at = ${Date.now() + 3600e3}, verified_at = ${Date.now() - 7 * 3600e3} WHERE store_key = '2000000111'`);
+await cron(true); await sleep(500);
+r = await s2.j.req('GET', '/api/me');
+check('Cron store: langganan disahkan semula & dilanjutkan', nearT(r.data.user.paidUntil, Date.now() + 33 * SDAY) && r.data.user.store[0].autoRenew, r.data.user);
+aSubs.get('2000000111').revoked = true;
+d1(`UPDATE store_subscriptions SET expires_at = ${Date.now() + 3600e3}, verified_at = ${Date.now() - 7 * 3600e3} WHERE store_key = '2000000111'`);
+await cron(true); await sleep(500);
+r = await s2.j.req('GET', '/api/me');
+check('Cron store: bayaran balik (revoke) → akses ditarik', r.data.user.active === false, r.data.user);
+
+// Rekod lama (web_paid_until kosong): tempoh web tidak hilang bila store disambung
+const legacyUntil = Date.now() + 90 * SDAY;
+d1(`UPDATE users SET paid_until = ${legacyUntil}, web_paid_until = NULL WHERE id = ${id3}`);
+gSubs.set('gtok-3', gState(Date.now() + 10 * SDAY));
+r = await s3.j.req('POST', '/api/store/verify', { platform: 'google', purchaseToken: 'gtok-3' });
+check('Rekod lama: tempoh web dikekalkan bila store lebih pendek', r.status === 200 && nearT(r.data.paidUntil, legacyUntil), r.data);
+gSubs.set('gtok-3', gState(Date.now() - 1000, 'SUBSCRIPTION_STATE_EXPIRED', false, 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED'));
+await fetch(BASE + '/api/store/google/rtdn?token=' + devVars.STORE_RTDN_TOKEN, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: { data: Buffer.from(JSON.stringify({ subscriptionNotification: { purchaseToken: 'gtok-3' } })).toString('base64') } }) });
+r = await s3.j.req('GET', '/api/me');
+check('Rekod lama: selepas store tamat, tempoh web masih ada', r.data.user.active && nearT(r.data.user.paidUntil, legacyUntil), r.data.user);
+
+// Padam akaun: rekod langganan store dibuang
+r = await s1.j.req('POST', '/api/me/delete', { pin: '482913', confirm: 'PADAM' });
+const leftover = execSync(`npx wrangler d1 execute madrasah-db --local --json --command "SELECT COUNT(*) AS n FROM store_subscriptions WHERE user_id = ${id1}"`, { cwd: process.cwd() }).toString();
+check('Padam akaun: langganan store turut dibuang', r.status === 200 && /"n":\s*0/.test(leftover), { r: r.data, leftover: leftover.slice(-120) });
+storeMock.close(); storeMock2.close();
+
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');
 check('Pelajar tanpa sesi admin tak boleh lihat senarai', r.status === 401);

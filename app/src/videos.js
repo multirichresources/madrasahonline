@@ -2,6 +2,7 @@
 // Konfigurasi: var BUNNY_LIBRARY_ID, secret BUNNY_API_KEY (API key library), secret BUNNY_TOKEN_KEY (Token authentication key).
 import { now, json, fail, readJson, sha256Hex, cleanText } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
+import { webBase, setWebUntilStmt } from './store.js';
 
 const API = 'https://video.bunnycdn.com';
 // Cadangan topik dalam borang admin (topik boleh ditaip bebas)
@@ -228,19 +229,21 @@ export async function saveProgress(env, request, id) {
 export async function adminSetSubscription(env, request, userId) {
   await requireAdmin(env, request);
   const body = await readJson(request);
-  const u = await env.DB.prepare('SELECT id, paid_until FROM users WHERE id = ?').bind(userId).first();
+  const u = await env.DB.prepare('SELECT id, paid_until, web_paid_until FROM users WHERE id = ?').bind(userId).first();
   if (!u) return fail(404, 'Pelajar tidak dijumpai.');
   let until;
   if (body.action === 'tamat') until = now() - 1000;
   else {
     const months = Number(body.months);
     if (![1, 3, 6, 12].includes(months)) return fail(400, 'Pilih 1, 3, 6 atau 12 bulan.');
-    const base = new Date(Math.max(now(), u.paid_until || 0));
+    const base = new Date(Math.max(now(), webBase(u)));
     base.setMonth(base.getMonth() + months);
     until = base.getTime();
   }
-  await env.DB.prepare('UPDATE users SET paid_until = ?, plan = COALESCE(plan, ?) WHERE id = ?').bind(until, 'manual', userId).run();
-  return json({ ok: true, paidUntil: until, active: until > now() });
+  await setWebUntilStmt(env, userId, until, 'plan = COALESCE(plan, ?)', ['manual']).run();
+  // Langganan Google Play / App Store yang masih sah tetap kekal (diurus oleh store)
+  const fresh = await env.DB.prepare('SELECT paid_until FROM users WHERE id = ?').bind(userId).first();
+  return json({ ok: true, paidUntil: fresh.paid_until, active: fresh.paid_until > now(), storeActive: fresh.paid_until > until });
 }
 
 // ---------- import video yang di-upload terus di Bunny ----------
