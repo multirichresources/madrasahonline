@@ -130,6 +130,20 @@ with sync_playwright() as p:
     pg.screenshot(path=f'{OUT}/u8-player.png', full_page=True)
     pg.click('text=Kembali'); pg.wait_for_selector('.vitem')
 
+    # rekod solat: pilih hari & tanda solat
+    pg.evaluate("""S.solat = { zone: { area: 'Kuala Lumpur' }, today: { date: myToday(), fajr: Date.now() - 3 * 3600e3, syuruk: Date.now() - 2 * 3600e3,
+      dhuhr: Date.now() - 600e3, asr: Date.now() + 3600e3, maghrib: Date.now() + 4 * 3600e3, isha: Date.now() + 5 * 3600e3 } }; S.slogDay = null; S.modal = 'waktu'; render()""")
+    pg.wait_for_selector('.slog-chip')
+    check('Rekod solat: solat belum masuk waktu dikunci', pg.locator('.slog-chip[data-v=asr]').is_disabled() and not pg.locator('.slog-chip[data-v=fajr]').is_disabled())
+    pg.click('.slog-chip[data-v=fajr]')
+    check('Rekod solat: tanda Subuh hari ini', 'on' in pg.get_attribute('.slog-chip[data-v=fajr]', 'class') and '1/5' in pg.inner_text('.slog-day.today'))
+    pg.click('.slog-day >> nth=5')
+    check('Rekod solat: hari semalam semua boleh ditanda', pg.locator('.slog-chip[disabled]').count() == 0)
+    for k in ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']: pg.click(f'.slog-chip[data-v={k}]')
+    check('Rekod solat: semalam 5/5', '5/5' in pg.inner_text('.slog-day >> nth=5') and 'full' in pg.get_attribute('.slog-day >> nth=5', 'class'))
+    pg.locator('.slog').screenshot(path=f'{OUT}/u11-rekod-solat.png')
+    pg.evaluate("S.modal = null; render()")
+
     # versi store (Google Play): tiada sumbangan, tiada bayaran CHIP
     pg.goto(BASE + '/?store=play'); pg.wait_for_selector('.homehead')
     tiles = pg.inner_text('.quick')

@@ -449,8 +449,9 @@ const SLOG = {
     Prefs.set('solatlog', JSON.stringify(Object.fromEntries(keep.map(k => [k, o[k]]))));
   },
 };
-function toggleSolat(key) {
-  const log = SLOG.get(), day = myToday(), list = new Set(log[day] || []);
+function toggleSolat(key, day = myToday()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > myToday()) return;
+  const log = SLOG.get(), list = new Set(log[day] || []);
   if (list.has(key)) list.delete(key); else { list.add(key); buzz(15); }
   log[day] = AZAN_KEYS.filter(k => list.has(k));
   SLOG.set(log);
@@ -459,7 +460,8 @@ function weekLog() {
   const log = SLOG.get(), out = [];
   for (let i = 6; i >= 0; i--) {
     const key = new Date(Date.now() - i * 864e5 + 8 * 3600e3).toISOString().slice(0, 10);
-    out.push({ key, day: dayName(new Date(key + 'T12:00:00+08:00').getDay()).slice(0, 3), n: (log[key] || []).length, today: i === 0 });
+    const dt = new Date(key + 'T12:00:00+08:00');
+    out.push({ key, day: dayName(dt.getDay()).slice(0, 3), long: `${dayName(dt.getDay())}, ${dt.getDate()} ${monthName(dt.getMonth())}`, n: (log[key] || []).length, today: i === 0 });
   }
   return out;
 }
@@ -493,6 +495,11 @@ function waktuModal() {
   const current = [...AZAN_KEYS].reverse().find(k => d[k] <= now);
   const azanOn = S.user.azan && S.user.azan.length && S.push.state === 'on';
   const done = d.date === myToday() ? (SLOG.get()[d.date] || []) : [];
+  // Hari yang dipilih dalam rekod solat (lalai: hari ini). Hari lepas boleh ditanda semua; hari ini ikut waktu yang dah masuk.
+  const week = weekLog();
+  if (!week.some(w => w.key === S.slogDay)) S.slogDay = myToday();
+  const selDay = S.slogDay, isToday = selDay === myToday(), selDone = SLOG.get()[selDay] || [];
+  const selLabel = isToday ? t('Hari ini') : week.find(w => w.key === selDay).long;
   return `<div class="solat" style="display:flex;flex-direction:column;gap:.75rem">
     <h2 style="font-size:1.25rem">${t('Waktu solat')}</h2>
     <p class="small muted">${esc(s.zone.area)}${d.hijri ? ' · ' + fmtHijri(d.hijri) : ''} · <button class="link" data-a="solatSettings" style="padding:0">${t('Tukar kawasan')}</button></p>
@@ -505,8 +512,14 @@ function waktuModal() {
       return `<button class="${cls}" data-a="sTick" data-v="${k}" ${open ? '' : 'disabled'} aria-pressed="${done.includes(k)}">${inner}<i class="pt-tick">${done.includes(k) ? QI.check : ''}</i></button>`;
     }).join('')}</div>
     <div class="slog">
-      <p class="small"><b>${t('Rekod solat')}</b> · ${t('Tekan waktu yang sudah ditunaikan.')}</p>
-      <div class="slog-week">${weekLog().map(w => `<div class="slog-day${w.today ? ' today' : ''}${w.n === 5 ? ' full' : ''}"><span>${esc(w.day)}</span><b>${w.n}/5</b></div>`).join('')}</div>
+      <p class="small"><b>${t('Rekod solat')}</b> · ${t('Pilih hari, kemudian tekan solat yang sudah ditunaikan.')}</p>
+      <div class="slog-week" role="group" aria-label="${t('Pilih hari')}">${week.map(w => `<button class="slog-day${w.today ? ' today' : ''}${w.n === 5 ? ' full' : ''}${w.key === selDay ? ' sel' : ''}" data-a="slogDay" data-v="${w.key}" aria-pressed="${w.key === selDay}"><span>${esc(w.day)}</span><b>${w.n}/5</b></button>`).join('')}</div>
+      <span class="small muted">${esc(selLabel)}</span>
+      <div class="slog-chips">${AZAN_KEYS.map(k => {
+        const on = selDone.includes(k), locked = isToday && !(d.date === selDay && d[k] && d[k] <= now);
+        return `<button class="slog-chip${on ? ' on' : ''}" data-a="sTick" data-v="${k}" data-d="${selDay}" aria-pressed="${on}" ${locked ? 'disabled' : ''}>${on ? QI.check : ''}<span>${N[k]}</span></button>`;
+      }).join('')}</div>
+      ${isToday && AZAN_KEYS.some(k => !(d[k] && d[k] <= now)) ? `<p class="muted small">${t('Solat yang belum masuk waktu belum boleh ditanda.')}</p>` : ''}
       <p class="muted small">${t('Rekod ini disimpan dalam telefon ini sahaja.')}</p>
     </div>
     ${azanOn ? `<p class="small">${I.bell} ${t('Notifikasi masuk waktu aktif ({n} waktu).', { n: S.user.azan.length })} <button class="link" data-a="solatSettings">${t('Ubah')}</button></p>`
@@ -1369,7 +1382,8 @@ document.addEventListener('click', async e => {
     case 'tbMode': TB.mode = v; TB.count = 0; TB.step = 0; TB.done = false; tbSave(); break;
     case 'tbTarget': TB.target = Number(v); TB.count = 0; tbSave(); break;
     case 'tbReset': TB.count = 0; TB.step = 0; TB.done = false; tbSave(); break;
-    case 'sTick': toggleSolat(v); break;
+    case 'sTick': toggleSolat(v, el.dataset.d || myToday()); break;
+    case 'slogDay': S.slogDay = v; break;
     case 'goQa': S.tab = 'komuniti'; S.kTab = 'soaljawab'; window.scrollTo(0, 0); loadQa(); break;
     case 'solatRetry': S.solat = null; loadSolat(); break;
     case 'qibla': openQibla(); return;

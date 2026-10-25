@@ -365,7 +365,13 @@ button.pt[disabled] { cursor: default; opacity: .6; }
 .pt-tick svg { width: 100%; height: 100%; }
 .slog { display: flex; flex-direction: column; gap: .45rem; border-top: 1px solid var(--line); padding-top: .7rem; }
 .slog-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
-.slog-day { display: flex; flex-direction: column; align-items: center; border-radius: 10px; padding: .35rem 0; background: var(--surface2); font-size: .75rem; }
+.slog-day { display: flex; flex-direction: column; align-items: center; border-radius: 10px; padding: .35rem 0; background: var(--surface2); font-size: .75rem; border: 0; font-family: inherit; color: var(--ink); cursor: pointer; user-select: none; -webkit-user-select: none; }
+.slog-day.sel { box-shadow: 0 0 0 2px var(--green); }
+.slog-chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: .3rem; }
+.slog-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem; min-height: 3.1rem; padding: .3rem .1rem; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.slog-chip svg { width: 1rem; height: 1rem; }
+.slog-chip.on { background: var(--green); border-color: var(--green); color: var(--green-ink); }
+.slog-chip[disabled] { opacity: .45; cursor: default; }
 .slog-day span { color: var(--muted); font-weight: 700; }
 .slog-day b { font-size: .9rem; font-variant-numeric: tabular-nums; }
 .slog-day.full { background: var(--green); color: var(--green-ink); }
