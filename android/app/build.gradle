@@ -55,7 +55,7 @@ android {
     namespace "com.baitalsalihin.madrasah"
     defaultConfig {
         applicationId "com.baitalsalihin.madrasah"
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 36
         // Nombor versi naik automatik ikut nombor build GitHub (VERSION_CODE)
         versionCode((System.getenv("VERSION_CODE") ?: "1") as int)
