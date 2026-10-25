@@ -131,12 +131,36 @@ function videoBars(videos) {
   </div>`;
 }
 
+// Paparan 3D (dimuat hanya bila dipilih; fail public/admin3d.js)
+A.view3d = (() => { try { return localStorage.getItem('mo-admin-3d') === '1'; } catch { return false; } })();
+let m3dLoad = null;
+const load3d = () => m3dLoad || (m3dLoad = new Promise((ok, bad) => {
+  const sc = document.createElement('script'); sc.src = '/admin3d.js'; sc.onload = ok; sc.onerror = () => { m3dLoad = null; bad(); }; document.head.appendChild(sc);
+}));
+async function sync3d() {
+  const wrap = document.getElementById('m3dWrap');
+  if (!wrap) { if (window.Madrasah3D) window.Madrasah3D.unmount(); return; }
+  try { await load3d(); } catch { wrap.innerHTML = '<p class="muted" style="padding:1rem">Paparan 3D tidak dapat dimuatkan. Cuba muat semula.</p>'; return; }
+  if (!document.body.contains(wrap) || !A.stats || !A.dash) return;
+  wrap.querySelector('.loading')?.remove();
+  const ok = window.Madrasah3D.mount(wrap, { stats: A.stats, dash: A.dash }, { dark: isDark(), onNavigate: t => openTab(t) });
+  if (!ok) { A.view3d = false; toast('Peranti ini tidak menyokong paparan 3D.'); render(); }
+}
+const viewSwitch = () => `<div class="viewsw" role="group" aria-label="Jenis paparan">
+    <button class="chip ${A.view3d ? '' : 'on'}" data-a="view3d" data-v="0" aria-pressed="${!A.view3d}">Papan pemuka</button>
+    <button class="chip ${A.view3d ? 'on' : ''}" data-a="view3d" data-v="1" aria-pressed="${A.view3d}">Paparan 3D</button>
+    ${A.view3d ? '<button class="iconbtn" data-a="m3dFull" style="margin-left:auto">Skrin penuh</button>' : ''}
+  </div>`;
+
 function tRingkasan() {
   const s = A.stats, D = A.dash;
   if (!s || !D) return '<div class="loading">Memuatkan statistik...</div>';
+  if (A.view3d) return `${viewSwitch()}
+    <div class="m3d-wrap" id="m3dWrap"><div class="loading">Memuatkan paparan 3D...</div></div>
+    <p class="muted small">Nombor sama seperti papan pemuka. Tekan bangunan atau kad untuk terus ke bahagian berkaitan.</p>`;
   const rev = D.revenue, cur = rev[rev.length - 1], prev = rev[rev.length - 2];
   const st = D.status, active = st.aktif + st.hampirTamat;
-  return `<div class="dash">
+  return `${viewSwitch()}<div class="dash">
     <div class="kpis">
       ${kpi('Pelajar aktif', active, `${st.hampirTamat} tamat dalam 7 hari`)}
       ${kpi(`Kutipan langganan · ${monthShort(cur.month)}`, rm(cur.langganan), '', delta(cur.langganan, D.prevMtd.langganan, `vs ${monthShort(prev.month)}, tempoh sama`))}
@@ -846,6 +870,7 @@ function render() {
   }
   app.innerHTML = `<div class="shell admin${A.view === 'app' ? ' wide' : ''}">${body}</div>${modal()}`;
   restoreInputs();
+  if (A.view3d || window.Madrasah3D) sync3d();
 }
 window.render = render;
 
@@ -974,6 +999,8 @@ document.addEventListener('click', async e => {
     case 'refresh': A.stats = null; A.dash = null; A.insights = null; A.payments = null; render(); loadStats(); return;
     case 'filter': A.filter = v; loadUsers(); return;
     case 'showAll': A.showAll = v; break;
+    case 'view3d': A.view3d = v === '1'; try { localStorage.setItem('mo-admin-3d', v); } catch {} break;
+    case 'm3dFull': { const w = document.getElementById('m3dWrap'); if (w && w.requestFullscreen) w.requestFullscreen().catch(() => {}); return; }
     case 'filterGo': A.filter = v; A.q = ''; openTab('pelajar'); return;
     case 'user':
       A.sel = A.users.find(u => String(u.id) === v); A.newPin = null; A.err = ''; A.modal = 'user'; A.taja = null;

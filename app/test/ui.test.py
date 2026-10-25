@@ -14,7 +14,7 @@ def check(name, cond):
     if not cond: fails.append(name)
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path='/opt/pw-browsers/chromium-1194/chrome-linux/chrome')
+    b = p.chromium.launch(executable_path='/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     pg = ctx.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
@@ -200,6 +200,17 @@ with sync_playwright() as p:
     ad.hover('.dash-a .vz-bar.s1 >> nth=-1'); ad.wait_for_timeout(150)
     check('Carta: tooltip nilai bila hover', not ad.evaluate("document.querySelector('.viz-tip').hidden") and 'RM' in ad.inner_text('.viz-tip'))
     ad.screenshot(path=f'{OUT}/a9-desktop.png', full_page=True)
+    # paparan 3D
+    ad.click('[data-a=view3d][data-v="1"]'); ad.wait_for_selector('.m3d-root canvas', timeout=20000); ad.wait_for_timeout(800)
+    check('3D: dunia madrasah dipapar dengan 6 kad', ad.locator('.m3d-card').count() == 6 and ad.inner_text('.m3d-card[data-zone=ringkasan] .m3d-cv').strip().isdigit())
+    check('3D: kad terletak dalam kotak paparan', ad.evaluate("[...document.querySelectorAll('.m3d-card')].every(c => { const r = c.getBoundingClientRect(), w = document.getElementById('m3dWrap').getBoundingClientRect(); return r.left >= w.left - 1 && r.right <= w.right + 1 && r.top >= w.top - 1; })"))
+    ad.screenshot(path=f'{OUT}/a10-3d.png')
+    ad.click('.m3d-card[data-zone=soalan]'); ad.wait_for_timeout(300)
+    check('3D: tekan Peti soalan buka tab Soalan', ad.evaluate('A.tab') == 'soalan')
+    ad.click('.adm-nav >> text=Ringkasan'); ad.wait_for_selector('.m3d-root canvas')
+    check('3D: pilihan paparan diingat', ad.evaluate('A.view3d') is True)
+    ad.click('[data-a=view3d][data-v="0"]'); ad.wait_for_selector('.kpis')
+    check('3D: kembali ke papan pemuka', ad.locator('.m3d-root').count() == 0)
     ad.set_viewport_size({'width': 390, 'height': 844})
     check('Tiada ralat JavaScript', not errs)
     if errs: print(errs)
