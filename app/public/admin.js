@@ -131,11 +131,11 @@ function videoBars(videos) {
   </div>`;
 }
 
-// Paparan 3D (dimuat hanya bila dipilih; fail public/admin3d.js)
+// Paparan 3D (dimuat hanya bila dipilih; fail public/m3d.js)
 A.view3d = (() => { try { return localStorage.getItem('mo-admin-3d') === '1'; } catch { return false; } })();
 let m3dLoad = null;
 const load3d = () => m3dLoad || (m3dLoad = new Promise((ok, bad) => {
-  const sc = document.createElement('script'); sc.src = '/admin3d.js'; sc.onload = ok; sc.onerror = () => { m3dLoad = null; bad(); }; document.head.appendChild(sc);
+  const sc = document.createElement('script'); sc.src = '/m3d.js'; sc.onload = ok; sc.onerror = () => { m3dLoad = null; bad(); }; document.head.appendChild(sc);
 }));
 async function sync3d() {
   const wrap = document.getElementById('m3dWrap');

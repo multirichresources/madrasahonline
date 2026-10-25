@@ -74,6 +74,50 @@ p { margin: 0; }
 .why-grid p { color: var(--muted); max-width: 30ch; }
 @media (max-width: 760px) { .why-grid { grid-template-columns: 1fr; gap: 1.6rem; } }
 
+/* jelajah 3D */
+.tour { background: var(--night) url("/site/pattern.svg"); color: #fff; padding: 4.5rem 0; }
+.tour-kicker { color: var(--gold); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .9rem; margin-bottom: .4rem; }
+.tour-lead { color: #d9e8e4; max-width: 52ch; margin-top: .8rem; }
+.tour-grid { display: grid; grid-template-columns: 1.55fr .9fr; gap: 1.6rem; margin-top: 2rem; align-items: stretch; }
+.tour-stage { position: relative; min-height: 520px; border-radius: 24px; overflow: hidden; border: 1px solid rgba(201, 169, 106, .35);
+  background: radial-gradient(110% 85% at 50% 18%, #17594f 0%, #0d433b 55%, #082f2a 100%); }
+.tour-stage.off { display: none; }
+.tour-load { position: absolute; inset: 0; display: grid; place-items: center; color: #b9d2cc; }
+.tour-info { display: flex; flex-direction: column; gap: 1.2rem; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .14); border-radius: 24px; padding: 1.6rem; }
+.tour-info h3 { font-family: var(--f-display); font-size: 1.8rem; margin: .35rem 0 .5rem; }
+.tour-info p { color: #d9e8e4; }
+.tour-tag { display: inline-block; color: var(--gold-ink); background: var(--gold); border-radius: 99px; padding: .15rem .7rem; font-size: .85rem; font-weight: 700; }
+.tour-more { display: inline-block; margin-top: .7rem; color: var(--gold); font-weight: 700; }
+.tour-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: auto; }
+.tour-list button { font: inherit; font-size: .95rem; font-weight: 700; color: #fff; background: transparent; border: 2px solid rgba(255, 255, 255, .3); border-radius: 99px; padding: .45rem .95rem; cursor: pointer; }
+.tour-list button:hover { border-color: var(--gold); }
+.tour-list button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+.tour-info .btn { align-self: flex-start; }
+@media (max-width: 860px) {
+  .tour-grid { grid-template-columns: 1fr; }
+  .tour-stage { min-height: 0; height: 56vh; max-height: 460px; }
+}
+/* dunia 3D (komponen dikongsi dengan panel admin) */
+.m3d-root, .m3d-root canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.m3d-ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.m3d-card { position: absolute; left: 0; top: 0; pointer-events: auto; display: flex; flex-direction: column; align-items: flex-start; padding: .45rem .75rem .5rem;
+  min-width: 7.5rem; max-width: 12rem; text-align: left; border-radius: 12px; cursor: pointer; font: inherit; color: var(--ink);
+  background: rgba(255, 252, 245, .92); border: 1px solid rgba(201, 169, 106, .6); box-shadow: 0 8px 22px rgba(0, 0, 0, .25); will-change: transform; }
+.m3d-card::after { content: ""; position: absolute; left: var(--sx, 50%); top: 100%; width: 1.5px; height: var(--stem, 10px); background: rgba(255, 255, 255, .55); pointer-events: none; }
+.m3d-card.on, .m3d-card:hover, .m3d-card:focus-visible { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold), 0 8px 22px rgba(0, 0, 0, .3); outline: none; }
+.m3d-cl { font-size: .7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.m3d-cv { font-size: 1.05rem; line-height: 1.25; }
+.m3d-card[data-zone="ringkasan"] .m3d-cv { font-family: var(--f-display); font-size: 1.35rem; }
+.m3d-cs { font-size: .75rem; color: var(--muted); }
+.m3d-hint { position: absolute; right: .8rem; top: .7rem; font-size: .78rem; color: #d9e8e4; background: rgba(0, 0, 0, .25); padding: .25rem .65rem; border-radius: 99px; }
+.m3d-live { display: none; }
+@media (max-width: 559px) {
+  .m3d-card { min-width: 0; padding: .3rem .55rem .35rem; }
+  .m3d-cs { display: none; }
+  .m3d-card:not([data-zone="ringkasan"]):not(.on) { display: none; }
+  .m3d-hint { left: .6rem; right: auto; top: .6rem; font-size: .7rem; }
+}
+
 /* fungsi */
 .features { background: var(--mint); padding: 4.5rem 0; }
 .feat { list-style: none; padding: 0; margin: 2.2rem 0 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem 3rem; }

@@ -1,6 +1,8 @@
-// Paparan 3D panel admin: "Madrasah Online" sebagai dunia 3D kecil yang boleh dipusing & ditekan.
-// Dibina jadi public/admin3d.js:  npm run build:3d
-// Guna: window.Madrasah3D.mount(bekas, data, { onNavigate(tab), dark }) · update(data, { dark }) · unmount()
+// "Madrasah Online" sebagai dunia 3D kecil yang boleh dipusing & ditekan.
+// Dipakai oleh panel admin (data langsung) dan laman web baitalsalihin.com (lawatan ciri apps).
+// Dibina jadi public/m3d.js:  npm run build:3d
+// Admin: Madrasah3D.mount(bekas, data, { onNavigate(tab), dark })
+// Laman web: Madrasah3D.mount(bekas, null, { theme: 'site', cards: {id: {label, value, sub}}, onSelect(id), live: false, people: 24, hint })
 import {
   Scene, PerspectiveCamera, WebGLRenderer, Group, Mesh, BoxGeometry, CylinderGeometry, SphereGeometry, ConeGeometry,
   CapsuleGeometry, TorusGeometry, MeshStandardMaterial, MeshBasicMaterial, AmbientLight, DirectionalLight,
@@ -9,6 +11,11 @@ import {
 } from 'three';
 
 const THEMES = {
+  site: {
+    disc: 0x14504a, discTop: 0x185a53, rim: 0xc9a96a, tick: 0x4e8a80, wall: 0xf3eee2, roof: 0xd9d0bb, dome: 0xd4a94c,
+    trim: 0x0d4b44, door: 0x0b3029, glass: 0x5cc4b0, accent: 0xc9a96a, light: 0.85, hemiSky: 0xfff4dc, hemiGround: 0x0b3d37,
+    spark: 0xe6cc8f, people: [0x5cc4b0, 0xd4a94c, 0xf3eee2, 0xe08aa8, 0x8fb3ff],
+  },
   dark: {
     disc: 0x163f47, discTop: 0x1a4a53, rim: 0x3ad6c0, tick: 0x3f8f95, wall: 0xe9e4d6, roof: 0xc9c1ad, dome: 0xd9a441,
     trim: 0x0d4b44, door: 0x10302c, glass: 0x3aa894, accent: 0xcf7a26, light: 0.75, hemiSky: 0x9fd9ff, hemiGround: 0x0b1b22,
@@ -135,13 +142,20 @@ const TARGET = { ringkasan: 'pelajar', video: 'video', pelajar: 'pelajar', sumba
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
-function buildOverlay() {
+// Tekan bangunan/kad: admin buka tab; laman web tunjuk penerangan ciri
+function activate(id) {
+  if (!S || !id) return;
+  if (S.opts.onSelect) { S.sel = id; setHover(S.hover); S.opts.onSelect(id); }
+  else if (S.opts.onNavigate) S.opts.onNavigate(TARGET[id]);
+}
+
+function buildOverlay(opts) {
   const ov = el('div', 'm3d-ov');
-  const cards = {};
+  const cards = {}, labels = { ...LABELS, ...Object.fromEntries(Object.entries(opts.cards || {}).map(([k, v]) => [k, v.label])) };
   for (const id of Object.keys(LABELS)) {
     const c = el('button', 'm3d-card'); c.type = 'button'; c.dataset.zone = id;
-    c.append(el('span', 'm3d-cl', LABELS[id]), el('b', 'm3d-cv', '–'), el('span', 'm3d-cs', ''));
-    c.addEventListener('click', () => S && S.opts.onNavigate && S.opts.onNavigate(TARGET[id]));
+    c.append(el('span', 'm3d-cl', labels[id]), el('b', 'm3d-cv', '–'), el('span', 'm3d-cs', ''));
+    c.addEventListener('click', () => activate(id));
     c.addEventListener('pointerenter', () => setHover(id)); c.addEventListener('pointerleave', () => setHover(null));
     ov.appendChild(c); cards[id] = c;
   }
@@ -153,21 +167,32 @@ function buildOverlay() {
     ['soalan', 'Soalan menunggu', 1], ['notif', 'Terima notifikasi', 1]]) {
     const r = el('div', mob ? 'm3d-row m3d-mob' : 'm3d-row'); const v = el('b', '', '–'); r.append(el('span', '', l), v); live.appendChild(r); rows[k] = v;
   }
-  ov.appendChild(live);
-  ov.appendChild(el('div', 'm3d-hint', 'Seret untuk pusing · tekan bangunan untuk buka'));
+  if (opts.live !== false) ov.appendChild(live);
+  ov.appendChild(el('div', 'm3d-hint', opts.hint || 'Seret untuk pusing · tekan bangunan untuk buka'));
   return { ov, cards, rows };
 }
 
 function setHover(id) {
   if (!S) return;
   S.hover = id;
-  for (const z of S.zones) z.group.scale.setScalar(z.id === id ? 1.06 : 1);
-  for (const [k, c] of Object.entries(S.ui.cards)) c.classList.toggle('on', k === id);
+  for (const z of S.zones) z.group.scale.setScalar(z.id === id || z.id === S.sel ? 1.06 : 1);
+  for (const [k, c] of Object.entries(S.ui.cards)) c.classList.toggle('on', k === id || k === S.sel);
   S.canvas.style.cursor = id ? 'pointer' : 'grab';
 }
 
 const rm = sen => 'RM' + (sen / 100).toLocaleString('en-MY', { maximumFractionDigits: sen % 100 ? 2 : 0 });
+// Laman web: isi kad dengan teks tetap
+function setCards(cards) {
+  for (const [id, v] of Object.entries(cards || {})) {
+    const c = S.ui.cards[id]; if (!c) continue;
+    c.children[0].textContent = v.label || ''; c.children[1].textContent = v.value || ''; c.children[2].textContent = v.sub || '';
+  }
+  const want = S.opts.people || 24;
+  if (!S.people || S.people.list.length !== want) { if (S.people) S.world.remove(S.people.g); S.people = buildPeople(S.T, want); S.world.add(S.people.g); }
+}
+
 function fill(d) {
+  if (!d) { setCards(S.opts.cards); return; }
   const st = d.dash.status, active = st.aktif + st.hampirTamat, cur = d.dash.revenue[d.dash.revenue.length - 1];
   const set = (id, v, s) => { const c = S.ui.cards[id]; c.children[1].textContent = v; c.children[2].textContent = s; };
   set('ringkasan', String(active), `${d.stats.totalUsers} berdaftar · ${st.hampirTamat} tamat ≤ 7 hari`);
@@ -190,8 +215,8 @@ function fill(d) {
   }
 }
 
-function build(dark) {
-  const T = THEMES[dark ? 'dark' : 'light'];
+function build(theme) {
+  const T = THEMES[theme] || THEMES.light;
   const scene = new Scene();
   scene.add(new HemisphereLight(T.hemiSky, T.hemiGround, 0.9 * T.light));
   scene.add(new AmbientLight(0xffffff, 0.35 * T.light));
@@ -199,7 +224,7 @@ function build(dark) {
   const { world, zones } = buildWorld(T);
   scene.add(world);
   const sp = sparkles(T); world.add(sp);
-  return { T, scene, world, zones, sp, dark };
+  return { T, scene, world, zones, sp, theme };
 }
 
 export function mount(container, data, opts = {}) {
@@ -211,15 +236,15 @@ export function mount(container, data, opts = {}) {
     renderer.outputColorSpace = SRGBColorSpace;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const root = el('div', 'm3d-root'); root.appendChild(canvas);
-    const ui = buildOverlay(); root.appendChild(ui.ov);
+    const ui = buildOverlay(opts); root.appendChild(ui.ov);
     const camera = new PerspectiveCamera(32, 1, 0.1, 200);
     S = { root, canvas, renderer, camera, ui, opts, theta: 0.6, phi: 0.62, dist: 31, drag: null, idle: 0, hover: null, people: null,
       reduce: matchMedia('(prefers-reduced-motion: reduce)').matches, ray: new Raycaster(), ptr: new Vector2(), raf: 0, last: performance.now() };
-    Object.assign(S, build(!!opts.dark));
+    Object.assign(S, build(themeOf(opts)));
     bindInput();
   }
   S.opts = opts;
-  if (!!opts.dark !== S.dark) retheme(!!opts.dark);
+  if (themeOf(opts) !== S.theme) retheme(themeOf(opts));
   container.appendChild(S.root);
   fill(data);
   resize();
@@ -229,7 +254,9 @@ export function mount(container, data, opts = {}) {
   return true;
 }
 
-export function update(data, opts = {}) { if (!S) return; if (opts.dark != null && !!opts.dark !== S.dark) retheme(!!opts.dark); fill(data); }
+const themeOf = o => o.theme || (o.dark ? 'dark' : 'light');
+export function update(data, opts = {}) { if (!S) return; Object.assign(S.opts, opts); if (themeOf(S.opts) !== S.theme) retheme(themeOf(S.opts)); fill(data); }
+export function select(id) { if (!S) return; S.sel = id; setHover(S.hover); }
 
 export function unmount() {
   if (!S) return;
@@ -238,10 +265,10 @@ export function unmount() {
   S.root.remove();
 }
 
-function retheme(dark) {
+function retheme(theme) {
   S.scene.clear?.();
   const keepPeople = S.people ? S.people.list.length : 0;
-  Object.assign(S, build(dark));
+  Object.assign(S, build(theme));
   S.people = buildPeople(S.T, keepPeople); S.world.add(S.people.g);
 }
 
@@ -257,7 +284,7 @@ function resize() {
   // skrin menegak (telefon): pandang lebih dari atas supaya tapak memenuhi ruang
   if (!S.touched) S.phi = S.camera.aspect < 1 ? 0.98 : 0.62;
   // telefon: anjak paparan ke atas supaya panel LIVE di bawah tidak menutup tapak
-  if (S.camera.aspect < 1) S.camera.setViewOffset(w, h, 0, h * 0.16, w, h); else S.camera.clearViewOffset();
+  if (S.camera.aspect < 1 && S.opts.live !== false) S.camera.setViewOffset(w, h, 0, h * 0.16, w, h); else S.camera.clearViewOffset();
   S.camera.updateProjectionMatrix();
 }
 
@@ -278,7 +305,7 @@ function bindInput() {
   });
   c.addEventListener('pointerup', e => {
     const d = S.drag; S.drag = null;
-    if (d && !d.moved) { const id = pick(); if (id && S.opts.onNavigate) S.opts.onNavigate(TARGET[id]); }
+    if (d && !d.moved) activate(pick());
   });
   c.addEventListener('pointerleave', () => { if (!S.drag) setHover(null); });
   c.addEventListener('wheel', e => { e.preventDefault(); S.zoom = Math.max(0.7, Math.min(1.35, (S.zoom || 1) * (e.deltaY > 0 ? 1.08 : 0.93))); }, { passive: false });
@@ -354,4 +381,4 @@ function placeCards() {
   }
 }
 
-window.Madrasah3D = { mount, update, unmount };
+window.Madrasah3D = { mount, update, unmount, select };
