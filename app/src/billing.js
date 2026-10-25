@@ -14,7 +14,7 @@ import { now, json, fail, readJson, cleanText, rateLimit } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
 import { notify, processJobs } from './push.js';
 import { chargeDonors } from './donations.js';
-import { webBase, setWebUntilStmt } from './store.js';
+import { webBase, setWebUntilStmt, googleReady, appleReady } from './store.js';
 
 export const CARD_METHODS = ['visa', 'mastercard', 'maestro'];
 const MAX_RENEW_FAILS = 3;
@@ -80,8 +80,9 @@ export async function adminSavePlans(env, request) {
 
 export async function publicPlans(env, request) {
   await requireUser(env, request);
-  const plans = (await getPlans(env)).filter(p => p.active).map(p => ({ id: p.id, label: p.label, months: p.months, priceSen: p.priceSen }));
-  return json({ ok: true, billingReady: billingReady(env), plans });
+  // productId = ID produk langganan dalam Play Console / App Store Connect (cth. madrasah.bulanan)
+  const plans = (await getPlans(env)).filter(p => p.active).map(p => ({ id: p.id, label: p.label, months: p.months, priceSen: p.priceSen, productId: `madrasah.${p.id}` }));
+  return json({ ok: true, billingReady: billingReady(env), storeReady: { google: googleReady(env), apple: appleReady(env) }, plans });
 }
 
 // ---------- tambah tempoh langganan (idempotent) ----------

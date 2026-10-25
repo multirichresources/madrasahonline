@@ -960,7 +960,7 @@ function tAkaun() {
         <button class="btn btn-ghost" data-a="modal" data-v="stopAuto">${t('Berhenti auto-renew')}</button>` : ''}
       ${storeSubLines(u)}
       ${!u.active ? `<button class="btn btn-primary" data-a="subscribe">${t('Langgan sekarang')}</button>`
-        : !u.autoRenew && !storeAuto(u) ? `<button class="btn btn-ghost" data-a="subscribe">${t('Sambung / tambah tempoh')}</button>` : ''}
+        : !u.autoRenew && !(u.store || []).some(s => s.autoRenew) ? `<button class="btn btn-ghost" data-a="subscribe">${t('Sambung / tambah tempoh')}</button>` : ''}
       <button class="link" data-a="history" style="align-self:flex-start">${t('Sejarah bayaran')}</button>
     </div>
     <div class="card">
@@ -1013,10 +1013,63 @@ function nav() {
   return `<nav class="nav">${miniPlayer()}<div class="nav-in">${items.map(([k, l, ic]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-label="${l}"${S.tab === k ? ' aria-current="page"' : ''}>${ic}<span>${l}</span></button>`).join('')}</div></nav>`;
 }
 
+// ---------- bayaran Google Play (apps Android, Digital Goods API dalam TWA) ----------
+const PLAY_BILLING = 'https://play.google.com/billing';
+let playSvc = null;
+async function playService() {
+  if (playSvc) return playSvc;
+  if (STORE !== 'play' || typeof window.getDigitalGoodsService !== 'function') return null;
+  try { playSvc = await window.getDigitalGoodsService(PLAY_BILLING); } catch { playSvc = null; }
+  return playSvc;
+}
+async function loadPlayPrices() {
+  const svc = await playService();
+  if (!S.plans) return;
+  if (!svc) S.plans.play = null; // bukan apps Android (cth. Chrome biasa): papar mesej "akan dibuka"
+  else try {
+    const items = await svc.getDetails(S.plans.plans.map(p => p.productId));
+    S.plans.play = Object.fromEntries(items.map(i => [i.itemId, i]));
+  } catch { S.plans.play = null; }
+  if (S.modal === 'subscribe') render();
+}
+const storePrice = v => { try { return new Intl.NumberFormat(LANG === 'en' ? 'en-MY' : 'ms-MY', { style: 'currency', currency: v.currency }).format(Number(v.value)); } catch { return `${v.currency} ${v.value}`; } };
+async function playBuy(productId) {
+  const req = new PaymentRequest([{ supportedMethods: PLAY_BILLING, data: { sku: productId } }], { total: { label: 'Total', amount: { currency: 'MYR', value: '0' } } });
+  const resp = await req.show();
+  const r = await api('POST', '/api/store/verify', { platform: 'google', purchaseToken: resp.details.purchaseToken });
+  try { await resp.complete(r.ok ? 'success' : 'fail'); } catch {}
+  return r;
+}
+async function playRestore() {
+  const svc = await playService();
+  const list = svc ? await svc.listPurchases() : [];
+  let last = null;
+  for (const p of list) { const r = await api('POST', '/api/store/verify', { platform: 'google', purchaseToken: p.purchaseToken }); if (!last || r.ok) last = r; }
+  return last || { ok: false, error: t('Tiada pembelian Google Play dijumpai untuk akaun Google di telefon ini.') };
+}
+function playSubscribe(P) {
+  const avail = P.plans.filter(p => P.play[p.productId]);
+  if (!avail.length) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2>
+    <p>${t('Langganan melalui Google Play akan dibuka tidak lama lagi.')}</p>
+    <button class="btn btn-primary" data-a="close">${t('Faham')}</button>`;
+  const plan = avail.find(p => p.id === S.pay.plan) || avail[0];
+  S.pay.plan = plan.id;
+  return `<h2 style="font-size:1.25rem">${t('Pilih pakej')}</h2>
+    <div class="vlist" role="radiogroup" aria-label="${t('Pakej')}">${avail.map(p => `<button type="button" class="opt ${p.id === plan.id ? 'on' : ''}" role="radio" aria-checked="${p.id === plan.id}" data-a="planPick" data-v="${p.id}">
+      <b>${esc(t(p.label))} · ${esc(storePrice(P.play[p.productId].price))}</b><span>${p.months === 1 ? t('Diperbaharui automatik setiap bulan') : p.months === 12 ? t('Diperbaharui automatik setiap tahun') : t('Diperbaharui automatik setiap {n} bulan', { n: p.months })}</span></button>`).join('')}</div>
+    ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
+    <button class="btn btn-primary" data-a="playBuy">${t('Langgan melalui Google Play')}</button>
+    <p class="note">${t('Bayaran diurus oleh Google Play. Batalkan bila-bila masa di Google Play → Langganan.')}</p>
+    <button class="link" data-a="playRestore" style="align-self:center">${t('Pulihkan pembelian')}</button>
+    <button class="btn btn-ghost" data-a="close">${t('Batal')}</button>`;
+}
+
 function subscribeModal() {
   const P = S.plans;
   if (!P) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2><div class="loading">${t('Memuatkan pakej...')}</div>`;
   // Versi store: bayaran melalui Google Play / App Store (disambung bila akaun store siap). Tiada CHIP di sini.
+  if (STORE === 'play' && P.storeReady && P.storeReady.google && P.play === undefined) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2><div class="loading">${t('Memuatkan pakej...')}</div>`;
+  if (STORE === 'play' && P.storeReady && P.storeReady.google && P.play) return playSubscribe(P);
   if (STORE) return `<h2 style="font-size:1.25rem">${t('Langganan')}</h2>
     ${P.plans.length ? `<div class="rows">${P.plans.map(p => `<div class="row"><b>${esc(t(p.label))}</b><span>${rm(p.priceSen)}</span></div>`).join('')}</div>` : ''}
     <p>${STORE === 'ios' ? t('Langganan melalui App Store akan dibuka tidak lama lagi.') : t('Langganan melalui Google Play akan dibuka tidak lama lagi.')}</p>
@@ -1047,7 +1100,8 @@ function subscribeModal() {
 
 async function loadPlans() {
   const r = await api('GET', '/api/plans');
-  S.plans = r.ok ? { billingReady: r.billingReady, plans: r.plans } : { billingReady: false, plans: [] };
+  S.plans = r.ok ? { billingReady: r.billingReady, storeReady: r.storeReady || {}, plans: r.plans } : { billingReady: false, storeReady: {}, plans: [] };
+  if (STORE === 'play' && S.plans.storeReady.google) { S.plans.play = undefined; loadPlayPrices(); }
   if (S.modal === 'subscribe') render();
 }
 
@@ -1311,6 +1365,17 @@ document.addEventListener('click', async e => {
       if (!r.ok) { S.err = r.error; break; }
       el.disabled = true; el.textContent = t('Membuka halaman bayaran...');
       location.href = r.checkoutUrl; return;
+    }
+    case 'playBuy': case 'playRestore': {
+      S.err = '';
+      let r;
+      try { r = await busy(el, () => (a === 'playBuy' ? playBuy(S.plans.plans.find(p => p.id === S.pay.plan).productId) : playRestore())); }
+      catch (e) { if (e && e.name === 'AbortError') return; r = { ok: false, error: t('Pembelian tidak dapat dibuat. Cuba lagi.') }; }
+      if (!r.ok) { S.err = r.error; break; }
+      const me = await api('GET', '/api/me'); if (me.ok) S.user = me.user;
+      S.modal = null; loadVideos();
+      toast(r.active ? t('Langganan aktif. Selamat belajar!') : t('Pembelian disemak, tetapi langganan tidak aktif.'));
+      break;
     }
     case 'payDone': S.modal = null; S.tab = 'video'; window.scrollTo(0, 0); loadVideos(); break;
     case 'stopAutoGo': {

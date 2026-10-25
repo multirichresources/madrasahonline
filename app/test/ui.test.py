@@ -120,6 +120,41 @@ with sync_playwright() as p:
     check('Versi store kekal selepas muat semula', pg.evaluate('STORE') == 'play')
     pg.evaluate("S.modal='subscribe'; loadPlans(); render()"); pg.wait_for_timeout(800)
     check('Versi store: langganan guna Google Play, bukan CHIP', 'Google Play' in pg.inner_text('.modal') and pg.locator('[data-a=payGo]').count() == 0)
+
+    # versi store: beli langganan melalui Google Play (Digital Goods API & API Google tiruan)
+    import threading, json as _json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from datetime import datetime, timezone, timedelta
+    class GMock(BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def _send(self, obj):
+            body = _json.dumps(obj).encode(); self.send_response(200); self.send_header('content-type', 'application/json'); self.end_headers(); self.wfile.write(body)
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get('content-length') or 0))
+            self._send({'access_token': 'g-access-ui', 'expires_in': 3600} if self.path == '/token' else {})
+        def do_GET(self):
+            if 'subscriptionsv2/tokens/ui-tok-1' not in self.path: self.send_response(404); self.end_headers(); return
+            exp = (datetime.now(timezone.utc) + timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            self._send({'subscriptionState': 'SUBSCRIPTION_STATE_ACTIVE', 'acknowledgementState': 'ACKNOWLEDGEMENT_STATE_PENDING',
+                        'lineItems': [{'productId': 'madrasah.bulanan', 'expiryTime': exp, 'autoRenewingPlan': {'autoRenewEnabled': True}}]})
+    gsrv = HTTPServer(('127.0.0.1', 8799), GMock); threading.Thread(target=gsrv.serve_forever, daemon=True).start()
+    ctx.add_init_script("""
+      window.getDigitalGoodsService = async () => ({
+        getDetails: async ids => ids.map(id => ({ itemId: id, title: 'Langganan', price: { currency: 'MYR', value: '12.90' } })),
+        listPurchases: async () => window.__buy ? [{ itemId: 'madrasah.bulanan', purchaseToken: 'ui-tok-1' }] : [],
+      });
+      window.PaymentRequest = class { constructor(m) { this.m = m; } async show() { window.__buy = this.m[0].data.sku; return { details: { purchaseToken: 'ui-tok-1' }, complete: async () => {} }; } };
+    """)
+    pg.reload(); pg.wait_for_selector('.nav')
+    pg.evaluate("S.plans=null; S.modal='subscribe'; loadPlans(); render()"); pg.wait_for_selector('[data-a=playBuy]')
+    check('Google Play: harga dari Google Play ditunjuk', '12.90' in pg.inner_text('.modal') and pg.locator('[data-a=payGo]').count() == 0)
+    pg.screenshot(path=f'{OUT}/u9-play-langgan.png')
+    pg.click('[data-a=playBuy]'); pg.wait_for_selector('.modal', state='detached')
+    check('Google Play: beli → disahkan server', pg.evaluate('window.__buy') == 'madrasah.bulanan' and '"google"' in str(pg.evaluate('JSON.stringify(S.user.store)')))
+    pg.click('nav >> text=Akaun'); pg.wait_for_selector('text=Urus di Google Play')
+    check('Google Play: Akaun tunjuk langganan Google Play', 'Langganan melalui Google Play' in pg.inner_text('.shell'))
+    pg.screenshot(path=f'{OUT}/u10-play-akaun.png', full_page=True)
+    gsrv.shutdown()
     pg.evaluate("sessionStorage.removeItem('mo-store')")
 
     check('Tiada ralat JavaScript', not errs)

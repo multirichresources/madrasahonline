@@ -474,6 +474,23 @@ window.EN_DICT = {
  "Tidak diperbaharui. Tamat pada {d}.": "Won't renew. Ends on {d}.",
  "Urus di App Store": "Manage in the App Store",
  "Urus di Google Play": "Manage in Google Play",
+ "Tiada pembelian Google Play dijumpai untuk akaun Google di telefon ini.": "No Google Play purchase was found for the Google account on this phone.",
+ "Diperbaharui automatik setiap bulan": "Renews automatically every month",
+ "Diperbaharui automatik setiap tahun": "Renews automatically every year",
+ "Diperbaharui automatik setiap {n} bulan": "Renews automatically every {n} months",
+ "Langgan melalui Google Play": "Subscribe with Google Play",
+ "Bayaran diurus oleh Google Play. Batalkan bila-bila masa di Google Play → Langganan.": "Payment is handled by Google Play. Cancel anytime in Google Play → Subscriptions.",
+ "Pulihkan pembelian": "Restore purchase",
+ "Pembelian tidak dapat dibuat. Cuba lagi.": "The purchase couldn't be completed. Please try again.",
+ "Langganan aktif. Selamat belajar!": "Your subscription is active. Happy learning!",
+ "Pembelian disemak, tetapi langganan tidak aktif.": "Purchase checked, but the subscription isn't active.",
+ "Maklumat pembelian tidak lengkap.": "The purchase details are incomplete.",
+ "Pembayaran App Store belum disambung.": "App Store payments aren't connected yet.",
+ "Pembayaran Google Play belum disambung.": "Google Play payments aren't connected yet.",
+ "Pembelian ini milik akaun lain.": "This purchase belongs to another account.",
+ "Pembelian ini sudah digunakan oleh akaun lain. Log masuk dengan akaun yang membuat pembelian.": "This purchase is already used by another account. Log in with the account that made the purchase.",
+ "Pembelian tidak dapat disahkan sekarang. Cuba lagi sebentar.": "The purchase can't be verified right now. Please try again shortly.",
+ "Pembelian tidak dijumpai. Cuba lagi atau hubungi admin.": "Purchase not found. Please try again or contact the admin.",
 };
 // Mesej ralat server yang mengandungi nombor
 window.EN_PATTERNS = [

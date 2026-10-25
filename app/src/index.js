@@ -206,6 +206,17 @@ async function adminUsers(env, request) {
   return json({ ok: true, users: results.map(u => ({ ...publicUser(u), createdAt: u.created_at })) });
 }
 
+// Digital Asset Links: sahkan apps Android (TWA) milik laman ini, supaya apps dibuka tanpa bar alamat.
+// ANDROID_CERT_SHA256 = cap jari SHA-256 kunci Play App Signing (+ kunci upload), dipisah koma.
+function assetLinks(env) {
+  const prints = String(env.ANDROID_CERT_SHA256 || '').split(',').map(s => s.trim().toUpperCase()).filter(s => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(s));
+  const body = env.GOOGLE_PLAY_PACKAGE && prints.length ? [{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: { namespace: 'android_app', package_name: env.GOOGLE_PLAY_PACKAGE, sha256_cert_fingerprints: prints },
+  }] : [];
+  return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', 'access-control-allow-origin': '*' } });
+}
+
 const SERVER_CALLBACKS = ['/api/pay/callback', '/api/internal/push', '/api/store/google/rtdn', '/api/store/apple/notify'];
 
 async function handle(request, env, ctx) {
@@ -217,6 +228,7 @@ async function handle(request, env, ctx) {
   }
   // Laman web syarikat (cth. baitalsalihin.com): halaman utama ialah /site/, selebihnya (/sumbang, /terma, ...) dikongsi dengan app
   if (url.pathname === '/' && siteHost(env, url.hostname)) return env.ASSETS.fetch(new Request(new URL('/site/', url), request));
+  if (url.pathname === '/.well-known/assetlinks.json') return assetLinks(env);
   if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
   try {

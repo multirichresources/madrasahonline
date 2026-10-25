@@ -932,6 +932,10 @@ r = await s1.j.req('POST', '/api/me/delete', { pin: '482913', confirm: 'PADAM' }
 const leftover = execSync(`npx wrangler d1 execute madrasah-db --local --json --command "SELECT COUNT(*) AS n FROM store_subscriptions WHERE user_id = ${id1}"`, { cwd: process.cwd() }).toString();
 check('Padam akaun: langganan store turut dibuang', r.status === 200 && /"n":\s*0/.test(leftover), { r: r.data, leftover: leftover.slice(-120) });
 storeMock.close(); storeMock2.close();
+h = await fetch(BASE + '/.well-known/assetlinks.json');
+check('assetlinks.json: JSON sah (kosong selagi cap jari belum diisi)', h.status === 200 && /application\/json/.test(h.headers.get('content-type')) && JSON.stringify(await h.json()) === '[]');
+r = await s2.j.req('GET', '/api/plans');
+check('Pakej: ID produk store & status store dihantar', r.data.plans[0].productId === 'madrasah.bulanan' && r.data.storeReady.google === true && r.data.storeReady.apple === true, r.data);
 
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');

@@ -1,0 +1,66 @@
+# Bina fail apps Android (AAB) untuk Google Play.
+# Jalankan dari tab Actions → "Bina apps Android" → Run workflow, atau automatik bila folder android/ berubah.
+# Kunci upload disimpan dalam GitHub Secrets (repo ini awam — JANGAN letak fail .jks dalam repo):
+#   ANDROID_KEYSTORE_BASE64   fail upload-key.jks dalam bentuk base64
+#   ANDROID_KEYSTORE_PASSWORD kata laluan keystore
+#   ANDROID_KEY_PASSWORD      kata laluan kunci (jika berbeza; jika tidak, guna yang sama)
+name: Bina apps Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Sediakan kunci upload
+        id: key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/upload-key.jks"
+            echo "path=$RUNNER_TEMP/upload-key.jks" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Tiada kunci upload (ANDROID_KEYSTORE_BASE64). Fail AAB dibina tanpa tandatangan — tak boleh upload ke Play Console."
+          fi
+
+      - name: Bina AAB
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PATH: ${{ steps.key.outputs.path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: chmod +x gradlew && ./gradlew --no-daemon bundleRelease
+
+      - name: Cap jari SHA-256 kunci upload (untuk ANDROID_CERT_SHA256)
+        if: steps.key.outputs.path != ''
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: keytool -list -v -keystore "${{ steps.key.outputs.path }}" -storepass "$ANDROID_KEYSTORE_PASSWORD" | grep "SHA256:" || true
+
+      - name: Buang kunci
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-key.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: madrasah-online-aab-${{ github.run_number }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 14
