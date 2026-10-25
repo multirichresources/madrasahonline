@@ -103,11 +103,29 @@ with sync_playwright() as p:
     check('Status pelajar jadi Aktif', 'Aktif hingga' in pg.inner_text('.shell'))
     pg.click('nav >> text=Video'); pg.wait_for_selector('.vitem')
     pg.screenshot(path=f'{OUT}/u7-videolist.png')
+    # player.js Bunny tiruan (rekod arahan dari butang kawalan)
+    FAKE_PJ = """window.__pj = [];
+      window.playerjs = { Player: function () { const h = {}; this.on = (ev, fn) => { (h[ev] = h[ev] || []).push(fn); if (ev === 'ready') setTimeout(fn, 30); };
+        this.supports = () => true; this.setCurrentTime = s => __pj.push(['seek', s]); this.getCurrentTime = cb => cb(100); this.play = () => __pj.push(['play']);
+        this.setPlaybackRate = r => __pj.push(['rate', r]); this.getPlaybackRate = cb => cb(1); window.__pjFire = (ev, d) => (h[ev] || []).forEach(f => f(d)); } };"""
+    pg.route('https://assets.mediadelivery.net/playerjs/**', lambda route: route.fulfill(status=200, content_type='application/javascript', body=FAKE_PJ))
+    pg.route('https://player.mediadelivery.net/**', lambda route: route.fulfill(status=200, content_type='text/html', body='<html><body style="margin:0;background:#111"></body></html>'))
     pg.click('.vitem >> nth=0'); pg.wait_for_selector('#vframe')
     src = pg.get_attribute('#vframe', 'src')
     check('Pemain video guna pautan Bunny', 'player.mediadelivery.net/embed/784074/' in src)
     check('Watermark nama pelajar', 'Rohana Ismail' in pg.inner_text('.wm-name'))
-    pg.screenshot(path=f'{OUT}/u8-player.png')
+    pg.wait_for_function('S.playing && S.playing.ready')
+    check('Bab dalam video dipaparkan', pg.locator('.chap').count() == 3 and 'Hukum nun mati' in pg.inner_text('.chaps'))
+    pg.click('[data-a=vBack10]'); pg.wait_for_timeout(100)
+    check('Butang 10 saat: undur 10 saat & main', ['seek', 90] in pg.evaluate('__pj') and ['play'] in pg.evaluate('__pj'))
+    pg.click('[data-a=vSpeed][data-v="0.75"]')
+    check('Butang Perlahan: kelajuan 0.75x', ['rate', 0.75] in pg.evaluate('__pj') and 'on' in pg.get_attribute('[data-a=vSpeed][data-v="0.75"]', 'class'))
+    pg.click('.chap >> nth=1'); pg.wait_for_timeout(100)
+    check('Tekan bab: lompat ke masa bab', ['seek', 42] in pg.evaluate('__pj'))
+    pg.evaluate("__pjFire('timeupdate', { seconds: 95, duration: 300 })")
+    check('Bab semasa ditanda ikut masa video', 'now' in pg.get_attribute('.chap >> nth=2', 'class') and 'now' not in pg.get_attribute('.chap >> nth=1', 'class'))
+    pg.evaluate('window.scrollTo(0, 0)')
+    pg.screenshot(path=f'{OUT}/u8-player.png', full_page=True)
     pg.click('text=Kembali'); pg.wait_for_selector('.vitem')
 
     # versi store (Google Play): tiada sumbangan, tiada bayaran CHIP

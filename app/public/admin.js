@@ -174,7 +174,7 @@ function videoRow(v) {
     : `<span class="pill warn">${esc(v.statusLabel)}${v.progress ? ' ' + v.progress + '%' : ''}</span>`;
   return `<div class="q">
     <div class="top" style="align-items:flex-start"><div style="min-width:0"><b>${esc(v.title)}</b>
-      <p class="muted small">${[vMeta(v) ? esc(vMeta(v)) : 'Tiada kategori', v.classMonth ? monthLabel(v.classMonth) : '', v.minutes ? v.minutes + ' minit' : ''].filter(Boolean).join(' · ')}</p></div>${pill}</div>
+      <p class="muted small">${[vMeta(v) ? esc(vMeta(v)) : 'Tiada kategori', v.classMonth ? monthLabel(v.classMonth) : '', v.minutes ? v.minutes + ' minit' : '', v.chapterCount ? v.chapterCount + ' bab' : ''].filter(Boolean).join(' · ')}</p></div>${pill}</div>
     <div class="btn-row">
       ${v.ready ? `<button class="btn ${v.published ? 'btn-ghost' : 'btn-primary'}" data-a="vPublish" data-v="${v.id}">${v.published ? 'Sembunyikan' : 'Terbitkan'}</button>` : ''}
       <button class="btn btn-ghost" data-a="vEdit" data-v="${v.id}">Edit</button>
@@ -707,6 +707,9 @@ function modal() {
       ${catTopicFields('e', v)}
       <label class="f" for="eArabic">Label Arab <span class="muted small">(pilihan)</span><input class="input" id="eArabic" dir="rtl" maxlength="40" value="${esc(v.arabicLabel || '')}" style="font-family:var(--f-ar);font-size:1.2rem"></label>
       <label class="f" for="eMonth">Bulan kelas<input class="input" id="eMonth" type="month" value="${esc(v.classMonth || '')}"></label>
+      <label class="f" for="eChap">Bab dalam video <span class="muted small">(pilihan · satu bab sebaris: masa, kemudian tajuk)</span>
+        <textarea class="input" id="eChap" rows="6" maxlength="5000" placeholder="00:00 Pengenalan&#10;05:30 Hukum mad asli&#10;18:45 Latihan bacaan bersama">${esc(v.chaptersText || '')}</textarea></label>
+      <p class="muted small">Pelajar boleh tekan bab untuk terus lompat ke bahagian itu. Masa ikut video, cth. 05:30 atau 1:05:30.</p>
       <p class="muted small">Perubahan terus dilihat pelajar. Fail video tidak berubah.</p>
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-primary" type="submit">Simpan</button>
@@ -957,7 +960,7 @@ document.addEventListener('click', async e => {
       A.vmeta.categories = r.categories; A.videos = A.videos.map(x => String(x.categoryId) === v ? { ...x, categoryId: null } : x);
       A.modal = null; toast('Kategori dipadam. Videonya kekal tanpa kategori.'); break;
     }
-    case 'vEdit': A.editVideo = A.videos.find(x => String(x.id) === v); forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth'); A.err = ''; A.modal = 'vedit'; break;
+    case 'vEdit': A.editVideo = A.videos.find(x => String(x.id) === v); forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth', 'eChap'); A.err = ''; A.modal = 'vedit'; break;
     case 'vDelete': A.delVideo = A.videos.find(x => String(x.id) === v); A.modal = 'vdelete'; A.err = ''; break;
     case 'vDeleteGo': {
       const r = await busy(el, () => api('POST', `/api/admin/videos/${A.delVideo.id}/delete`, {}));
@@ -1072,10 +1075,10 @@ document.addEventListener('submit', async e => {
   }
   if (f.id === 'fVEdit') {
     const id = A.editVideo.id;
-    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), categoryId: val('eCat'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth') }));
+    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), categoryId: val('eCat'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth'), chapters: val('eChap') }));
     if (r.status === 401) return toLogin();
     if (!r.ok) { A.err = r.error; render(); return; }
-    forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth');
+    forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth', 'eChap');
     A.videos = A.videos.map(x => x.id === id ? r.video : x); A.modal = null; A.err = '';
     toast('Video dikemas kini.');
   }

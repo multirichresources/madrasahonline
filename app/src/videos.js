@@ -66,12 +66,40 @@ async function listCategories(env) {
   return results.map(catShape);
 }
 
+// ---------- bab dalam video ----------
+// Admin taip satu bab sebaris: "05:30 Hukum mad" (atau 1:05:30). Disimpan sebagai JSON [{s, title}].
+const MAX_CHAPTERS = 50;
+export const fmtTime = s => {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60, p = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
+};
+export function parseChapters(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim());
+  const list = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i]) continue;
+    const m = lines[i].match(/^(?:(\d{1,2}):)?(\d{1,3}):(\d{2})\s*[-–—.:)]?\s*(.*)$/);
+    if (!m) return { error: `Bab baris ${i + 1}: mula dengan masa, cth. "05:30 Hukum mad".` };
+    const [, h, mm, ss, rest] = m;
+    if (Number(ss) > 59 || (h && Number(mm) > 59)) return { error: `Bab baris ${i + 1}: masa tidak sah.` };
+    const title = cleanText(rest, 80);
+    if (!title) return { error: `Bab baris ${i + 1}: tulis tajuk bab selepas masa.` };
+    list.push({ s: Number(h || 0) * 3600 + Number(mm) * 60 + Number(ss), title });
+  }
+  if (list.length > MAX_CHAPTERS) return { error: `Maksimum ${MAX_CHAPTERS} bab untuk satu video.` };
+  list.sort((a, b) => a.s - b.s);
+  return { list };
+}
+const readChapters = v => { try { const a = JSON.parse(v.chapters || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+
 function adminVideo(v) {
+  const chapters = readChapters(v);
   return {
     id: v.id, title: v.title, topic: v.topic || '', categoryId: v.category_id || null, arabicLabel: v.arabic_label || '', classMonth: v.class_month || '',
     minutes: v.minutes, published: !!v.published, bunnyId: v.bunny_id,
     status: v.bunny_status ?? 0, statusLabel: STATUS_LABEL[v.bunny_status ?? 0] || 'Diproses', progress: v.encode_progress ?? 0,
     ready: v.bunny_status === 4, thumbUrl: v.thumb_url || null, createdAt: v.created_at,
+    chapterCount: chapters.length, chaptersText: chapters.map(c => `${fmtTime(c.s)} ${c.title}`).join('\n'),
   };
 }
 
@@ -160,8 +188,14 @@ export async function adminUpdateVideo(env, request, id) {
   if (cat === undefined) return fail(400, 'Kategori tidak dijumpai.');
   const published = body.published === undefined ? v.published : (body.published ? 1 : 0);
   if (published && v.bunny_status !== 4) return fail(400, 'Video belum siap diproses. Terbitkan selepas status "Sedia".');
-  await env.DB.prepare('UPDATE videos SET title = ?, topic = ?, category_id = ?, arabic_label = ?, class_month = ?, published = ? WHERE id = ?')
-    .bind(title, topic, cat, arabic || null, month, published, id).run();
+  let chapters = v.chapters || null;
+  if (body.chapters !== undefined) {
+    const c = parseChapters(body.chapters);
+    if (c.error) return fail(400, c.error);
+    chapters = c.list.length ? JSON.stringify(c.list) : null;
+  }
+  await env.DB.prepare('UPDATE videos SET title = ?, topic = ?, category_id = ?, arabic_label = ?, class_month = ?, published = ?, chapters = ? WHERE id = ?')
+    .bind(title, topic, cat, arabic || null, month, published, chapters, id).run();
   if (title !== v.title && v.bunny_id && bunnyReady(env)) { try { await bunny(env, 'POST', `/videos/${v.bunny_id}`, { title }); } catch (e) { console.error(e); } }
   const nv = await env.DB.prepare('SELECT * FROM videos WHERE id = ?').bind(id).first();
   return json({ ok: true, video: adminVideo(nv) });
@@ -212,7 +246,7 @@ export async function playVideo(env, request, id) {
     params.set('expires', String(expires));
   }
   const p = await env.DB.prepare('SELECT seconds FROM watch_progress WHERE user_id = ? AND video_id = ?').bind(u.id, id).first();
-  return json({ ok: true, embedUrl: `${url}?${params}`, resumeAt: p ? p.seconds : 0, watermark: u.name });
+  return json({ ok: true, embedUrl: `${url}?${params}`, resumeAt: p ? p.seconds : 0, watermark: u.name, chapters: readChapters(v) });
 }
 
 export async function saveProgress(env, request, id) {

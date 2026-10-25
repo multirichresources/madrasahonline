@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS videos (
   bunny_status  INTEGER NOT NULL DEFAULT 0,       -- 4 = sedia ditonton (status Bunny)
   encode_progress INTEGER NOT NULL DEFAULT 0,
   thumb_url     TEXT,                             -- gambar kecil dari Bunny
+  chapters      TEXT,                             -- bab dalam video: JSON [{"s": saat, "title": "..."}]
   created_at    INTEGER NOT NULL
 );
 

@@ -146,6 +146,7 @@ function statusCard() {
 // Skrin pertama ringkas: kad solat, Quick Access (6 ikon) dan SATU banner ikut keutamaan.
 // Tetapan (bahasa, tulisan, tema, install, notifikasi) ada di tab Akaun.
 const QI = {
+  replay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5v4.5H8"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>',
   zoom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="m15.5 10.5 6-3.5v10l-6-3.5z"/></svg>',
   ask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z"/><path d="M10 8a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2"/><circle cx="12" cy="13.2" r=".4" fill="currentColor"/></svg>',
@@ -829,11 +830,22 @@ function vPlayer() {
     ${P.embedUrl ? `<div class="player-frame">
         <iframe id="vframe" src="${esc(P.embedUrl)}" loading="eager" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe>
         <span class="wm-name" aria-hidden="true">Madrasah Online · ${esc(P.watermark)}</span>
+      </div>
+      <div class="vctl" role="group" aria-label="${t('Kawalan video')}">
+        <button class="vbtn" data-a="vBack10">${QI.replay}<span>${t('10 saat')}</span></button>
+        <div class="vspeed" role="group" aria-label="${t('Kelajuan')}">
+          <button class="vbtn ${P.rate === 0.75 ? '' : 'on'}" data-a="vSpeed" data-v="1" aria-pressed="${P.rate !== 0.75}">${t('Biasa')}</button>
+          <button class="vbtn ${P.rate === 0.75 ? 'on' : ''}" data-a="vSpeed" data-v="0.75" aria-pressed="${P.rate === 0.75}">${t('Perlahan')} 0.75x</button>
+        </div>
       </div>` : `<div class="player-frame"><div class="loading" style="color:#fff">${P.error ? esc(P.error) : t('Memuatkan video...')}</div></div>`}
+    ${P.chapters && P.chapters.length ? `<div class="card">
+      <span class="eyebrow">${t('Bab dalam video')}</span>
+      <div class="chaps">${P.chapters.map((c, i) => `<button class="chap ${i === chapAt(lastSeconds) ? 'now' : ''}" data-a="vChap" data-v="${c.s}" data-i="${i}"><span class="ct">${fmtChap(c.s)}</span><span class="cn">${esc(c.title)}</span></button>`).join('')}</div>
+    </div>` : ''}
     <div class="card">
       <h1 style="font-size:1.25rem">${esc(v.title)}</h1>
       <p class="muted small">${vLabel(v) ? esc(vLabel(v)) + ' · ' : ''}${t('{n} minit', { n: v.minutes })}${v.classMonth ? ' · ' + t('Kelas {m}', { m: monthLabel(v.classMonth) }) : ''}</p>
-      <p class="small">${t('Nak ikut bacaan perlahan-lahan? Tekan ikon <b>tetapan</b> dalam video, kemudian pilih kelajuan <b>0.75</b>.')}</p>
+      <p class="small">${t('Terlepas bacaan ustaz? Tekan <b>10 saat</b> untuk ulang. Nak ikut perlahan-lahan? Tekan <b>Perlahan 0.75x</b>.')}</p>
       ${P.resumeAt > 30 ? `<p class="muted small">${t('Video disambung dari tempat terakhir anda tonton.')}</p>` : ''}
     </div>
     ${askCard(v.id)}
@@ -1213,7 +1225,11 @@ function draw() {
   else body = { utama: tUtama, video: tVideo, komuniti: tKomuniti, akaun: tAkaun }[S.tab]();
   app.innerHTML = `<div class="shell">${body}</div>${S.view === 'app' ? nav() : ''}${modal()}`;
 }
-function render() { draw(); restoreInputs(); if (S.modal === 'qibla') drawCompass(); else if (Q.listening) stopCompass(); }
+function render() {
+  draw(); restoreInputs();
+  if (S.modal === 'qibla') drawCompass(); else if (Q.listening) stopCompass();
+  if (S.playing && S.playing.embedUrl && S.tab === 'video') attachPlayer();
+}
 window.render = render;
 
 // ---------- video ----------
@@ -1223,7 +1239,41 @@ async function loadVideos() {
   if (r.ok) { S.videos = r.videos; S.vcats = r.categories || []; S.continueId = r.continueId; if (!S.playing) render(); }
 }
 
-let pj = null, lastSaved = 0, lastSeconds = 0, lastDuration = 0;
+let pj = null, pjFrame = null, lastSaved = 0, lastSeconds = 0, lastDuration = 0;
+// Bab semasa (indeks bab terakhir yang masanya sudah dilepasi)
+function chapAt(sec) {
+  const c = S.playing && S.playing.chapters;
+  if (!c || !c.length) return -1;
+  let i = -1; for (let k = 0; k < c.length; k++) if (c[k].s <= sec + 0.5) i = k;
+  return i;
+}
+const fmtChap = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : fmtSec(s);
+// Kemas kini butang tanpa lukis semula (lukis semula akan memuat semula video)
+function syncPlayerUi() {
+  if (!S.playing) return;
+  const now = chapAt(lastSeconds);
+  document.querySelectorAll('.chap').forEach(b => b.classList.toggle('now', Number(b.dataset.i) === now));
+  document.querySelectorAll('[data-a=vSpeed]').forEach(b => { const on = Number(b.dataset.v) === (S.playing.rate || 1); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+}
+// Sambung player.js pada iframe video (juga selepas skrin dilukis semula)
+function attachPlayer() {
+  const frame = document.getElementById('vframe');
+  if (!frame || !window.playerjs || frame === pjFrame) return;
+  pjFrame = frame; S.playing.ready = false;
+  const p = pj = new playerjs.Player(frame);
+  p.on('ready', () => {
+    if (pj !== p || !S.playing) return;
+    S.playing.ready = true;
+    if (lastSeconds > 30) p.setCurrentTime(lastSeconds - 5);
+    if (S.playing.rate && S.playing.rate !== 1) p.setPlaybackRate(S.playing.rate);
+    else if (p.supports('method', 'getPlaybackRate')) p.getPlaybackRate(r => { if (S.playing && r) { S.playing.rate = Number(r); syncPlayerUi(); } });
+    p.on('timeupdate', d => { lastSeconds = d.seconds; lastDuration = d.duration || lastDuration; saveProgress(false); syncPlayerUi(); });
+    p.on('playbackratechange', r => { if (S.playing) { S.playing.rate = Number(r && r.playbackRate != null ? r.playbackRate : r) || 1; syncPlayerUi(); } });
+    p.on('pause', () => saveProgress(true));
+    p.on('ended', () => { lastSeconds = lastDuration || lastSeconds; saveProgress(true); });
+  });
+}
+const playerReady = () => { if (pj && S.playing && S.playing.ready) return true; toast(t('Video sedang dimuatkan. Cuba sebentar lagi.')); return false; };
 function loadPlayerJs() {
   if (window.playerjs) return Promise.resolve();
   return new Promise((ok, bad) => { const sc = document.createElement('script'); sc.src = 'https://assets.mediadelivery.net/playerjs/playerjs-latest.min.js'; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
@@ -1237,7 +1287,7 @@ async function saveProgress(force) {
 }
 async function stopPlayer() {
   if (S.playing) { await saveProgress(true); }
-  S.playing = null; pj = null; lastSeconds = 0;
+  S.playing = null; pj = null; pjFrame = null; lastSeconds = 0;
 }
 async function openVideo(id) {
   const v = S.videos.find(x => x.id === id);
@@ -1250,21 +1300,10 @@ async function openVideo(id) {
     if (r.status === 402) { S.user.active = false; S.playing = null; S.modal = 'subscribe'; if (!S.plans) loadPlans(); render(); return; }
     S.playing.error = r.error; render(); return;
   }
-  Object.assign(S.playing, { embedUrl: r.embedUrl, resumeAt: r.resumeAt, watermark: r.watermark });
+  Object.assign(S.playing, { embedUrl: r.embedUrl, resumeAt: r.resumeAt, watermark: r.watermark, chapters: r.chapters || [], rate: 1 });
   lastSeconds = r.resumeAt || 0;
   render();
-  try {
-    await loadPlayerJs();
-    const frame = document.getElementById('vframe');
-    if (!frame || !window.playerjs) return;
-    pj = new playerjs.Player(frame);
-    pj.on('ready', () => {
-      if (S.playing && S.playing.resumeAt > 30) pj.setCurrentTime(S.playing.resumeAt - 5);
-      pj.on('timeupdate', d => { lastSeconds = d.seconds; lastDuration = d.duration || lastDuration; saveProgress(false); });
-      pj.on('pause', () => saveProgress(true));
-      pj.on('ended', () => { lastSeconds = lastDuration || lastSeconds; saveProgress(true); });
-    });
-  } catch (e) { console.warn('player.js tidak dimuatkan', e); }
+  try { await loadPlayerJs(); if (S.playing) attachPlayer(); } catch (e) { console.warn('player.js tidak dimuatkan', e); }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveProgress(true); });
 
@@ -1365,6 +1404,21 @@ document.addEventListener('click', async e => {
       if (!r.ok) { S.err = r.error; break; }
       el.disabled = true; el.textContent = t('Membuka halaman bayaran...');
       location.href = r.checkoutUrl; return;
+    }
+    case 'vBack10':
+      if (!playerReady()) return;
+      pj.getCurrentTime(sec => { pj.setCurrentTime(Math.max(0, (Number(sec) || lastSeconds) - 10)); pj.play(); });
+      return;
+    case 'vSpeed': {
+      if (!playerReady()) return;
+      S.playing.rate = Number(v); pj.setPlaybackRate(S.playing.rate); syncPlayerUi();
+      return;
+    }
+    case 'vChap': {
+      if (!playerReady()) return;
+      lastSeconds = Number(v); pj.setCurrentTime(lastSeconds); pj.play(); syncPlayerUi();
+      document.querySelector('.player-frame')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
     }
     case 'playBuy': case 'playRestore': {
       S.err = '';

@@ -171,6 +171,21 @@ await ad.req('POST', `/api/admin/videos/${vid}`, { categoryId: catBQ.id, topic: 
 r = await e.req('POST', '/api/admin/video-categories', { name: 'x' });
 check('Pelajar tak boleh tambah kategori', r.status === 401);
 
+// ---- bab dalam video ----
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { chapters: '00:00 Pengenalan\nsalah tanpa masa' });
+check('Bab: baris tanpa masa ditolak (nombor baris disebut)', r.status === 400 && /baris 2/.test(r.data.error), r.data);
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { chapters: '05:70 Masa salah' });
+check('Bab: saat > 59 ditolak', r.status === 400, r.data);
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { chapters: '12:05 - Latihan bacaan\n\n00:00 Pengenalan\n1:02:03 Penutup\n3:30 Hukum nun mati' });
+check('Bab: disimpan & disusun ikut masa', r.status === 200 && r.data.video.chapterCount === 4 && r.data.video.chaptersText === '00:00 Pengenalan\n03:30 Hukum nun mati\n12:05 Latihan bacaan\n1:02:03 Penutup', r.data.video);
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { title: 'Hukum Nun Mati' });
+check('Bab: kekal bila edit medan lain', r.data.video.chapterCount === 4, r.data.video);
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Bab: dihantar kepada pelajar bersama video', r.status === 200 && r.data.chapters.length === 4 && r.data.chapters[1].s === 210 && r.data.chapters[3].s === 3723 && r.data.chapters[1].title === 'Hukum nun mati', r.data.chapters);
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { chapters: '' });
+check('Bab: boleh dikosongkan', r.data.video.chapterCount === 0, r.data.video);
+await ad.req('POST', `/api/admin/videos/${vid}`, { chapters: '00:00 Pengenalan\n00:42 Hukum nun mati\n01:30 Latihan bacaan bersama' });
+
 r = await ad.req('POST', `/api/admin/users/${rid}/subscription`, { action: 'tamat' });
 check('Admin tamatkan langganan', r.status === 200 && r.data.active === false, r.data);
 r = await e.req('GET', `/api/videos/${vid}/play`);
