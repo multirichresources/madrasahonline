@@ -52,16 +52,111 @@ function vLogin() {
   </div>`;
 }
 
-function tRingkasan() {
-  const s = A.stats;
-  if (!s) return '<div class="loading">Memuatkan statistik...</div>';
-  return `<div class="stats">
-      <div class="stat"><b>${s.activeUsers}</b><span>Pelajar aktif</span></div>
-      <div class="stat"><b>${s.totalUsers}</b><span>Jumlah berdaftar</span></div>
-      <div class="stat"><b>${rm(s.revenueThisMonthSen)}</b><span>Kutipan bulan ini</span></div>
-      <div class="stat"><b>${s.registeredNotPaid}</b><span>Daftar, belum bayar</span></div>
+// ---------- Ringkasan: command center ----------
+const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+const compactRm = sen => { const v = sen / 100; return v >= 1000 ? 'RM' + (v / 1000).toLocaleString('en-MY', { maximumFractionDigits: 1 }) + 'K' : 'RM' + Math.round(v).toLocaleString('en-MY'); };
+const monthShort = ym => MONTHS[Number(ym.slice(5, 7)) - 1];
+const monthLong = ym => monthShort(ym) + ' ' + ym.slice(0, 4);
+const dayMonth = ms => { const d = new Date(ms); return d.getDate() + ' ' + MONTHS[d.getMonth()]; };
+// Skala paksi-Y yang kemas (0, 25, 50, 75, 100 …)
+function niceMax(v) {
+  if (v <= 0) return 4;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+// Perubahan berbanding tempoh lepas (naik = baik untuk semua metrik di sini)
+function delta(now, prev, label) {
+  if (!prev && !now) return `<span class="kpi-d">Tiada perubahan ${label}</span>`;
+  if (!prev) return `<span class="kpi-d up">▲ baharu ${label}</span>`;
+  const d = Math.round((now - prev) / prev * 100);
+  return `<span class="kpi-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '•'} ${Math.abs(d)}% ${label}</span>`;
+}
+function kpi(label, value, sub, extra = '') {
+  return `<div class="kpi"><span class="kpi-l">${label}</span><b class="kpi-v">${value}</b>${sub ? `<span class="kpi-s">${sub}</span>` : ''}${extra}</div>`;
+}
+// Carta lajur (HTML, bukan gambar): series = [{key, name}], rows = [{label, tip, values: {key: n}}]
+function colChart({ title, sub, series, rows, fmt, tickFmt, labelEvery = 1 }) {
+  const max = niceMax(Math.max(0, ...rows.flatMap(r => series.map(s => r.values[s.key] || 0))));
+  const ticks = [0, .25, .5, .75, 1].map(f => f * max);
+  const last = rows.length - 1;
+  return `<figure class="card vz">
+    <figcaption class="vz-head"><span class="eyebrow">${title}</span>${sub ? `<span class="muted small">${sub}</span>` : ''}
+      ${series.length > 1 ? `<span class="vz-legend">${series.map((s, i) => `<span><i class="sw s${i + 1}"></i>${s.name}</span>`).join('')}</span>` : ''}</figcaption>
+    <div class="vz-plot">
+      <div class="vz-grid" aria-hidden="true">${ticks.map(v => `<div class="vz-tick" style="bottom:${v / max * 100}%"><span>${tickFmt(v)}</span></div>`).join('')}</div>
+      <div class="vz-cols">${rows.map((r, i) => `<div class="vz-col">
+        <div class="vz-bars">${series.map((s, k) => {
+          const v = r.values[s.key] || 0;
+          // Label nilai hanya pada lajur terkini, dan hanya untuk satu siri (elak label bertindih)
+          return `<i class="vz-bar s${k + 1}${series.length > 1 ? ' duo' : ''}" style="height:${v / max * 100}%" tabindex="0" data-tip="${esc(r.tip)}${series.length > 1 ? ' · ' + esc(s.name) : ''}" data-val="${esc(fmt(v))}">${i === last && v > 0 && series.length === 1 ? `<em class="vz-val">${fmt(v)}</em>` : ''}</i>`;
+        }).join('')}</div>
+        <span class="vz-x">${(last - i) % labelEvery === 0 ? esc(r.label) : ''}</span></div>`).join('')}</div>
     </div>
-    <div class="card">
+    <table class="sr-only"><caption>${title}</caption><tr><th>Tempoh</th>${series.map(s => `<th>${s.name}</th>`).join('')}</tr>
+      ${rows.map(r => `<tr><td>${esc(r.tip)}</td>${series.map(s => `<td>${fmt(r.values[s.key] || 0)}</td>`).join('')}</tr>`).join('')}</table>
+  </figure>`;
+}
+// Bar status pelajar (bahagian daripada keseluruhan)
+function statusBar(st, total) {
+  const parts = [['aktif', 'Aktif (lebih 7 hari)', 'st-good'], ['hampirTamat', 'Tamat ≤ 7 hari', 'st-warn'], ['tamat', 'Tamat', 'st-bad'], ['belumBayar', 'Belum bayar', 'st-none']];
+  return `<div class="card vz">
+    <div class="vz-head"><span class="eyebrow">Status pelajar</span><span class="muted small">${total} berdaftar</span></div>
+    <div class="vz-stack" role="img" aria-label="${parts.map(([k, l]) => `${l} ${st[k]}`).join(', ')}">${parts.filter(([k]) => st[k]).map(([k, l, c]) =>
+      `<i class="${c}" style="flex:${st[k]}" tabindex="0" data-tip="${l}" data-val="${st[k]} pelajar · ${pct(st[k], total)}%"></i>`).join('') || '<i class="st-empty" style="flex:1"></i>'}</div>
+    <div class="vz-keys">${parts.map(([k, l, c]) => {
+      const go = { aktif: 'aktif', tamat: 'tamat', belumBayar: 'belum-bayar' }[k];
+      const inner = `<i class="sw ${c}"></i><span>${l}</span><b>${st[k]}</b><span class="muted small">${pct(st[k], total)}%</span>`;
+      return go ? `<button class="vz-key" data-a="filterGo" data-v="${go}" title="Lihat senarai">${inner}</button>` : `<div class="vz-key">${inner}</div>`;
+    }).join('')}</div>
+  </div>`;
+}
+// Meter: satu nisbah terhadap jumlah
+function meter(label, n, of, note) {
+  const p = pct(n, of);
+  return `<div class="meter"><div class="meter-top"><span>${label}</span><b>${p}%</b></div>
+    <div class="meter-track" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}" aria-label="${label}"><i style="width:${p}%"></i></div>
+    <span class="muted small">${note}</span></div>`;
+}
+function videoBars(videos) {
+  const top = videos.slice(0, 8), max = Math.max(1, ...top.map(v => v.viewers));
+  return `<div class="card vz">
+    <div class="vz-head"><span class="eyebrow">Tontonan video</span>
+      <span class="vz-legend"><span><i class="sw s1"></i>Habis tonton</span><span><i class="sw s1-soft"></i>Belum habis</span></span></div>
+    ${top.length ? `<div class="hbars">${top.map(v => `<div class="hbar">
+      <div class="hbar-top"><span class="hbar-t">${esc(v.title)}</span><b>${v.viewers} pelajar</b></div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${v.viewers / max * 100}%">
+        ${v.finished ? `<i class="s1" style="flex:${v.finished}" tabindex="0" data-tip="${esc(v.title)} · habis tonton" data-val="${v.finished} pelajar"></i>` : ''}
+        ${v.viewers - v.finished ? `<i class="s1-soft" style="flex:${v.viewers - v.finished}" tabindex="0" data-tip="${esc(v.title)} · belum habis" data-val="${v.viewers - v.finished} pelajar"></i>` : ''}
+      </div></div></div>`).join('')}</div>` : '<p class="muted">Belum ada video diterbitkan.</p>'}
+  </div>`;
+}
+
+function tRingkasan() {
+  const s = A.stats, D = A.dash;
+  if (!s || !D) return '<div class="loading">Memuatkan statistik...</div>';
+  const rev = D.revenue, cur = rev[rev.length - 1], prev = rev[rev.length - 2];
+  const st = D.status, active = st.aktif + st.hampirTamat;
+  return `<div class="dash">
+    <div class="kpis">
+      ${kpi('Pelajar aktif', active, `${st.hampirTamat} tamat dalam 7 hari`)}
+      ${kpi(`Kutipan langganan · ${monthShort(cur.month)}`, rm(cur.langganan), '', delta(cur.langganan, D.prevMtd.langganan, `vs ${monthShort(prev.month)}, tempoh sama`))}
+      ${kpi('Pelajar baharu · 30 hari', D.newUsers30, '', delta(D.newUsers30, D.newUsersPrev30, 'vs 30 hari sebelumnya'))}
+      ${kpi(`Sumbangan · ${monthShort(cur.month)}`, rm(cur.sumbangan), '', delta(cur.sumbangan, D.prevMtd.sumbangan, `vs ${monthShort(prev.month)}, tempoh sama`))}
+      ${kpi('Soalan menunggu jawapan', s.unansweredQuestions, '', s.unansweredQuestions ? '<button class="kpi-link" data-a="tab" data-v="soalan">Jawab sekarang →</button>' : '<span class="kpi-d up">Semua dah dijawab</span>')}
+    </div>
+    <div class="dash-a">${colChart({ title: 'Kutipan 6 bulan', sub: 'Bayaran web (CHIP)', series: [{ key: 'langganan', name: 'Langganan' }, { key: 'sumbangan', name: 'Sumbangan' }],
+      rows: rev.map(r => ({ label: monthShort(r.month), tip: monthLong(r.month), values: r })), fmt: rm, tickFmt: compactRm })}</div>
+    <div class="dash-b">${colChart({ title: 'Pelajar baharu setiap minggu', sub: '12 minggu terakhir', series: [{ key: 'count', name: 'Pelajar baharu' }],
+      rows: D.weeks.map(w => ({ label: dayMonth(w.start), tip: 'Minggu ' + dayMonth(w.start), values: w })), fmt: n => String(n), tickFmt: n => String(Math.round(n * 10) / 10), labelEvery: 3 })}</div>
+    <div class="dash-c">${statusBar(st, s.totalUsers)}</div>
+    <div class="dash-d card">
+      <span class="eyebrow">Penglibatan pelajar aktif</span>
+      ${meter('Tonton video dalam 7 hari', D.watchers7, active, `${D.watchers7} daripada ${active} pelajar aktif`)}
+      ${meter('Auto-renew aktif', D.autoRenew, active, `${D.autoRenew} daripada ${active} pelajar aktif (kad atau store)`)}
+      ${meter('Notifikasi telefon dihidupkan', s.pushUsers, s.totalUsers, `${s.pushUsers} daripada ${s.totalUsers} pelajar berdaftar`)}
+    </div>
+    <div class="dash-e">${A.insights ? videoBars(A.insights.videos) : '<div class="card"><div class="loading">Memuatkan...</div></div>'}</div>
+    <div class="dash-f card">
       <span class="eyebrow">Perlu tindakan</span>
       <div class="rows">
         <div class="row"><div><b>${s.expiringIn7Days} langganan tamat dalam 7 hari</b><p class="muted small">Ingatkan mereka untuk sambung</p></div></div>
@@ -70,34 +165,32 @@ function tRingkasan() {
       </div>
     </div>
     ${insightCards()}
-    <div class="card">
-      <span class="eyebrow">Peringatan telefon</span>
-      <p><b>${s.pushUsers}</b> pelajar sudah hidupkan notifikasi. Mereka dapat peringatan sehari dan 30 minit sebelum kelas Zoom secara automatik.</p>
+    <div class="dash-btns">
+      <a class="btn btn-ghost" href="/api/admin/export/pelajar.csv" download>Muat turun senarai pelajar (Excel)</a>
+      <button class="btn btn-ghost" data-a="refresh">Muat semula</button>
     </div>
-    <a class="btn btn-ghost" href="/api/admin/export/pelajar.csv" download>Muat turun senarai pelajar (Excel)</a>
-    <button class="btn btn-ghost" data-a="refresh">Muat semula</button>`;
+  </div>`;
 }
 
 const waLink = (phone, text) => `https://wa.me/${phone}${text ? '?text=' + encodeURIComponent(text) : ''}`;
 function insightCards() {
   const d = A.insights, pays = A.payments;
-  if (!d) return '<div class="loading">Memuatkan statistik...</div>';
-  const followExp = d.expiring.map(u => `<div class="row"><div><b>${esc(u.name)}</b><p class="muted small">Tamat ${fmtDate(u.paidUntil)}</p></div>
+  if (!d) return '<div class="card dash-g"><div class="loading">Memuatkan statistik...</div></div>';
+  // Papar 5 nama dahulu; selebihnya bila tekan "Lihat semua"
+  const cut = (list, key) => A.showAll === key ? list : list.slice(0, 5);
+  const more = (list, key) => list.length > 5 && A.showAll !== key ? `<button class="link" data-a="showAll" data-v="${key}" style="align-self:flex-start">Lihat semua (${list.length})</button>` : '';
+  const followExp = cut(d.expiring, 'exp').map(u => `<div class="row"><div><b>${esc(u.name)}</b><p class="muted small">Tamat ${fmtDate(u.paidUntil)}</p></div>
       <a class="iconbtn" href="${waLink(u.wa, `Assalamualaikum ${u.name}. Langganan Madrasah Online anda akan tamat pada ${fmtDate(u.paidUntil)}. Sambung di app supaya boleh terus menonton video kelas: ${location.origin}`)}" target="_blank" rel="noopener">WhatsApp</a></div>`).join('');
-  const followIdle = d.idle.map(u => `<div class="row"><div><b>${esc(u.name)}</b><p class="muted small">${u.lastWatch ? 'Tonton terakhir ' + fmtDate(u.lastWatch) : 'Belum tonton video'}</p></div>
+  const followIdle = cut(d.idle, 'idle').map(u => `<div class="row"><div><b>${esc(u.name)}</b><p class="muted small">${u.lastWatch ? 'Tonton terakhir ' + fmtDate(u.lastWatch) : 'Belum tonton video'}</p></div>
       <a class="iconbtn" href="${waLink(u.wa, `Assalamualaikum ${u.name}. Ada rakaman kelas baharu di Madrasah Online. Jom sambung belajar: ${location.origin}`)}" target="_blank" rel="noopener">WhatsApp</a></div>`).join('');
-  return `<div class="card">
+  return `<div class="card dash-g">
       <span class="eyebrow">Perlu follow up</span>
       <p class="small"><b>${d.expiring.length}</b> langganan tamat dalam 7 hari (tanpa auto-renew)</p>
-      ${followExp ? `<div class="rows">${followExp}</div>` : ''}
+      ${followExp ? `<div class="rows">${followExp}</div>${more(d.expiring, 'exp')}` : ''}
       <p class="small"><b>${d.idle.length}</b> pelanggan tak tonton video 14 hari</p>
-      ${followIdle ? `<div class="rows">${followIdle}</div>` : ''}
+      ${followIdle ? `<div class="rows">${followIdle}</div>${more(d.idle, 'idle')}` : ''}
     </div>
-    <div class="card">
-      <span class="eyebrow">Tontonan video</span>
-      ${d.videos.length ? `<div class="rows">${d.videos.map(v => `<div class="row"><div style="min-width:0"><b>${esc(v.title)}</b><p class="muted small">${v.topic ? esc(v.topic) + ' · ' : ''}${v.finished} habis tonton</p></div><span class="pill ok">${v.viewers} pelajar</span></div>`).join('')}</div>` : '<p class="muted">Belum ada video diterbitkan.</p>'}
-    </div>
-    <div class="card">
+    <div class="card dash-h">
       <span class="eyebrow">Bayaran terkini</span>
       ${!pays ? '<p class="muted">Memuatkan...</p>' : pays.length ? `<div class="rows">${pays.slice(0, 10).map(p => `<div class="row"><div style="min-width:0"><b>${esc(p.name)}</b><p class="muted small">${fmtDate(p.paidAt)} · ${p.months || 1} bulan${p.auto ? ' · kad auto' : ''}</p></div><span class="pill ${p.status === 'completed' ? 'ok' : 'warn'}">${rm(p.amountSen)}${p.status === 'semak' ? ' · semak' : ''}</span></div>`).join('')}</div>` : '<p class="muted">Belum ada bayaran.</p>'}
     </div>`;
@@ -746,20 +839,46 @@ function render() {
     const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['doa', 'Doa'], ['zikir', 'Zikir'], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
         <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
-      <div class="tabs">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      ${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, doa: tDoa, zikir: tZikir, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}`;
+      <div class="adm">
+        <nav class="tabs adm-nav" aria-label="Menu admin">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}"${A.tab === k ? ' aria-current="page"' : ''}>${l}</button>`).join('')}</nav>
+        <main class="adm-main tab-${A.tab}">${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, doa: tDoa, zikir: tZikir, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}</main>
+      </div>`;
   }
-  app.innerHTML = `<div class="shell admin">${body}</div>${modal()}`;
+  app.innerHTML = `<div class="shell admin${A.view === 'app' ? ' wide' : ''}">${body}</div>${modal()}`;
   restoreInputs();
 }
 window.render = render;
+
+// Tooltip carta: satu kotak, ikut tetikus / fokus papan kekunci (teks guna textContent)
+const vizTip = document.createElement('div');
+vizTip.className = 'viz-tip'; vizTip.setAttribute('role', 'tooltip'); vizTip.hidden = true;
+vizTip.innerHTML = '<b></b><span></span>';
+document.body.appendChild(vizTip);
+function showTip(el, x, y) {
+  vizTip.firstChild.textContent = el.dataset.val || '';
+  vizTip.lastChild.textContent = el.dataset.tip || '';
+  vizTip.hidden = false;
+  const w = vizTip.offsetWidth, h = vizTip.offsetHeight;
+  vizTip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x - w / 2)) + 'px';
+  vizTip.style.top = Math.max(8, y - h - 12) + 'px';
+}
+document.addEventListener('pointermove', e => {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (el) showTip(el, e.clientX, e.clientY); else vizTip.hidden = true;
+});
+document.addEventListener('focusin', e => {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (!el) { vizTip.hidden = true; return; }
+  const r = el.getBoundingClientRect(); showTip(el, r.left + r.width / 2, r.top);
+});
+document.addEventListener('scroll', () => { vizTip.hidden = true; }, true);
 
 async function loadStats() {
   api('GET', '/api/admin/insights').then(x => { A.insights = x.ok ? x : { videos: [], expiring: [], idle: [] }; if (A.tab === 'ringkasan') render(); });
   api('GET', '/api/admin/payments').then(x => { A.payments = x.ok ? x.payments : []; if (A.tab === 'ringkasan') render(); });
   const r = await api('GET', '/api/admin/stats');
   if (r.status === 401) return toLogin();
-  if (r.ok) { A.stats = r.stats; A.unanswered = r.stats.unansweredQuestions; } else toast(r.error);
+  if (r.ok) { A.stats = r.stats; A.dash = r.dash; A.unanswered = r.stats.unansweredQuestions; } else toast(r.error);
   render();
 }
 async function loadUsers() {
@@ -852,8 +971,9 @@ document.addEventListener('click', async e => {
     case 'theme': toggleTheme(); render(); return;
     case 'install': doInstall(); return;
     case 'tab': openTab(v); return;
-    case 'refresh': A.stats = null; A.insights = null; A.payments = null; render(); loadStats(); return;
+    case 'refresh': A.stats = null; A.dash = null; A.insights = null; A.payments = null; render(); loadStats(); return;
     case 'filter': A.filter = v; loadUsers(); return;
+    case 'showAll': A.showAll = v; break;
     case 'filterGo': A.filter = v; A.q = ''; openTab('pelajar'); return;
     case 'user':
       A.sel = A.users.find(u => String(u.id) === v); A.newPin = null; A.err = ''; A.modal = 'user'; A.taja = null;

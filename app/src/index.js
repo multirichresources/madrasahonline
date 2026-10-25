@@ -182,7 +182,60 @@ async function adminStats(env, request) {
       unansweredQuestions: unanswered.results[0].n,
       pushUsers: pushUsers.results[0].n,
     },
+    dash: await adminDash(env, t),
   });
+}
+
+// Data untuk carta "command center" di Ringkasan (waktu Malaysia, UTC+8)
+const MYT = 8 * 3600e3;
+const mytMonth = ms => new Date(ms + MYT).toISOString().slice(0, 7);
+async function adminDash(env, t) {
+  const DAY = 864e5;
+  // 6 bulan terakhir (termasuk bulan ini)
+  const d = new Date(t + MYT); d.setUTCDate(1); d.setUTCHours(0, 0, 0, 0);
+  const months = [];
+  for (let i = 5; i >= 0; i--) { const m = new Date(d); m.setUTCMonth(d.getUTCMonth() - i); months.push(m.toISOString().slice(0, 7)); }
+  const firstMonth = new Date(d); firstMonth.setUTCMonth(d.getUTCMonth() - 5);
+  // 12 minggu terakhir, minggu bermula Isnin
+  const today = new Date(t + MYT); today.setUTCHours(0, 0, 0, 0);
+  const monday = today.getTime() - ((today.getUTCDay() + 6) % 7) * DAY - MYT;
+  const weekStarts = []; for (let i = 11; i >= 0; i--) weekStarts.push(monday - i * 7 * DAY);
+  const [pays, signups, status, auto, watchers, new30, prev30] = await env.DB.batch([
+    env.DB.prepare("SELECT purpose, amount_sen, completed_at FROM payments WHERE status = 'completed' AND completed_at >= ?").bind(firstMonth.getTime() - MYT),
+    env.DB.prepare('SELECT created_at FROM users WHERE created_at >= ?').bind(weekStarts[0]),
+    env.DB.prepare(`SELECT
+        SUM(CASE WHEN paid_until > ? THEN 1 ELSE 0 END) AS aktif,
+        SUM(CASE WHEN paid_until > ? AND paid_until <= ? THEN 1 ELSE 0 END) AS hampir,
+        SUM(CASE WHEN paid_until IS NOT NULL AND paid_until <= ? THEN 1 ELSE 0 END) AS tamat,
+        SUM(CASE WHEN paid_until IS NULL THEN 1 ELSE 0 END) AS belum
+      FROM users`).bind(t + 7 * DAY, t, t + 7 * DAY, t),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM users u WHERE u.paid_until > ? AND ((u.auto_renew = 1 AND u.chip_token IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM store_subscriptions s WHERE s.user_id = u.id AND s.auto_renew = 1 AND s.status IN ('active', 'grace')))`).bind(t),
+    env.DB.prepare('SELECT COUNT(DISTINCT w.user_id) AS n FROM watch_progress w JOIN users u ON u.id = w.user_id WHERE w.updated_at > ? AND u.paid_until > ?').bind(t - 7 * DAY, t),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE created_at > ?').bind(t - 30 * DAY),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE created_at > ? AND created_at <= ?').bind(t - 60 * DAY, t - 30 * DAY),
+  ]);
+  const revenue = months.map(m => ({ month: m, langganan: 0, sumbangan: 0 }));
+  for (const p of pays.results) {
+    const r = revenue.find(x => x.month === mytMonth(p.completed_at));
+    if (r && (p.purpose === 'langganan' || p.purpose === 'sumbangan')) r[p.purpose] += p.amount_sen;
+  }
+  // Bulan lepas pada tempoh yang sama (cth. 1–25 Sep berbanding 1–25 Okt), supaya perbandingan adil
+  const curStart = d.getTime() - MYT, prevD = new Date(d); prevD.setUTCMonth(d.getUTCMonth() - 1);
+  const prevStart = prevD.getTime() - MYT, prevEnd = Math.min(prevStart + (t - curStart), curStart);
+  const prevMtd = { langganan: 0, sumbangan: 0 };
+  for (const p of pays.results) if (p.completed_at >= prevStart && p.completed_at < prevEnd && prevMtd[p.purpose] != null) prevMtd[p.purpose] += p.amount_sen;
+  const weeks = weekStarts.map(w => ({ start: w, count: 0 }));
+  for (const u of signups.results) {
+    for (let i = weeks.length - 1; i >= 0; i--) if (u.created_at >= weeks[i].start) { weeks[i].count++; break; }
+  }
+  const st = status.results[0];
+  return {
+    revenue, prevMtd, weeks,
+    status: { aktif: st.aktif || 0, hampirTamat: st.hampir || 0, tamat: st.tamat || 0, belumBayar: st.belum || 0 },
+    autoRenew: auto.results[0].n, watchers7: watchers.results[0].n,
+    newUsers30: new30.results[0].n, newUsersPrev30: prev30.results[0].n,
+  };
 }
 
 async function adminUsers(env, request) {
