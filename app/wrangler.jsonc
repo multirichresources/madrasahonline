@@ -3,14 +3,10 @@
   "name": "madrasah-online",
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
-  // Domain rasmi: laman web syarikat di baitalsalihin.com (+ www), apps di app.baitalsalihin.com.
+  // Domain rasmi (baitalsalihin.com, www, app.baitalsalihin.com) diurus sebagai Custom Domains di dashboard Cloudflare
+  // (Workers → madrasah-online → Settings → Domains & Routes). JANGAN tambah "routes" di sini: deploy akan menimpa tetapan dashboard.
   // Alamat workers.dev kekal aktif (sandaran & ujian).
   "workers_dev": true,
-  "routes": [
-    { "pattern": "baitalsalihin.com", "custom_domain": true },
-    { "pattern": "www.baitalsalihin.com", "custom_domain": true },
-    { "pattern": "app.baitalsalihin.com", "custom_domain": true }
-  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
