@@ -3,14 +3,14 @@
   "name": "madrasah-online",
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
-  // Domain rasmi (baitalsalihin.com, www, app.baitalsalihin.com) diurus sebagai Custom Domains di dashboard Cloudflare
+  // Domain rasmi (baitalsalihin.com, www, app.baitalsalihin.com, admin.baitalsalihin.com) diurus sebagai Custom Domains di dashboard Cloudflare
   // (Workers → madrasah-online → Settings → Domains & Routes). JANGAN tambah "routes" di sini: deploy akan menimpa tetapan dashboard.
   // Alamat workers.dev kekal aktif (sandaran & ujian).
   "workers_dev": true,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/api/*", "/.well-known/*", "/terma", "/terma/", "/privasi", "/privasi/", "/bayaran-balik", "/bayaran-balik/"],
+    "run_worker_first": ["/", "/admin", "/admin.html", "/api/*", "/.well-known/*", "/terma", "/terma/", "/privasi", "/privasi/", "/bayaran-balik", "/bayaran-balik/"],
     "not_found_handling": "single-page-application"
   },
   "d1_databases": [
@@ -32,7 +32,7 @@
   // PUSH_BATCH × PUSH_FANOUT = telefon seminit. Pelan percuma: 40 × 1. Workers Paid: 500 × 4.
   // SITE_HOSTS: domain laman web syarikat (halaman utama = public/site/). APP_URL: alamat app untuk butang Daftar/Log masuk di laman web.
   "vars": { "HASH_ITERATIONS": "10000", "BUNNY_LIBRARY_ID": "784074", "PUSH_BATCH": "40", "PUSH_FANOUT": "1",
-    "SITE_HOSTS": "baitalsalihin.com,www.baitalsalihin.com", "APP_URL": "https://app.baitalsalihin.com",
+    "SITE_HOSTS": "baitalsalihin.com,www.baitalsalihin.com", "ADMIN_HOSTS": "admin.baitalsalihin.com", "APP_URL": "https://app.baitalsalihin.com",
     // Apps store: nama package Android / bundle ID iPhone; cap jari kunci Android (dari Play Console → App signing), dipisah koma
     "GOOGLE_PLAY_PACKAGE": "com.baitalsalihin.madrasah", "APPLE_BUNDLE_ID": "com.baitalsalihin.madrasah", "ANDROID_CERT_SHA256": "" }
   // Rahsia (tetapkan dengan: npx wrangler secret put NAMA):

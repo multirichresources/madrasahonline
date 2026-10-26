@@ -42,6 +42,9 @@ function secure(res) {
   return out;
 }
 
+const hostList = v => String(v || '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
+const adminHost = (env, host) => hostList(env.ADMIN_HOSTS).includes(host.toLowerCase());
+const appHost = env => { try { return new URL(env.APP_URL).hostname.toLowerCase(); } catch { return ''; } };
 const siteHost = (env, host) => String(env.SITE_HOSTS || '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean).includes(host.toLowerCase());
 
 // Lindung daripada permintaan silang laman (CSRF): POST/PUT/DELETE mesti datang dari domain sendiri.
@@ -281,6 +284,13 @@ async function handle(request, env, ctx) {
   }
   // Laman web syarikat (cth. baitalsalihin.com): halaman utama ialah /site/, selebihnya (/sumbang, /terma, ...) dikongsi dengan app
   if (url.pathname === '/' && siteHost(env, url.hostname)) return env.ASSETS.fetch(new Request(new URL('/site/', url), request));
+  // Panel admin di domain sendiri (admin.baitalsalihin.com): halaman utama terus ke /admin.
+  // /admin di domain apps & laman web dialihkan ke domain admin (workers.dev kekal sebagai sandaran).
+  if (adminHost(env, url.hostname) && url.pathname === '/') return Response.redirect(new URL('/admin', url).toString(), 302);
+  if ((url.pathname === '/admin' || url.pathname === '/admin.html') && hostList(env.ADMIN_HOSTS).length
+      && (url.hostname.toLowerCase() === appHost(env) || siteHost(env, url.hostname))) {
+    return Response.redirect(`https://${hostList(env.ADMIN_HOSTS)[0]}/admin${url.search}`, 302);
+  }
   if (url.pathname === '/.well-known/assetlinks.json') return assetLinks(env);
   if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
