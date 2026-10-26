@@ -83,6 +83,18 @@ function countdown(ms, nowMs = Date.now()) {
   return en ? `In ${days} days` : `Lagi ${days} hari`;
 }
 const legalLinks = () => { const q = LANG === 'en' ? '?lang=en' : ''; return `<nav class="legal-links" aria-label="${t('Polisi')}"><a href="/terma${q}">${t('Terma')}</a><a href="/privasi${q}">${t('Privasi')}</a><a href="/bayaran-balik${q}">${t('Bayaran Balik')}</a></nav>`; };
+// Label cara bayar ikut apa yang CHIP buka (m = { fpx, duitnow, ewallet, card } dari server; null = tak diketahui)
+const payMethodsLabel = (m, withCard) => {
+  if (!m) return null;
+  const parts = [];
+  if (m.fpx) parts.push('FPX');
+  if (m.duitnow) parts.push('DuitNow QR');
+  if (withCard && m.card) parts.push(t('kad'));
+  if (m.ewallet) parts.push('e-wallet');
+  if (!parts.length) return null;
+  if (parts.length === 1) return m.fpx ? t('FPX (perbankan online)') : parts[0];
+  return parts.slice(0, -1).join(', ') + ' ' + t('atau') + ' ' + parts[parts.length - 1];
+};
 const rm = sen => 'RM' + (sen / 100).toLocaleString('en-MY', { minimumFractionDigits: sen % 100 ? 2 : 0, maximumFractionDigits: 2 });
 
 // ---------- tetapan paparan (disimpan dalam pelayar) ----------

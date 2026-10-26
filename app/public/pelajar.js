@@ -1114,7 +1114,7 @@ function subscribeModal() {
     <span class="eyebrow">${t('Cara bayar')}</span>
     <div class="vlist" role="radiogroup" aria-label="${t('Cara bayar')}">
       ${P.cardEnabled ? `<button type="button" class="opt ${S.pay.auto ? 'on' : ''}" role="radio" aria-checked="${S.pay.auto}" data-a="payAuto" data-v="1"><b>${t('Kad debit / kredit (auto-renew)')}</b><span>${t('Dicaj automatik {every}. Tak perlu ingat tarikh. Boleh berhenti bila-bila masa.', { every })}</span></button>` : ''}
-      <button type="button" class="opt ${S.pay.auto ? '' : 'on'}" role="radio" aria-checked="${!S.pay.auto}" data-a="payAuto" data-v="0"><b>${t('FPX, DuitNow QR atau e-wallet')}</b><span>${t('Bayar sekali. Perlu bayar semula bila tamat.')}</span></button>
+      <button type="button" class="opt ${S.pay.auto ? '' : 'on'}" role="radio" aria-checked="${!S.pay.auto}" data-a="payAuto" data-v="0"><b>${esc(payMethodsLabel(P.methods, false) || t('FPX, DuitNow QR atau e-wallet'))}</b><span>${t('Bayar sekali. Perlu bayar semula bila tamat.')}</span></button>
     </div>
     ${P.cardEnabled ? '' : `<p class="muted small">${t('Bayaran kad dengan auto-renew akan dibuka tidak lama lagi.')}</p>`}
     ${S.user.active ? `<p class="muted small">${t('Tempoh baharu akan ditambah selepas {d}.', { d: fmtDate(S.user.paidUntil) })}</p>` : ''}
@@ -1127,7 +1127,7 @@ function subscribeModal() {
 
 async function loadPlans() {
   const r = await api('GET', '/api/plans');
-  S.plans = r.ok ? { billingReady: r.billingReady, cardEnabled: !!r.cardEnabled, storeReady: r.storeReady || {}, plans: r.plans } : { billingReady: false, cardEnabled: false, storeReady: {}, plans: [] };
+  S.plans = r.ok ? { billingReady: r.billingReady, cardEnabled: !!r.cardEnabled, methods: r.methods || null, storeReady: r.storeReady || {}, plans: r.plans } : { billingReady: false, cardEnabled: false, storeReady: {}, plans: [] };
   if (STORE === 'play' && S.plans.storeReady.google) { S.plans.play = undefined; loadPlayPrices(); }
   if (S.modal === 'subscribe') render();
 }

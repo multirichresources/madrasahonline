@@ -67,7 +67,7 @@ function vForm() {
       </div>
       <span class="eyebrow">${t('2. Kekerapan')}</span>
       <div class="kind-row" role="radiogroup" aria-label="${t('Kekerapan')}">
-        <button type="button" class="opt ${f.monthly ? '' : 'on'}" role="radio" aria-checked="${!f.monthly}" data-a="freq" data-v="0"${I0.cardEnabled ? '' : ' style="grid-column:1/-1"'}><b>${t('Sekali')}</b><span>${I0.cardEnabled ? t('FPX, DuitNow QR, kad atau e-wallet') : t('FPX, DuitNow QR atau e-wallet')}</span></button>
+        <button type="button" class="opt ${f.monthly ? '' : 'on'}" role="radio" aria-checked="${!f.monthly}" data-a="freq" data-v="0"${I0.cardEnabled ? '' : ' style="grid-column:1/-1"'}><b>${t('Sekali')}</b><span>${esc(payMethodsLabel(I0.methods, true) || (I0.cardEnabled ? t('FPX, DuitNow QR, kad atau e-wallet') : t('FPX, DuitNow QR atau e-wallet')))}</span></button>
         ${I0.cardEnabled ? `<button type="button" class="opt ${f.monthly ? 'on' : ''}" role="radio" aria-checked="${f.monthly}" data-a="freq" data-v="1"><b>${t('Setiap bulan')}</b><span>${t('Kad sahaja. Boleh berhenti bila-bila masa')}</span></button>` : ''}
       </div>
       ${I0.cardEnabled ? '' : `<p class="muted small">${t('Sumbangan bulanan dengan kad akan dibuka tidak lama lagi.')}</p>`}

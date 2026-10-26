@@ -447,6 +447,8 @@ mock.close();
 // ---- bayaran CHIP (servis CHIP tiruan) ----
 const chipStore = new Map(), chipCalls = [];
 let failCharge = null;
+// Cara bayar yang 'dibuka' CHIP (mula: FPX sahaja, macam akaun baru diluluskan)
+const chipPM = { all: ['fpx', 'fpx_b2b1'], rec: [], fail: false };
 const chipMock = http.createServer((req, res) => {
   let b = ''; req.on('data', d => b += d); req.on('end', () => {
     const body = b ? JSON.parse(b) : {};
@@ -454,6 +456,13 @@ const chipMock = http.createServer((req, res) => {
     const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
     if (req.headers.authorization !== 'Bearer test-secret-key') return send(401, { detail: 'unauthorized' });
     let m;
+    if (req.method === 'GET' && req.url.startsWith('/api/v1/payment_methods/')) {
+      const q = new URL(req.url, 'http://x').searchParams;
+      if (chipPM.fail) return send(500, { detail: 'down' });
+      if (q.get('brand_id') !== 'brand-test' || q.get('currency') !== 'MYR') return send(400, { message: 'bad', code: 'invalid' });
+      const list = q.get('recurring') === 'true' ? chipPM.rec : chipPM.all;
+      return send(200, { available_payment_methods: list, card_methods: list.filter(x => ['visa', 'mastercard', 'maestro'].includes(x)), names: {}, logos: {}, by_country: { any: list } });
+    }
     if (req.method === 'POST' && req.url === '/api/v1/purchases/') {
       const id = nodeCrypto.randomUUID();
       const total = body.purchase.products.reduce((a, p) => a + p.price * (p.quantity || 1), 0);
@@ -483,6 +492,8 @@ const callback = id => fetch(BASE + '/api/pay/callback', { method: 'POST', heade
 
 r = await e.req('GET', '/api/plans');
 check('Pakej: CHIP sedia, hanya Bulanan dibuka (lalai)', r.data.billingReady === true && r.data.plans.length === 1 && r.data.plans[0].priceSen === 1000, r.data);
+check('Cara bayar ikut CHIP: FPX sahaja', r.data.methods && r.data.methods.fpx === true && !r.data.methods.duitnow && !r.data.methods.ewallet && !r.data.methods.card, r.data.methods);
+check('Semakan cara bayar guna brand & secret yang betul', chipCalls.some(c => c.url.startsWith('/api/v1/payment_methods/') && c.url.includes('recurring=true') && c.auth === 'Bearer test-secret-key'));
 r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 50 }] });
 check('Harga pakej tak sah ditolak', r.status === 400, r.data);
 r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }, { id: '3bulan', active: false, label: '3 Bulan', priceSen: 3000 }] });
@@ -498,10 +509,25 @@ r = await plain0('GET', '/api/donate/info');
 check('Kad tutup: halaman sumbang tahu kad belum dibuka', r.data.cardEnabled === false, r.data);
 r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }], cardEnabled: true });
 check('Admin hidupkan bayaran kad', r.status === 200 && r.data.cardEnabled === true, r.data);
+r = await e.req('GET', '/api/plans');
+check('Suis ON tapi CHIP belum buka kad: pelajar tak nampak kad', r.data.cardEnabled === false, r.data);
+r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });
+check('Suis ON tapi CHIP belum buka kad: auto-renew ditolak', r.status === 400, r.data);
+r = await ad.req('GET', '/api/admin/plans');
+check('Admin nampak status CHIP: kad auto-renew belum dibuka', r.data.chip && r.data.chip.cardRecurring === false && r.data.chip.oneTime.fpx === true, r.data.chip);
+chipPM.all = ['fpx', 'duitnow_qr', 'razer_tng', 'razer_grabpay', 'visa', 'mastercard', 'maestro']; chipPM.rec = ['visa', 'mastercard', 'maestro'];
+r = await ad.req('GET', '/api/admin/plans?refresh=1');
+check('Semak semula: CHIP buka semua cara bayar', r.data.chip.oneTime.duitnow && r.data.chip.oneTime.ewallet && r.data.chip.oneTime.card && r.data.chip.cardRecurring === true, r.data.chip);
 r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }] });
 check('Simpan pakej tanpa suis kad: tetapan kad kekal', r.data.cardEnabled === true, r.data);
 r = await e.req('GET', '/api/plans');
-check('Pelajar nampak bayaran kad dibuka', r.data.cardEnabled === true, r.data);
+check('Pelajar nampak bayaran kad dibuka', r.data.cardEnabled === true && r.data.methods.duitnow === true, r.data);
+chipPM.fail = true;
+r = await ad.req('GET', '/api/admin/plans?refresh=1');
+check('CHIP tak menjawab: guna semakan terakhir', r.status === 200 && r.data.chip.stale === true && r.data.chip.cardRecurring === true, r.data.chip);
+chipPM.fail = false;
+r = await plain0('GET', '/api/donate/info');
+check('Halaman sumbang dapat senarai cara bayar CHIP', r.data.methods && r.data.methods.fpx && r.data.methods.card && r.data.cardEnabled === true, r.data);
 
 let me0 = (await e.req('GET', '/api/me')).data.user;
 r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });

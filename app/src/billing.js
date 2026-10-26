@@ -55,6 +55,57 @@ export async function cardEnabled(env) {
 }
 export const CARD_OFF_MSG = 'Bayaran kad belum dibuka. Sila pilih FPX, DuitNow QR atau e-wallet.';
 
+// ---------- cara bayar yang dibuka CHIP untuk brand kita ----------
+// GET /payment_methods/ (dokumentasi CHIP Collect). Disimpan 10 minit dalam settings supaya
+// tak panggil CHIP setiap kali pelajar buka skrin bayaran. Jika CHIP gagal, apps guna teks lalai.
+const METHODS_TTL = 10 * 60e3;
+const methodKind = m => /^fpx/.test(m) ? 'fpx' : /duitnow/.test(m) ? 'duitnow' : CARD_METHODS.includes(m) ? 'card'
+  : /tng|touch_?n_?go|grab|shopee|boost|ewallet|e_wallet|wechat|alipay/.test(m) ? 'ewallet' : null;
+const summarizeMethods = (list, cards) => {
+  const s = { fpx: false, duitnow: false, ewallet: false, card: false };
+  for (const m of Array.isArray(list) ? list : []) {
+    const k = Array.isArray(cards) && cards.includes(m) ? 'card' : methodKind(String(m));
+    if (k) s[k] = true;
+  }
+  return s;
+};
+async function fetchMethods(env, recurring) {
+  const q = `/payment_methods/?brand_id=${encodeURIComponent(env.CHIP_BRAND_ID)}&currency=MYR&amount=3000${recurring ? '&recurring=true' : ''}`;
+  const r = await fetch(apiBase(env) + q, { headers: { authorization: `Bearer ${env.CHIP_SECRET_KEY}`, accept: 'application/json' }, signal: AbortSignal.timeout(5000) });
+  if (!r.ok) throw new Error(`CHIP payment_methods ${r.status}`);
+  return r.json();
+}
+export async function chipMethods(env, { refresh = false } = {}) {
+  if (!billingReady(env)) return null;
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'chip_methods'").first();
+  let cached = null;
+  try { cached = row && row.value ? JSON.parse(row.value) : null; } catch {}
+  if (!refresh && cached && now() - cached.at < METHODS_TTL) return cached;
+  try {
+    const [all, rec] = await Promise.all([fetchMethods(env, false), fetchMethods(env, true)]);
+    const fresh = {
+      at: now(),
+      oneTime: summarizeMethods(all.available_payment_methods, all.card_methods),
+      cardRecurring: summarizeMethods(rec.available_payment_methods, rec.card_methods).card,
+      names: (all.available_payment_methods || []).slice(0, 40).map(m => String(m).slice(0, 40)),
+    };
+    await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('chip_methods', ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+      .bind(JSON.stringify(fresh), fresh.at).run();
+    return fresh;
+  } catch (e) {
+    console.warn('semak cara bayar CHIP', String(e));
+    return cached ? { ...cached, stale: true } : { error: true, at: now() };
+  }
+}
+// Kad dibuka kepada pelajar hanya jika suis admin ON dan CHIP tidak menyatakan kad belum aktif.
+// (Jika CHIP tak dapat disemak, ikut suis admin.)
+export const cardUsable = (on, m) => !!on && (!m || !!m.error || m.cardRecurring !== false);
+export const publicMethods = m => (m && !m.error ? m.oneTime : null);
+export async function cardOpen(env) {
+  if (!(await cardEnabled(env))) return false;
+  return cardUsable(true, await chipMethods(env));
+}
+
 export async function getPlans(env) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'plans'").first();
   if (!row || !row.value) return DEFAULT_PLANS;
@@ -66,7 +117,8 @@ export async function getPlans(env) {
 
 export async function adminGetPlans(env, request) {
   await requireAdmin(env, request);
-  return json({ ok: true, plans: await getPlans(env), billingReady: billingReady(env), cardEnabled: await cardEnabled(env) });
+  const refresh = new URL(request.url).searchParams.get('refresh') === '1';
+  return json({ ok: true, plans: await getPlans(env), billingReady: billingReady(env), cardEnabled: await cardEnabled(env), chip: await chipMethods(env, { refresh }) });
 }
 
 export async function adminSavePlans(env, request) {
@@ -92,7 +144,8 @@ export async function publicPlans(env, request) {
   await requireUser(env, request);
   // productId = ID produk langganan dalam Play Console / App Store Connect (cth. madrasah.bulanan)
   const plans = (await getPlans(env)).filter(p => p.active).map(p => ({ id: p.id, label: p.label, months: p.months, priceSen: p.priceSen, productId: `madrasah.${p.id}` }));
-  return json({ ok: true, billingReady: billingReady(env), cardEnabled: await cardEnabled(env), storeReady: { google: googleReady(env), apple: appleReady(env) }, plans });
+  const m = await chipMethods(env);
+  return json({ ok: true, billingReady: billingReady(env), cardEnabled: cardUsable(await cardEnabled(env), m), methods: publicMethods(m), storeReady: { google: googleReady(env), apple: appleReady(env) }, plans });
 }
 
 // ---------- tambah tempoh langganan (idempotent) ----------
@@ -159,7 +212,7 @@ export async function checkout(env, request) {
   const plan = (await getPlans(env)).find(p => p.id === b.planId && p.active);
   if (!plan) return fail(400, 'Sila pilih pakej.');
   const auto = !!b.auto;
-  if (auto && !(await cardEnabled(env))) return fail(400, CARD_OFF_MSG);
+  if (auto && !(await cardOpen(env))) return fail(400, CARD_OFF_MSG);
   if (auto && u.auto_renew && u.chip_token && u.paid_until > now()) return fail(400, 'Auto-renew anda sudah aktif.');
   const origin = new URL(request.url).origin;
   const t = now();

@@ -504,14 +504,34 @@ function tHebahan() {
     </div>`;
 }
 
+// Cara bayar yang CHIP buka untuk brand kita (disemak oleh server, disimpan 10 minit)
+function chipStatus() {
+  if (!A.billingReady) return '';
+  const c = A.chip;
+  const ok = c && !c.error;
+  const pill = (on, label) => `<span class="pill ${on ? 'ok' : 'warn'}">${label} ${on ? '✓' : '✗'}</span>`;
+  const row = ok
+    ? `<div class="filter-row">${pill(c.oneTime.fpx, 'FPX')}${pill(c.oneTime.duitnow, 'DuitNow QR')}${pill(c.oneTime.ewallet, 'E-wallet')}${pill(c.oneTime.card, 'Kad')}${pill(c.cardRecurring, 'Kad auto-renew')}</div>`
+    : '<p class="muted small">Tak dapat semak dengan CHIP sekarang. Apps guna teks lalai "FPX, DuitNow QR atau e-wallet".</p>';
+  const warn = A.cardEnabled && ok && !c.cardRecurring
+    ? `<div class="adminnote">${I.shield}<p><b>Suis kad ON, tetapi CHIP belum buka kad auto-renew.</b> Pelajar tidak akan nampak pilihan kad sehingga CHIP membukanya.</p></div>` : '';
+  return `<div class="q">
+      <b class="small">Cara bayar yang dibuka CHIP sekarang</b>
+      ${row}
+      <p class="muted small">Label cara bayar dalam apps dan /sumbang ikut senarai ini.${c && c.at ? ` Disemak ${fmtDate(c.at)}, ${fmtTime(c.at)}${c.stale ? ' (CHIP tak menjawab, guna semakan terakhir)' : ''}.` : ''}</p>
+      <button type="button" class="link" data-a="chipRefresh" style="align-self:flex-start">Semak semula dengan CHIP</button>
+    </div>${warn}`;
+}
+
 function plansCard() {
   if (!A.plans) return '<div class="card"><span class="eyebrow">Pakej langganan</span><p class="muted">Memuatkan...</p></div>';
   return `<form id="fPlans" class="card" novalidate>
     <span class="eyebrow">Pakej langganan</span>
     ${A.billingReady ? '<div class="ok-box">CHIP sudah disambung. Pelajar boleh membayar dalam app.</div>'
       : `<div class="adminnote">${I.shield}<p><b>CHIP belum disambung.</b> Tambah secret <b>CHIP_SECRET_KEY</b> dan <b>CHIP_BRAND_ID</b> di Cloudflare. Sebelum itu, pelajar akan nampak "Sistem bayaran sedang disiapkan".</p></div>`}
+    ${chipStatus()}
     <div class="q">
-      <label class="check" for="plCard"><input type="checkbox" id="plCard" ${A.cardEnabled ? 'checked' : ''}><span>Bayaran kad (auto-renew)<br><span class="muted small" style="font-weight:400">Hidupkan selepas CHIP meluluskan bayaran kad. Bila tutup, pelajar hanya nampak FPX, DuitNow QR dan e-wallet (bayar sekali), dan pilihan sumbangan bulanan disorok.</span></span></label>
+      <label class="check" for="plCard"><input type="checkbox" id="plCard" ${A.cardEnabled ? 'checked' : ''}><span>Bayaran kad (auto-renew)<br><span class="muted small" style="font-weight:400">Hidupkan selepas CHIP meluluskan bayaran kad. Bila tutup, pelajar hanya nampak bayar sekali (ikut cara bayar yang dibuka CHIP di atas), dan pilihan sumbangan bulanan disorok.</span></span></label>
     </div>
     <p class="muted small">Tandakan pakej yang ditawarkan. Harga baharu terpakai untuk bayaran seterusnya, termasuk auto-renew.</p>
     ${A.plans.map(p => `<div class="q">
@@ -951,10 +971,10 @@ async function loadQs() {
   if (r.ok) { A.qs = r.questions; A.unanswered = r.unanswered; } else { A.qs = []; toast(r.error); }
   render();
 }
-async function loadPlans() {
-  const r = await api('GET', '/api/admin/plans');
+async function loadPlans(refresh) {
+  const r = await api('GET', '/api/admin/plans' + (refresh ? '?refresh=1' : ''));
   if (r.status === 401) return toLogin();
-  if (r.ok) { A.plans = r.plans; A.billingReady = r.billingReady; A.cardEnabled = !!r.cardEnabled; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`])); }
+  if (r.ok) { A.plans = r.plans; A.billingReady = r.billingReady; A.cardEnabled = !!r.cardEnabled; A.chip = r.chip || null; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`])); }
   render();
 }
 async function loadOrg() {
@@ -1027,6 +1047,7 @@ document.addEventListener('click', async e => {
     case 'modal': A.modal = v; A.err = ''; break;
     case 'loadLog': loadLog(false); return;
     case 'moreLog': loadLog(true); return;
+    case 'chipRefresh': await busy(el, () => loadPlans(true)); toast('Status CHIP dikemas kini.'); return;
     case 'close': case 'backdrop': A.modal = null; A.err = ''; A.newPin = null; break;
     case 'resetPin': {
       const pin = randomPin();

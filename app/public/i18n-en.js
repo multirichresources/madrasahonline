@@ -1,6 +1,9 @@
 // Terjemahan English untuk app pelajar & halaman sumbangan. Kunci = teks asal BM.
 // Tambah terjemahan di sini setiap kali menambah t('…') baharu, kemudian jalankan: node test/i18n.test.mjs
 window.EN_DICT = {
+ "FPX (perbankan online)": "FPX (online banking)",
+ "kad": "card",
+ "atau": "or",
  "Bayaran kad belum dibuka. Sila pilih FPX, DuitNow QR atau e-wallet.": "Card payments are not open yet. Please choose FPX, DuitNow QR or e-wallet.",
  "Bayaran kad dengan auto-renew akan dibuka tidak lama lagi.": "Card payments with auto-renew will open soon.",
  "Lain-lain": "Others",
