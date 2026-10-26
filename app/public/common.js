@@ -34,7 +34,7 @@ const STORE = (() => {
 
 // ---------- bahasa (BM / EN) ----------
 // Teks asal dalam BM menjadi kunci; terjemahan EN dalam /i18n-en.js (window.EN_DICT).
-// Panel admin sentiasa BM (admin.js tetapkan LANG = 'ms').
+// Panel admin: admin.js tetapkan LANG ikut pilihan admin sendiri (mo-admin-lang), terjemahan dari /i18n-admin-en.js.
 let LANG = (() => { try { return localStorage.getItem('mo-lang') === 'en' ? 'en' : 'ms'; } catch { return 'ms'; } })();
 function t(s, vars) {
   let out = LANG === 'en' && window.EN_DICT && window.EN_DICT[s] != null ? window.EN_DICT[s] : s;

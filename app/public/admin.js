@@ -1,6 +1,51 @@
-// Panel admin Madrasah Online (sentiasa dalam BM).
-LANG = 'ms';
-document.documentElement.lang = 'ms';
+// Panel admin Madrasah Online. Bahasa: BM (lalai) atau English (pilihan setiap admin, disimpan dalam pelayar).
+// English = lapisan terjemahan ringan: kamus /i18n-admin-en.js dimuat HANYA bila EN dipilih, dan teks di skrin
+// ditukar secara automatik (kandungan yang admin taip sendiri tidak berubah kerana tiada dalam kamus).
+const ADMIN_EN = (() => { try { return localStorage.getItem('mo-admin-lang') === 'en'; } catch { return false; } })();
+LANG = ADMIN_EN ? 'en' : 'ms';
+document.documentElement.lang = LANG;
+const I18N_ATTRS = ['placeholder', 'title', 'aria-label', 'alt', 'data-tip'];
+function trS(s) {
+  const D = window.EN_ADMIN;
+  if (!D || !s) return s;
+  const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/), core = m[2];
+  if (!core || !/[A-Za-z]/.test(core)) return s;
+  if (D[core] != null) return m[1] + D[core] + m[3];
+  const nums = [];
+  const key = core.replace(/\d+(?:[.,:]\d+)*/g, x => { nums.push(x); return '{n}'; });
+  if (nums.length && D[key] != null) { let i = 0; return m[1] + D[key].replace(/\{n\}/g, () => nums[i++] ?? '') + m[3]; }
+  // teks gabungan (cth. "Kelas Zoom · Rabu, 29 Okt · dihebah ...")
+  let out = core;
+  for (const [a, b] of D._sub || []) if (out.includes(a)) out = out.split(a).join(b);
+  // corak nombor hanya untuk label pendek UI (ada '·', atau 'Tamat …'/'Aktif hingga …'), supaya teks yang admin taip tidak terusik
+  if (out.length < 90 && (out.includes('·') || /^(Tamat|Aktif hingga) /.test(out))) for (const [re, b] of D._re || []) out = out.replace(new RegExp(re, 'g'), b);
+  return out === core ? s : m[1] + out + m[3];
+}
+const SKIP_I18N = 'textarea,script,style,[data-noi18n]';
+function trTree(root) {
+  if (!root) return;
+  if (root.nodeType === 3) { if (root.parentElement && root.parentElement.closest(SKIP_I18N)) return; const v = trS(root.nodeValue); if (v !== root.nodeValue) root.nodeValue = v; return; }
+  if (root.nodeType !== 1 || root.closest(SKIP_I18N)) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, { acceptNode: n => n.nodeType === 1 && n.matches(SKIP_I18N) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  let n = root;
+  do {
+    if (n.nodeType === 3) { const v = trS(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; }
+    else for (const a of I18N_ATTRS) { const v = n.getAttribute(a); if (v) { const t2 = trS(v); if (t2 !== v) n.setAttribute(a, t2); } }
+  } while ((n = w.nextNode()));
+}
+async function loadAdminEn() {
+  await new Promise(ok => { const sc = document.createElement('script'); sc.src = '/i18n-admin-en.js'; sc.onload = ok; sc.onerror = ok; document.head.appendChild(sc); });
+  document.title = trS(document.title);
+  trTree(document.body);
+  new MutationObserver(ms => {
+    for (const m of ms) {
+      if (m.type === 'childList') m.addedNodes.forEach(trTree);
+      else if (m.type === 'characterData') trTree(m.target);
+      else if (m.type === 'attributes') { const v = m.target.getAttribute(m.attributeName); const t2 = trS(v); if (v && t2 !== v && !m.target.closest(SKIP_I18N)) m.target.setAttribute(m.attributeName, t2); }
+    }
+  }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS });
+}
+const adminLangBtn = () => `<button class="iconbtn" data-a="adminLang" data-noi18n aria-label="${ADMIN_EN ? 'Tukar ke Bahasa Melayu' : 'Switch to English'}">${ADMIN_EN ? 'BM' : 'EN'}</button>`;
 const A = { view: 'loading', tab: 'ringkasan', admin: null, err: '', stats: null, users: null, q: '', filter: 'semua', modal: null, sel: null, newPin: null, videos: null, vmeta: null, upload: null, delVideo: null, bunnyItems: null, imp: null, anns: null, annForm: null, delAnn: null, org: null, qs: null, qFilter: 'belum', unanswered: 0, editQ: null, plans: null, billingReady: false, insights: null, payments: null, don: null, taja: null };
 const blankAnn = () => ({ id: null, isClass: true, title: '', body: '', classAt: null, zoomUrl: '', membersOnly: true, notify: true });
 A.annForm = blankAnn();
@@ -17,7 +62,7 @@ function randomPin() {
   return p;
 }
 
-const brand = sub => `<div class="toolbar">${themeBtn()}</div>
+const brand = sub => `<div class="toolbar">${adminLangBtn()}${themeBtn()}</div>
   <div class="login">
     <div class="brand">
       <div class="plate"><img class="logo logo-lg" src="/logo.png" alt="Madrasah Online" width="640" height="608"></div>
@@ -282,7 +327,7 @@ function catModal() {
   </form>`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+const MONTHS = ADMIN_EN ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] : ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 const monthLabel = m => m ? MONTHS[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4) : '';
 
 function videoRow(v) {
@@ -885,7 +930,7 @@ function render() {
   else {
     const tabs = [['ringkasan', 'Ringkasan'], ['pelajar', 'Pelajar'], ['video', 'Video'], ['hebahan', 'Hebahan'], ['soalan', `Soalan${A.unanswered ? ' (' + A.unanswered + ')' : ''}`], ['doa', 'Doa'], ['zikir', 'Zikir'], ['sumbangan', 'Sumbangan'], ['tetapan', 'Tetapan']];
     body = `<div class="top"><div style="display:flex;align-items:center;gap:.7rem;min-width:0"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"><h1>Panel Admin</h1></div>
-        <div class="btn-row" style="flex:none">${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
+        <div class="btn-row" style="flex:none">${adminLangBtn()}${themeBtn()}<button class="iconbtn" data-a="logout">Keluar</button></div></div>
       <div class="adm">
         <nav class="tabs adm-nav" aria-label="Menu admin">${tabs.map(([k, l]) => `<button class="chip ${A.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}"${A.tab === k ? ' aria-current="page"' : ''}>${l}</button>`).join('')}</nav>
         <main class="adm-main tab-${A.tab}">${{ ringkasan: tRingkasan, pelajar: tPelajar, video: tVideo, hebahan: tHebahan, soalan: tSoalan, doa: tDoa, zikir: tZikir, sumbangan: tSumbangan, tetapan: tTetapan }[A.tab]()}</main>
@@ -1171,6 +1216,7 @@ document.addEventListener('click', async e => {
       A.modal = null; toast('Hebahan dipadam.');
       break;
     }
+    case 'adminLang': try { localStorage.setItem('mo-admin-lang', ADMIN_EN ? 'ms' : 'en'); } catch {} location.reload(); return;
     case 'logout': await api('POST', '/api/admin/logout', {}); toast('Anda telah log keluar.'); return toLogin();
     default: return;
   }
@@ -1314,6 +1360,7 @@ document.addEventListener('submit', async e => {
 });
 
 (async function start() {
+  if (ADMIN_EN) await loadAdminEn();
   const me = await api('GET', '/api/admin/me');
   if (me.ok) { A.admin = me.admin; A.view = 'app'; openTab('ringkasan'); return; }
   const st = await api('GET', '/api/admin/setup-status');
