@@ -1,5 +1,5 @@
 // Ujian asas aliran daftar/login/admin terhadap `wrangler dev` tempatan.
-// Jalankan: node test/auth.test.mjs  (dengan wrangler dev di port 8787)
+// Jalankan: node test/dev-config.mjs && npx wrangler dev -c wrangler.local.jsonc --local --test-scheduled --port 8787 --ip 127.0.0.1, kemudian node test/auth.test.mjs
 const BASE = process.env.BASE || 'http://127.0.0.1:8787';
 const SETUP_KEY = process.env.SETUP_KEY || 'local-setup-key-1234567890';
 let pass = 0, failCount = 0;
