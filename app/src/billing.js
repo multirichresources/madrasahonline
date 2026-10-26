@@ -47,6 +47,14 @@ const DEFAULT_PLANS = [
   { id: 'tahunan', label: 'Setahun', months: 12, priceSen: 11000, active: false },
 ];
 
+// Bayaran kad (auto-renew & sumbangan bulanan) dibuka oleh admin selepas CHIP meluluskan kad.
+// Lalai: tutup (hanya FPX / DuitNow / e-wallet). Caj auto-renew sedia ada (cron) tidak terjejas.
+export async function cardEnabled(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'card_enabled'").first();
+  return !!row && row.value === '1';
+}
+export const CARD_OFF_MSG = 'Bayaran kad belum dibuka. Sila pilih FPX, DuitNow QR atau e-wallet.';
+
 export async function getPlans(env) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'plans'").first();
   if (!row || !row.value) return DEFAULT_PLANS;
@@ -58,7 +66,7 @@ export async function getPlans(env) {
 
 export async function adminGetPlans(env, request) {
   await requireAdmin(env, request);
-  return json({ ok: true, plans: await getPlans(env), billingReady: billingReady(env) });
+  return json({ ok: true, plans: await getPlans(env), billingReady: billingReady(env), cardEnabled: await cardEnabled(env) });
 }
 
 export async function adminSavePlans(env, request) {
@@ -73,16 +81,18 @@ export async function adminSavePlans(env, request) {
     out.push({ id: d.id, label: cleanText(p.label, 30) || d.label, priceSen, active: !!p.active });
   }
   if (!out.some(p => p.active)) return fail(400, 'Sekurang-kurangnya satu pakej mesti dibuka.');
-  await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('plans', ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
-    .bind(JSON.stringify(out), now()).run();
-  return json({ ok: true, plans: await getPlans(env) });
+  const upsert = "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at";
+  const stmts = [env.DB.prepare(upsert).bind('plans', JSON.stringify(out), now())];
+  if (typeof b.cardEnabled === 'boolean') stmts.push(env.DB.prepare(upsert).bind('card_enabled', b.cardEnabled ? '1' : '0', now()));
+  await env.DB.batch(stmts);
+  return json({ ok: true, plans: await getPlans(env), cardEnabled: await cardEnabled(env) });
 }
 
 export async function publicPlans(env, request) {
   await requireUser(env, request);
   // productId = ID produk langganan dalam Play Console / App Store Connect (cth. madrasah.bulanan)
   const plans = (await getPlans(env)).filter(p => p.active).map(p => ({ id: p.id, label: p.label, months: p.months, priceSen: p.priceSen, productId: `madrasah.${p.id}` }));
-  return json({ ok: true, billingReady: billingReady(env), storeReady: { google: googleReady(env), apple: appleReady(env) }, plans });
+  return json({ ok: true, billingReady: billingReady(env), cardEnabled: await cardEnabled(env), storeReady: { google: googleReady(env), apple: appleReady(env) }, plans });
 }
 
 // ---------- tambah tempoh langganan (idempotent) ----------
@@ -149,6 +159,7 @@ export async function checkout(env, request) {
   const plan = (await getPlans(env)).find(p => p.id === b.planId && p.active);
   if (!plan) return fail(400, 'Sila pilih pakej.');
   const auto = !!b.auto;
+  if (auto && !(await cardEnabled(env))) return fail(400, CARD_OFF_MSG);
   if (auto && u.auto_renew && u.chip_token && u.paid_until > now()) return fail(400, 'Auto-renew anda sudah aktif.');
   const origin = new URL(request.url).origin;
   const t = now();

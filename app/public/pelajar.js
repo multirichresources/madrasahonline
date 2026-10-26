@@ -1104,6 +1104,7 @@ function subscribeModal() {
     <button class="btn btn-primary" data-a="close">${t('Faham')}</button>`;
   const plan = P.plans.find(p => p.id === S.pay.plan) || P.plans[0];
   S.pay.plan = plan.id;
+  if (!P.cardEnabled) S.pay.auto = false; // kad belum dibuka: FPX / DuitNow / e-wallet sahaja
   const per = p => p.months > 1 ? t('≈ {amt} sebulan', { amt: rm(Math.round(p.priceSen / p.months)) }) : t('sebulan');
   const every = plan.months === 1 ? t('setiap bulan') : plan.months === 12 ? t('setiap tahun') : t('setiap {n} bulan', { n: plan.months });
   const planLabel = p => t(p.label); // nama lalai (Bulanan, Setahun…) diterjemah; nama tersuai kekal
@@ -1112,9 +1113,10 @@ function subscribeModal() {
       <b>${esc(planLabel(p))} · ${rm(p.priceSen)}</b><span>${per(p)}</span></button>`).join('')}</div>
     <span class="eyebrow">${t('Cara bayar')}</span>
     <div class="vlist" role="radiogroup" aria-label="${t('Cara bayar')}">
-      <button type="button" class="opt ${S.pay.auto ? 'on' : ''}" role="radio" aria-checked="${S.pay.auto}" data-a="payAuto" data-v="1"><b>${t('Kad debit / kredit (auto-renew)')}</b><span>${t('Dicaj automatik {every}. Tak perlu ingat tarikh. Boleh berhenti bila-bila masa.', { every })}</span></button>
+      ${P.cardEnabled ? `<button type="button" class="opt ${S.pay.auto ? 'on' : ''}" role="radio" aria-checked="${S.pay.auto}" data-a="payAuto" data-v="1"><b>${t('Kad debit / kredit (auto-renew)')}</b><span>${t('Dicaj automatik {every}. Tak perlu ingat tarikh. Boleh berhenti bila-bila masa.', { every })}</span></button>` : ''}
       <button type="button" class="opt ${S.pay.auto ? '' : 'on'}" role="radio" aria-checked="${!S.pay.auto}" data-a="payAuto" data-v="0"><b>${t('FPX, DuitNow QR atau e-wallet')}</b><span>${t('Bayar sekali. Perlu bayar semula bila tamat.')}</span></button>
     </div>
+    ${P.cardEnabled ? '' : `<p class="muted small">${t('Bayaran kad dengan auto-renew akan dibuka tidak lama lagi.')}</p>`}
     ${S.user.active ? `<p class="muted small">${t('Tempoh baharu akan ditambah selepas {d}.', { d: fmtDate(S.user.paidUntil) })}</p>` : ''}
     ${!S.user.email ? `<div class="err">${t('Sila tambah emel dahulu. Resit bayaran akan dihantar ke emel anda.')}</div><button class="btn btn-ghost" data-a="modal" data-v="email">${t('Tambah emel')}</button>` : ''}
     ${S.err ? `<div class="err" role="alert">${esc(S.err)}</div>` : ''}
@@ -1125,7 +1127,7 @@ function subscribeModal() {
 
 async function loadPlans() {
   const r = await api('GET', '/api/plans');
-  S.plans = r.ok ? { billingReady: r.billingReady, storeReady: r.storeReady || {}, plans: r.plans } : { billingReady: false, storeReady: {}, plans: [] };
+  S.plans = r.ok ? { billingReady: r.billingReady, cardEnabled: !!r.cardEnabled, storeReady: r.storeReady || {}, plans: r.plans } : { billingReady: false, cardEnabled: false, storeReady: {}, plans: [] };
   if (STORE === 'play' && S.plans.storeReady.google) { S.plans.play = undefined; loadPlayPrices(); }
   if (S.modal === 'subscribe') render();
 }

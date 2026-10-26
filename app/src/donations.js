@@ -7,7 +7,7 @@
 // - Penyumbang bulanan tiada akaun; mereka urus sumbangan melalui pautan rahsia /sumbang?urus=TOKEN.
 import { now, json, fail, readJson, cleanText, cleanMultiline, validEmail, normalizePhone, randomToken, sha256Hex, rateLimit, clientIp, displayPhone } from './util.js';
 import { requireAdmin } from './auth.js';
-import { chip, billingReady, CARD_METHODS, addMonths, syncPayment, getPlans } from './billing.js';
+import { chip, billingReady, cardEnabled, CARD_METHODS, addMonths, syncPayment, getPlans } from './billing.js';
 import { getOrg } from './content.js';
 import { webBase, setWebUntilStmt } from './store.js';
 
@@ -39,6 +39,7 @@ export async function donateInfo(env) {
   return json({
     ok: true,
     ready: billingReady(env),
+    cardEnabled: await cardEnabled(env),
     monthPriceSen: await monthlyPriceSen(env),
     org: { name: org.name },
     stats: { tajaMonths: months.results[0].n, studentsSponsored: months.results[0].students, donors: donors.results[0].n },
@@ -64,6 +65,7 @@ export async function donateCheckout(env, request) {
   if (cleanText(b.phone, 30)) { phone = normalizePhone(b.phone); if (!phone) return fail(400, 'No. telefon tidak sah.'); }
   const message = cleanMultiline(b.message, 300) || null;
   const monthly = !!b.monthly;
+  if (monthly && !(await cardEnabled(env))) return fail(400, 'Sumbangan bulanan (kad) belum dibuka. Sila pilih sumbangan sekali.');
   const origin = new URL(request.url).origin;
   const t = now();
   await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('app_origin', ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind(origin, t).run();

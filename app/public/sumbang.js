@@ -67,9 +67,10 @@ function vForm() {
       </div>
       <span class="eyebrow">${t('2. Kekerapan')}</span>
       <div class="kind-row" role="radiogroup" aria-label="${t('Kekerapan')}">
-        <button type="button" class="opt ${f.monthly ? '' : 'on'}" role="radio" aria-checked="${!f.monthly}" data-a="freq" data-v="0"><b>${t('Sekali')}</b><span>${t('FPX, DuitNow QR, kad atau e-wallet')}</span></button>
-        <button type="button" class="opt ${f.monthly ? 'on' : ''}" role="radio" aria-checked="${f.monthly}" data-a="freq" data-v="1"><b>${t('Setiap bulan')}</b><span>${t('Kad sahaja. Boleh berhenti bila-bila masa')}</span></button>
+        <button type="button" class="opt ${f.monthly ? '' : 'on'}" role="radio" aria-checked="${!f.monthly}" data-a="freq" data-v="0"${I0.cardEnabled ? '' : ' style="grid-column:1/-1"'}><b>${t('Sekali')}</b><span>${I0.cardEnabled ? t('FPX, DuitNow QR, kad atau e-wallet') : t('FPX, DuitNow QR atau e-wallet')}</span></button>
+        ${I0.cardEnabled ? `<button type="button" class="opt ${f.monthly ? 'on' : ''}" role="radio" aria-checked="${f.monthly}" data-a="freq" data-v="1"><b>${t('Setiap bulan')}</b><span>${t('Kad sahaja. Boleh berhenti bila-bila masa')}</span></button>` : ''}
       </div>
+      ${I0.cardEnabled ? '' : `<p class="muted small">${t('Sumbangan bulanan dengan kad akan dibuka tidak lama lagi.')}</p>`}
       <span class="eyebrow">${t('3. Jumlah')}</span>
       <div class="filter-row">${pre.map(([sen, lbl]) => `<button type="button" class="chip ${!val('dAmt') && f.amount === sen ? 'on' : ''}" data-a="amt" data-v="${sen}">${rm(sen)}${lbl ? ' · ' + lbl : ''}</button>`).join('')}</div>
       <label class="f" for="dAmt">${t('Atau jumlah lain (RM)')}<input class="input" id="dAmt" inputmode="decimal" placeholder="${t('Contoh: 25')}"></label>
@@ -222,7 +223,8 @@ document.addEventListener('submit', async e => {
   if (status === 'gagal') { D.view = 'thanks'; D.result = { state: 'failed' }; render(); return; }
   if (D.manageToken && !status) { loadManage(); return; }
   const r = await api('GET', '/api/donate/info');
-  D.info = r.ok ? r : { ready: false, stats: {}, recent: [], monthPriceSen: 1000 };
+  D.info = r.ok ? r : { ready: false, cardEnabled: false, stats: {}, recent: [], monthPriceSen: 1000 };
+  if (!D.info.cardEnabled) D.f.monthly = false;
   D.view = 'form'; render();
   if (status === 'batal') toast(t('Sumbangan dibatalkan. Tiada caj dibuat.'));
 })();

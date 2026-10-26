@@ -489,6 +489,19 @@ r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: 
 check('Admin buka pakej Setahun', r.status === 200 && r.data.plans.find(p => p.id === 'tahunan').active === true && r.data.plans.find(p => p.id === 'tahunan').months === 12, r.data);
 r = await e.req('GET', '/api/plans');
 check('Pelajar nampak 2 pakej', r.data.plans.map(p => p.id).join() === 'bulanan,tahunan', r.data);
+check('Bayaran kad tutup secara lalai', r.data.cardEnabled === false, r.data);
+r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });
+check('Kad tutup: checkout auto-renew ditolak', r.status === 400 && /kad belum dibuka/i.test(r.data.error), r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'umum', amountSen: 2000, monthly: true, email: 'tutup@contoh.my', anonymous: true });
+check('Kad tutup: sumbangan bulanan ditolak', r.status === 400, r.data);
+r = await plain0('GET', '/api/donate/info');
+check('Kad tutup: halaman sumbang tahu kad belum dibuka', r.data.cardEnabled === false, r.data);
+r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }], cardEnabled: true });
+check('Admin hidupkan bayaran kad', r.status === 200 && r.data.cardEnabled === true, r.data);
+r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }] });
+check('Simpan pakej tanpa suis kad: tetapan kad kekal', r.data.cardEnabled === true, r.data);
+r = await e.req('GET', '/api/plans');
+check('Pelajar nampak bayaran kad dibuka', r.data.cardEnabled === true, r.data);
 
 let me0 = (await e.req('GET', '/api/me')).data.user;
 r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });

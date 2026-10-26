@@ -510,6 +510,9 @@ function plansCard() {
     <span class="eyebrow">Pakej langganan</span>
     ${A.billingReady ? '<div class="ok-box">CHIP sudah disambung. Pelajar boleh membayar dalam app.</div>'
       : `<div class="adminnote">${I.shield}<p><b>CHIP belum disambung.</b> Tambah secret <b>CHIP_SECRET_KEY</b> dan <b>CHIP_BRAND_ID</b> di Cloudflare. Sebelum itu, pelajar akan nampak "Sistem bayaran sedang disiapkan".</p></div>`}
+    <div class="q">
+      <label class="check" for="plCard"><input type="checkbox" id="plCard" ${A.cardEnabled ? 'checked' : ''}><span>Bayaran kad (auto-renew)<br><span class="muted small" style="font-weight:400">Hidupkan selepas CHIP meluluskan bayaran kad. Bila tutup, pelajar hanya nampak FPX, DuitNow QR dan e-wallet (bayar sekali), dan pilihan sumbangan bulanan disorok.</span></span></label>
+    </div>
     <p class="muted small">Tandakan pakej yang ditawarkan. Harga baharu terpakai untuk bayaran seterusnya, termasuk auto-renew.</p>
     ${A.plans.map(p => `<div class="q">
       <label class="check" for="pl-${p.id}-on"><input type="checkbox" id="pl-${p.id}-on" ${p.active ? 'checked' : ''}><span>${p.months} bulan</span></label>
@@ -951,7 +954,7 @@ async function loadQs() {
 async function loadPlans() {
   const r = await api('GET', '/api/admin/plans');
   if (r.status === 401) return toLogin();
-  if (r.ok) { A.plans = r.plans; A.billingReady = r.billingReady; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`])); }
+  if (r.ok) { A.plans = r.plans; A.billingReady = r.billingReady; A.cardEnabled = !!r.cardEnabled; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`])); }
   render();
 }
 async function loadOrg() {
@@ -1267,10 +1270,10 @@ document.addEventListener('submit', async e => {
       label: val(`pl-${p.id}-label`),
       priceSen: Math.round(parseFloat(val(`pl-${p.id}-price`).replace(/[^\d.]/g, '')) * 100),
     }));
-    const r = await busy(btn, () => api('POST', '/api/admin/plans', { plans }));
+    const r = await busy(btn, () => api('POST', '/api/admin/plans', { plans, cardEnabled: document.getElementById('plCard').checked }));
     if (r.status === 401) return toLogin();
     if (!r.ok) { toast(r.error); return; }
-    A.plans = r.plans; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`]));
+    A.plans = r.plans; A.cardEnabled = !!r.cardEnabled; forget(...r.plans.flatMap(p => [`pl-${p.id}-label`, `pl-${p.id}-price`]));
     toast('Pakej disimpan.');
   }
   if (f.id === 'fOrg') {

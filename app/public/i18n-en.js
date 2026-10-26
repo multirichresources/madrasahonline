@@ -1,6 +1,8 @@
 // Terjemahan English untuk app pelajar & halaman sumbangan. Kunci = teks asal BM.
 // Tambah terjemahan di sini setiap kali menambah t('…') baharu, kemudian jalankan: node test/i18n.test.mjs
 window.EN_DICT = {
+ "Bayaran kad belum dibuka. Sila pilih FPX, DuitNow QR atau e-wallet.": "Card payments are not open yet. Please choose FPX, DuitNow QR or e-wallet.",
+ "Bayaran kad dengan auto-renew akan dibuka tidak lama lagi.": "Card payments with auto-renew will open soon.",
  "Lain-lain": "Others",
  "Kategori": "Categories",
  "Semua topik": "All topics",
@@ -10,6 +12,8 @@ window.EN_DICT = {
  "Padam akaun": "Delete account",
  "Akaun anda telah dipadam. Terima kasih kerana belajar bersama kami.": "Your account has been deleted. Thank you for learning with us.",
  "Gunakan borang ini untuk memadam akaun Madrasah Online anda tanpa membuka apps. Anda juga boleh memadam akaun dalam apps di menu <b>Akaun → Padam akaun saya</b>.": "Use this form to delete your Madrasah Online account without opening the app. You can also delete your account in the app under <b>Account → Delete my account</b>.",
+ "Sumbangan bulanan (kad) belum dibuka. Sila pilih sumbangan sekali.": "Monthly (card) donations are not open yet. Please choose a one-time donation.",
+ "Sumbangan bulanan dengan kad akan dibuka tidak lama lagi.": "Monthly card donations will open soon.",
  "Yang dipadam serta-merta:": "Deleted immediately:",
  "nama, no. telefon, emel, PIN, progres tontonan, soalan anda, langganan notifikasi dan sesi log masuk. Auto-renew kad juga dihentikan.": "your name, phone number, email, PIN, viewing progress, your questions, notification subscriptions and login sessions. Card auto-renew is also stopped.",
  "Yang disimpan:": "Kept:",
