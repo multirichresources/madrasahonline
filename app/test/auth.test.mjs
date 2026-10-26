@@ -617,8 +617,10 @@ check('Eksport CSV untuk Excel (BOM, tajuk, data)', csv.status === 200 && csvByt
 const revBefore = (await ad.req('GET', '/api/admin/stats')).data.stats.revenueThisMonthSen;
 r = await plain0('GET', '/api/donate/info');
 check('Info sumbangan awam (tanpa login)', r.status === 200 && r.data.ready === true && r.data.monthPriceSen === 1000 && r.data.stats.donors === 0, r.data);
-r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 100, email: 'a@contoh.my', name: 'A' });
-check('Sumbangan bawah RM5 ditolak', r.status === 400, r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 199, email: 'a@contoh.my', name: 'A' });
+check('Sumbangan bawah RM2 ditolak', r.status === 400 && r.data.error.includes('RM2'), r.data);
+r = await plain0('POST', '/api/donate/checkout', { use: 'umum', amountSen: 200, email: 'a@contoh.my', name: 'A' });
+check('Sumbangan RM2 diterima (minimum)', r.status === 200 && lastPurchase()._req.purchase.products[0].price === 200, r.data);
 r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 3000, email: 'bukan-emel', name: 'A' });
 check('Sumbangan tanpa emel sah ditolak', r.status === 400, r.data);
 r = await plain0('POST', '/api/donate/checkout', { use: 'taja', amountSen: 3000, email: 'a@contoh.my' });

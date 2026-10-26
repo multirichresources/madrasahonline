@@ -26,7 +26,7 @@ function tajaText(amt) {
   const span = m % 12 === 0 ? (m === 12 ? t('setahun') : t('{n} tahun', { n: m / 12 })) : t('{n} bulan', { n: m });
   return t(D.f.monthly ? '{amt} menaja seorang pelajar selama {span}, setiap bulan.' : '{amt} menaja seorang pelajar selama {span}.', { amt: rm(amt), span });
 }
-const goLabel = amt => t(D.f.monthly ? 'Sumbang {amt} sebulan' : 'Sumbang {amt}', { amt: amt >= 500 ? rm(amt) : '' }).replace(/\s+/g, ' ');
+const goLabel = amt => t(D.f.monthly ? 'Sumbang {amt} sebulan' : 'Sumbang {amt}', { amt: amt >= 200 ? rm(amt) : '' }).replace(/\s+/g, ' ');
 // Kemas kini butang & nota tanpa melukis semula skrin (papan kekunci telefon tak tertutup)
 function amountUI() {
   const amt = amountSen();

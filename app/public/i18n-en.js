@@ -419,7 +419,7 @@ window.EN_DICT = {
  "Emel tidak dapat dihantar sekarang. Cuba lagi sebentar, atau hubungi admin.": "The email couldn't be sent right now. Please try again shortly, or contact the admin.",
  "Format permintaan tidak sah.": "Invalid request format.",
  "Jika no. telefon ini berdaftar dengan emel, kod 6 angka telah dihantar ke emel tersebut. Semak juga folder Spam.": "If this phone number is registered with an email, a 6-digit code has been sent to it. Please also check your Spam folder.",
- "Jumlah sumbangan mestilah antara RM5 dan RM10,000.": "The donation amount must be between RM5 and RM10,000.",
+ "Jumlah sumbangan mestilah antara RM2 dan RM10,000.": "The donation amount must be between RM2 and RM10,000.",
  "Kod salah atau sudah tamat tempoh. Minta kod baharu.": "The code is wrong or has expired. Please request a new code.",
  "Langganan anda tidak aktif. Langgan untuk tonton video.": "Your subscription is not active. Subscribe to watch videos.",
  "Langganan notifikasi tidak sah.": "Invalid notification subscription.",

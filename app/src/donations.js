@@ -11,7 +11,7 @@ import { chip, billingReady, cardEnabled, cardOpen, cardUsable, chipMethods, pub
 import { getOrg } from './content.js';
 import { webBase, setWebUntilStmt } from './store.js';
 
-const MIN_SEN = 500, MAX_SEN = 1000000;
+const MIN_SEN = 200, MAX_SEN = 1000000;
 const USES = { taja: 'Taja Pelajar', umum: 'Sumbangan Am' };
 
 async function monthlyPriceSen(env) {
@@ -57,7 +57,7 @@ export async function donateCheckout(env, request) {
   const use = b.use === 'umum' ? 'umum' : b.use === 'taja' ? 'taja' : null;
   if (!use) return fail(400, 'Sila pilih tujuan sumbangan.');
   const amountSen = Math.round(Number(b.amountSen));
-  if (!Number.isInteger(amountSen) || amountSen < MIN_SEN || amountSen > MAX_SEN) return fail(400, 'Jumlah sumbangan mestilah antara RM5 dan RM10,000.');
+  if (!Number.isInteger(amountSen) || amountSen < MIN_SEN || amountSen > MAX_SEN) return fail(400, 'Jumlah sumbangan mestilah antara RM2 dan RM10,000.');
   const email = cleanText(b.email, 254).toLowerCase();
   if (!validEmail(email)) return fail(400, 'Sila masukkan emel yang sah. Resit akan dihantar ke emel ini.');
   const name = cleanText(b.name, 80);
