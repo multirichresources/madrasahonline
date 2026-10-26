@@ -2,6 +2,7 @@
 // Dijana oleh Worker supaya maklumat pengendali (dari Tetapan admin) sentiasa terkini,
 // dan boleh dibaca oleh penyemak payment gateway tanpa perlu log masuk.
 import { getOrg } from './content.js';
+import { getPlans } from './billing.js';
 
 const UPDATED = { ms: '24 Oktober 2026', en: '24 October 2026' };
 
@@ -43,15 +44,16 @@ const PAGES = {
 
 <h2>3. Langganan dan bayaran</h2>
 <ol>
-  <li>Yuran langganan ialah <b>RM10 sebulan</b>, atau mengikut pakej lain yang dipaparkan dalam app ketika anda membuat bayaran.</li>
+  <li>Yuran langganan adalah mengikut pakej yang dipaparkan dalam app ketika anda membuat bayaran.${o.priceMs ? ` Pakej semasa: <b>${o.priceMs}</b>.` : ''}</li>
   <li>Akses kepada video kelas hanya tersedia semasa langganan anda aktif.</li>
   <li>Jika anda memilih <b>pembaharuan automatik</b> dengan kad, caj akan dibuat secara automatik pada setiap tarikh pembaharuan sehingga anda membatalkannya.</li>
   <li>Bayaran diproses oleh penyedia gerbang pembayaran berlesen di Malaysia. Kami tidak menyimpan nombor kad anda.</li>
+  <li>Jika anda melanggan melalui <b>Google Play</b> atau <b>App Store</b>, bayaran diproses oleh Google atau Apple menggunakan akaun anda di store tersebut. Pembaharuan automatik, pembatalan dan bayaran balik bagi langganan itu diurus melalui tetapan langganan Google Play atau App Store, tertakluk kepada polisi mereka.</li>
   <li>Harga boleh berubah. Sebarang perubahan akan dimaklumkan sekurang-kurangnya 30 hari lebih awal dan tidak menjejaskan tempoh yang telah dibayar.</li>
 </ol>
 
 <h2>4. Pembatalan</h2>
-<p>Anda boleh berhenti melanggan pada bila-bila masa melalui app atau dengan menghubungi kami. Tiada caj seterusnya akan dibuat, dan akses anda kekal sehingga akhir tempoh yang telah dibayar. Bayaran balik tertakluk kepada <a href="/bayaran-balik">Polisi Bayaran Balik</a>.</p>
+<p>Anda boleh berhenti melanggan pada bila-bila masa melalui app atau dengan menghubungi kami. Tiada caj seterusnya akan dibuat, dan akses anda kekal sehingga akhir tempoh yang telah dibayar. Langganan melalui Google Play atau App Store dibatalkan di tetapan langganan store tersebut (Google Play: Profil → Bayaran &amp; langganan; iPhone: Tetapan → nama anda → Langganan). Bayaran balik tertakluk kepada <a href="/bayaran-balik">Polisi Bayaran Balik</a>.</p>
 
 <h2>5. Penggunaan kandungan</h2>
 <ol>
@@ -116,7 +118,8 @@ ${contactBlock(o)}`,
 <ol>
   <li><b>Cloudflare</b>: pengehosan app dan pangkalan data.</li>
   <li><b>Bunny.net</b>: penstriman video kelas.</li>
-  <li><b>Gerbang pembayaran berlesen</b>: memproses bayaran.</li>
+  <li><b>Gerbang pembayaran berlesen (CHIP)</b>: memproses bayaran di web.</li>
+  <li><b>Google Play dan Apple App Store</b>: memproses langganan yang dibeli dalam apps store. Kami menerima maklumat pengesahan pembelian (status, tempoh dan rujukan transaksi) sahaja, bukan butiran kad anda.</li>
   <li><b>Penyedia perkhidmatan emel</b>: menghantar kod dan makluman.</li>
   <li><b>Zoom</b>: apabila anda menyertai kelas Zoom, tertakluk kepada polisi privasi Zoom.</li>
 </ol>
@@ -185,10 +188,13 @@ ${contactBlock(o)}`,
 <h2>5. Proses</h2>
 <p>Permohonan akan disemak dalam tempoh 3 hari bekerja. Jika diluluskan, bayaran akan dikembalikan melalui kaedah bayaran asal dalam tempoh 7 hingga 14 hari bekerja, bergantung kepada bank anda.</p>
 
-<h2>6. Sumbangan</h2>
+<h2>6. Langganan melalui Google Play / App Store</h2>
+<p>Bayaran balik bagi langganan yang dibeli melalui Google Play atau App Store diproses oleh Google atau Apple mengikut polisi mereka. Mohon melalui Google Play (play.google.com → Sejarah pesanan) atau Apple (reportaproblem.apple.com). Kami juga boleh membantu jika anda menghubungi kami.</p>
+
+<h2>7. Sumbangan</h2>
 <p>Sumbangan dan tajaan pelajar adalah ikhlas dan tidak dikembalikan, kecuali jika berlaku kesilapan jumlah atau caj berganda yang dimaklumkan dalam tempoh 7 hari. Sumbangan bulanan boleh dihentikan pada bila-bila masa melalui pautan yang diberi selepas sumbangan pertama, atau dengan menghubungi kami. Sumbangan kepada Madrasah Online tidak layak untuk potongan cukai.</p>
 
-<h2>7. Hubungi kami</h2>
+<h2>8. Hubungi kami</h2>
 ${contactBlock(o)}`,
   },
 };
@@ -211,15 +217,16 @@ const PAGES_EN = {
 
 <h2>3. Subscription and payment</h2>
 <ol>
-  <li>The subscription fee is <b>RM10 per month</b>, or according to any other package shown in the app at the time of payment.</li>
+  <li>The subscription fee follows the packages shown in the app at the time of payment.${o.priceEn ? ` Current packages: <b>${o.priceEn}</b>.` : ''}</li>
   <li>Class videos are only available while your subscription is active.</li>
   <li>If you choose <b>automatic renewal</b> by card, you will be charged automatically on each renewal date until you cancel.</li>
   <li>Payments are processed by a licensed payment gateway provider in Malaysia. We do not store your card number.</li>
+  <li>If you subscribe through <b>Google Play</b> or the <b>App Store</b>, payment is processed by Google or Apple using your account with that store. Automatic renewal, cancellation and refunds for that subscription are managed in your Google Play or App Store subscription settings, subject to their policies.</li>
   <li>Prices may change. Any change will be announced at least 30 days in advance and will not affect periods already paid for.</li>
 </ol>
 
 <h2>4. Cancellation</h2>
-<p>You may stop your subscription at any time through the app or by contacting us. No further charges will be made, and your access remains until the end of the period already paid for. Refunds are subject to the <a href="/bayaran-balik?lang=en">Refund Policy</a>.</p>
+<p>You may stop your subscription at any time through the app or by contacting us. No further charges will be made, and your access remains until the end of the period already paid for. Subscriptions bought through Google Play or the App Store are cancelled in that store’s subscription settings (Google Play: Profile → Payments &amp; subscriptions; iPhone: Settings → your name → Subscriptions). Refunds are subject to the <a href="/bayaran-balik?lang=en">Refund Policy</a>.</p>
 
 <h2>5. Use of content</h2>
 <ol>
@@ -284,7 +291,8 @@ ${contactBlock(o, 'en')}`,
 <ol>
   <li><b>Cloudflare</b>: app hosting and database.</li>
   <li><b>Bunny.net</b>: class video streaming.</li>
-  <li><b>Licensed payment gateway</b>: payment processing.</li>
+  <li><b>Licensed payment gateway (CHIP)</b>: payment processing on the web.</li>
+  <li><b>Google Play and the Apple App Store</b>: processing subscriptions bought in the app stores. We only receive purchase verification details (status, period and transaction reference), not your card details.</li>
   <li><b>Email service provider</b>: sending codes and notices.</li>
   <li><b>Zoom</b>: when you join a Zoom class, subject to Zoom's privacy policy.</li>
 </ol>
@@ -353,10 +361,13 @@ ${contactBlock(o, 'en')}`,
 <h2>5. Process</h2>
 <p>Requests are reviewed within 3 working days. If approved, the payment is refunded to the original payment method within 7 to 14 working days, depending on your bank.</p>
 
-<h2>6. Donations</h2>
+<h2>6. Subscriptions through Google Play / App Store</h2>
+<p>Refunds for subscriptions bought through Google Play or the App Store are processed by Google or Apple under their policies. Request one through Google Play (play.google.com → Order history) or Apple (reportaproblem.apple.com). We are also happy to help if you contact us.</p>
+
+<h2>7. Donations</h2>
 <p>Donations and student sponsorships are given sincerely and are non-refundable, except for a wrong amount or a duplicate charge reported within 7 days. Monthly donations can be stopped at any time using the link given after the first donation, or by contacting us. Donations to Madrasah Online are not eligible for tax deduction.</p>
 
-<h2>7. Contact us</h2>
+<h2>8. Contact us</h2>
 ${contactBlock(o, 'en')}`,
   },
 };
@@ -367,7 +378,15 @@ export async function renderLegal(env, path, lang = 'ms') {
   const en = lang === 'en';
   const pages = en ? PAGES_EN : PAGES;
   const page = pages[path];
-  const o = await getOrg(env);
+  const o = { ...(await getOrg(env)) };
+  // Harga semasa ikut pakej dalam admin → Tetapan (supaya Terma tak ketinggalan bila harga ditukar)
+  try {
+    const act = (await getPlans(env)).filter(p => p.active);
+    const rm = sen => 'RM' + (sen / 100).toFixed(sen % 100 ? 2 : 0);
+    const ms = { 1: 'sebulan', 3: '3 bulan', 6: '6 bulan', 12: 'setahun' }, enL = { 1: 'per month', 3: 'per 3 months', 6: 'per 6 months', 12: 'per year' };
+    o.priceMs = act.map(p => `${rm(p.priceSen)} ${ms[p.months] || p.months + ' bulan'}`).join(' atau ');
+    o.priceEn = act.map(p => `${rm(p.priceSen)} ${enL[p.months] || 'per ' + p.months + ' months'}`).join(' or ');
+  } catch { /* tanpa harga jika pakej tak dapat dibaca */ }
   const q = en ? '?lang=en' : '';
   const nav = Object.entries(pages).map(([p, v]) => `<a href="${p}${q}"${p === path ? ' aria-current="page"' : ''}>${esc(v.title.replace(' & Pembatalan', '').replace(' & Cancellation', ''))}</a>`).join('');
   const html = `<!doctype html>

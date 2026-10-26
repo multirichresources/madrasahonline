@@ -195,6 +195,7 @@ check('Tonton ditolak semula selepas tamat', r.status === 402, r.data);
 let page = await fetch(BASE + '/terma');
 let html = await page.text();
 check('Halaman /terma dipapar tanpa login', page.status === 200 && html.includes('Terma Penggunaan') && html.includes('pengendali Madrasah Online'), page.status);
+check('Terma: harga semasa ikut pakej admin & bayaran store', /Pakej semasa: <b>RM\d+ sebulan/.test(html) && !html.includes('RM10 sebulan</b>, atau') && html.includes('Google Play') && html.includes('App Store'));
 r = await ad.req('POST', '/api/admin/settings', { name: 'Pertubuhan Ujian', reg: 'PPM-001-10-01012026', email: 'hubungi@contoh.my', whatsapp: '12345', address: 'Kuala Lumpur' });
 check('Tetapan: WhatsApp tak sah ditolak', r.status === 400, r.data);
 r = await e.req('POST', '/api/admin/settings', { name: 'X' });
