@@ -59,7 +59,7 @@ export const CARD_OFF_MSG = 'Bayaran kad belum dibuka. Sila pilih FPX, DuitNow Q
 // GET /payment_methods/ (dokumentasi CHIP Collect). Disimpan 10 minit dalam settings supaya
 // tak panggil CHIP setiap kali pelajar buka skrin bayaran. Jika CHIP gagal, apps guna teks lalai.
 const METHODS_TTL = 10 * 60e3;
-const methodKind = m => /^fpx/.test(m) ? 'fpx' : /duitnow/.test(m) ? 'duitnow' : CARD_METHODS.includes(m) ? 'card'
+const methodKind = m => /^fpx/.test(m) ? 'fpx' : /duitnow|^dnqr/.test(m) ? 'duitnow' : CARD_METHODS.includes(m) ? 'card'
   : /tng|touch_?n_?go|grab|shopee|boost|ewallet|e_wallet|wechat|alipay/.test(m) ? 'ewallet' : null;
 const summarizeMethods = (list, cards) => {
   const s = { fpx: false, duitnow: false, ewallet: false, card: false };

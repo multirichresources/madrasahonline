@@ -515,7 +515,7 @@ r = await e.req('POST', '/api/pay/checkout', { planId: 'bulanan', auto: true });
 check('Suis ON tapi CHIP belum buka kad: auto-renew ditolak', r.status === 400, r.data);
 r = await ad.req('GET', '/api/admin/plans');
 check('Admin nampak status CHIP: kad auto-renew belum dibuka', r.data.chip && r.data.chip.cardRecurring === false && r.data.chip.oneTime.fpx === true, r.data.chip);
-chipPM.all = ['fpx', 'duitnow_qr', 'razer_tng', 'razer_grabpay', 'visa', 'mastercard', 'maestro']; chipPM.rec = ['visa', 'mastercard', 'maestro'];
+chipPM.all = ['fpx', 'dnqr', 'razer_tng', 'razer_grabpay', 'visa', 'mastercard', 'maestro']; chipPM.rec = ['visa', 'mastercard', 'maestro'];
 r = await ad.req('GET', '/api/admin/plans?refresh=1');
 check('Semak semula: CHIP buka semua cara bayar', r.data.chip.oneTime.duitnow && r.data.chip.oneTime.ewallet && r.data.chip.oneTime.card && r.data.chip.cardRecurring === true, r.data.chip);
 r = await ad.req('POST', '/api/admin/plans', { plans: [{ id: 'bulanan', active: true, label: 'Bulanan', priceSen: 1000 }, { id: 'tahunan', active: true, label: 'Setahun', priceSen: 11000 }] });
