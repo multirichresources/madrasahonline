@@ -155,7 +155,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 function installCard() {
   if (STORE || isStandalone()) return '';
   if (installEvt) return `<button class="btn btn-ghost" data-a="install">${I.home} ${t('Pasang app di telefon')}</button>`;
-  if (isIOS()) return `<p class="note">${t('Untuk pasang di iPhone: tekan butang Share di Safari, kemudian pilih <b>Add to Home Screen</b>.')}</p>`;
+  if (isIOS()) return `<p class="note">${t('Untuk pasang di iPhone: di Safari, tekan butang <b>Share</b> (iOS 26: tekan <b>•••</b> dahulu, kemudian <b>Share</b>), kemudian pilih <b>Add to Home Screen</b>.')}</p>`;
   return '';
 }
 function doInstall() {

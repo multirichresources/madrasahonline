@@ -954,7 +954,7 @@ function pushCard(compact) {
     <div class="btn-row"><button class="btn btn-ghost" data-a="pushTest">${t('Hantar ujian')}</button><button class="btn btn-ghost" data-a="pushOff">${t('Matikan')}</button></div></div>`;
   if (st === 'off') return `<div class="card">${head}<p>${t('Dapatkan notifikasi di telefon sebelum kelas Zoom bermula, supaya tak terlepas.')}</p>
     <button class="btn btn-primary" data-a="pushOn">${t('Hidupkan peringatan')}</button></div>`;
-  if (st === 'ios-install') return `<div class="card">${head}<p class="small">${t('Untuk dapat peringatan di iPhone, pasang app dulu: tekan butang <b>Share</b> di Safari, pilih <b>Add to Home Screen</b>, kemudian buka app dari skrin utama.')}</p></div>`;
+  if (st === 'ios-install') return `<div class="card">${head}<p class="small">${t('Untuk dapat peringatan di iPhone, pasang app dulu: di Safari, tekan butang <b>Share</b> (iOS 26: tekan <b>•••</b> dahulu, kemudian <b>Share</b>), pilih <b>Add to Home Screen</b>, kemudian buka app dari skrin utama.')}</p></div>`;
   if (st === 'denied') return `<div class="card">${head}<p class="small">${t('Notifikasi disekat untuk app ini. Buka <b>Tetapan</b> telefon atau pelayar, cari Madrasah Online, dan benarkan notifikasi.')}</p></div>`;
   return `<div class="card">${head}<p class="small muted">${t('Telefon atau pelayar ini belum menyokong notifikasi. Cuba buka app ini menggunakan Google Chrome.')}</p></div>`;
 }
@@ -1514,7 +1514,7 @@ function notifAskModal() {
   if (kind === 'ios') return `<div class="nask"><div class="nask-ic">${I.bell}</div>
     <h2>${t('Nak dengar azan di iPhone?')}</h2>
     <p>${t('Pasang apps ke skrin utama dahulu. Selepas itu notifikasi azan dan kelas boleh dihidupkan.')}</p>
-    <ol class="nask-steps"><li>${t('Tekan butang <b>Share</b> di bawah Safari')}</li><li>${t('Pilih <b>Add to Home Screen</b>')}</li><li>${t('Buka Madrasah Online dari skrin utama')}</li></ol>
+    <ol class="nask-steps"><li>${t('Di Safari, tekan butang <b>Share</b> (iOS 26: tekan <b>•••</b> dahulu, kemudian <b>Share</b>)')}</li><li>${t('Pilih <b>Add to Home Screen</b>')}</li><li>${t('Buka Madrasah Online dari skrin utama')}</li></ol>
     <button class="btn btn-primary" data-a="nAskLater">${t('Faham')}</button></div>`;
   return `<div class="nask"><div class="nask-ic">${I.bell}</div>
     <h2>${kind === 'azan' ? t('Hidupkan azan waktu solat?') : t('Jangan terlepas waktu solat & kelas')}</h2>
