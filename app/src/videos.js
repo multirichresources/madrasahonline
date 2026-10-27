@@ -10,6 +10,7 @@ const TOPICS = ['Makhraj', 'Tajwid', 'Bacaan'];
 // Kategori asal (dimasukkan sekali sahaja; admin boleh ubah/tambah/padam)
 const SEED_CATS = [['Belajar Al-Quran', 'Learning the Quran'], ['Sirah', 'Sirah'], ['Kisah dari Al-Quran', 'Stories from the Quran'], ['Fardhu Ain', 'Fardhu Ain']];
 const PLAY_TTL_S = 6 * 3600;      // pautan tonton sah 6 jam
+const MAX_DONATE_CLIPS = 3;       // klip di halaman Sumbang
 const UPLOAD_TTL_S = 24 * 3600;   // tandatangan upload sah 24 jam
 
 export const bunnyReady = (env) => !!(env.BUNNY_LIBRARY_ID && env.BUNNY_API_KEY);
@@ -100,6 +101,7 @@ function adminVideo(v) {
     status: v.bunny_status ?? 0, statusLabel: STATUS_LABEL[v.bunny_status ?? 0] || 'Diproses', progress: v.encode_progress ?? 0,
     ready: v.bunny_status === 4, thumbUrl: v.thumb_url || null, createdAt: v.created_at,
     chapterCount: chapters.length, chaptersText: chapters.map(c => `${fmtTime(c.s)} ${c.title}`).join('\n'),
+    donateClip: !!v.donate_clip,
   };
 }
 
@@ -188,14 +190,20 @@ export async function adminUpdateVideo(env, request, id) {
   if (cat === undefined) return fail(400, 'Kategori tidak dijumpai.');
   const published = body.published === undefined ? v.published : (body.published ? 1 : 0);
   if (published && v.bunny_status !== 4) return fail(400, 'Video belum siap diproses. Terbitkan selepas status "Sedia".');
+  const donateClip = body.donateClip === undefined ? (v.donate_clip ? 1 : 0) : (body.donateClip ? 1 : 0);
+  if (donateClip && !v.donate_clip) {
+    if (v.bunny_status !== 4) return fail(400, 'Video belum siap diproses. Papar di halaman Sumbang selepas status "Sedia".');
+    const c = await env.DB.prepare('SELECT COUNT(*) AS n FROM videos WHERE donate_clip = 1 AND id != ?').bind(id).first();
+    if (c.n >= MAX_DONATE_CLIPS) return fail(400, `Maksimum ${MAX_DONATE_CLIPS} klip di halaman Sumbang. Buang satu klip dahulu.`);
+  }
   let chapters = v.chapters || null;
   if (body.chapters !== undefined) {
     const c = parseChapters(body.chapters);
     if (c.error) return fail(400, c.error);
     chapters = c.list.length ? JSON.stringify(c.list) : null;
   }
-  await env.DB.prepare('UPDATE videos SET title = ?, topic = ?, category_id = ?, arabic_label = ?, class_month = ?, published = ?, chapters = ? WHERE id = ?')
-    .bind(title, topic, cat, arabic || null, month, published, chapters, id).run();
+  await env.DB.prepare('UPDATE videos SET title = ?, topic = ?, category_id = ?, arabic_label = ?, class_month = ?, published = ?, chapters = ?, donate_clip = ? WHERE id = ?')
+    .bind(title, topic, cat, arabic || null, month, published, chapters, donateClip, id).run();
   if (title !== v.title && v.bunny_id && bunnyReady(env)) { try { await bunny(env, 'POST', `/videos/${v.bunny_id}`, { title }); } catch (e) { console.error(e); } }
   const nv = await env.DB.prepare('SELECT * FROM videos WHERE id = ?').bind(id).first();
   return json({ ok: true, video: adminVideo(nv) });
@@ -232,21 +240,35 @@ export async function listVideos(env, request) {
   return json({ ok: true, videos, categories, continueId: last ? last.id : null });
 }
 
+// Pautan embed Bunny (bertoken jika Token Authentication dihidupkan)
+async function embedUrl(env, guid, autoplay) {
+  const params = new URLSearchParams({ autoplay: autoplay ? 'true' : 'false', preload: 'true', responsive: 'true' });
+  if (env.BUNNY_TOKEN_KEY) {
+    const expires = Math.floor(now() / 1000) + PLAY_TTL_S;
+    params.set('token', await sha256Hex(`${env.BUNNY_TOKEN_KEY}${guid}${expires}`));
+    params.set('expires', String(expires));
+  }
+  return `https://player.mediadelivery.net/embed/${env.BUNNY_LIBRARY_ID}/${guid}?${params}`;
+}
+
+// Klip pendek untuk halaman Sumbang (awam, tanpa log masuk). Tak bergantung pada status terbit.
+export async function donateClips(env) {
+  if (!env.BUNNY_LIBRARY_ID) return [];
+  const { results } = await env.DB.prepare(
+    `SELECT id, title, bunny_id, minutes, thumb_url FROM videos
+      WHERE donate_clip = 1 AND bunny_status = 4 AND bunny_id IS NOT NULL ORDER BY created_at DESC LIMIT ?`).bind(MAX_DONATE_CLIPS).all();
+  return Promise.all(results.map(async v => ({ id: v.id, title: v.title, minutes: v.minutes, thumbUrl: v.thumb_url || null, embedUrl: await embedUrl(env, v.bunny_id, true) })));
+}
+
 export async function playVideo(env, request, id) {
   const u = await requireUser(env, request);
   if (!(u.paid_until && u.paid_until > now())) return fail(402, 'Langganan anda tidak aktif. Langgan untuk tonton video.');
   const v = await env.DB.prepare('SELECT * FROM videos WHERE id = ? AND published = 1').bind(id).first();
   if (!v || !v.bunny_id) return fail(404, 'Video tidak dijumpai.');
   if (!env.BUNNY_LIBRARY_ID) return fail(503, 'Video belum boleh dimainkan. Sila cuba lagi nanti.');
-  let url = `https://player.mediadelivery.net/embed/${env.BUNNY_LIBRARY_ID}/${v.bunny_id}`;
-  const params = new URLSearchParams({ autoplay: 'false', preload: 'true', responsive: 'true' });
-  if (env.BUNNY_TOKEN_KEY) {
-    const expires = Math.floor(now() / 1000) + PLAY_TTL_S;
-    params.set('token', await sha256Hex(`${env.BUNNY_TOKEN_KEY}${v.bunny_id}${expires}`));
-    params.set('expires', String(expires));
-  }
+  const url = await embedUrl(env, v.bunny_id, false);
   const p = await env.DB.prepare('SELECT seconds FROM watch_progress WHERE user_id = ? AND video_id = ?').bind(u.id, id).first();
-  return json({ ok: true, embedUrl: `${url}?${params}`, resumeAt: p ? p.seconds : 0, watermark: u.name, chapters: readChapters(v) });
+  return json({ ok: true, embedUrl: url, resumeAt: p ? p.seconds : 0, watermark: u.name, chapters: readChapters(v) });
 }
 
 export async function saveProgress(env, request, id) {

@@ -53,7 +53,7 @@
     ringkasan: { label: 'Madrasah Online', value: 'Kelas mengaji', sub: 'untuk orang dewasa', tag: 'Madrasah Online',
       title: 'Kelas Al-Quran untuk orang dewasa', text: 'Belajar mengaji dari rumah bersama ustaz, ikut masa anda dan tanpa rasa malu. Dari kenal huruf hingga bacaan lancar.' },
     video: { label: 'Bilik kelas', value: 'Video ustaz', sub: 'tonton & ulang', tag: 'Bilik kelas',
-      title: 'Video kelas ustaz', text: 'Rakaman kelas makhraj, tajwid dan bacaan. Ada bab untuk terus ke bahagian tertentu, butang ulang 10 saat dan kelajuan perlahan 0.75x.' },
+      title: 'Video kelas ustaz', text: 'Kelas mengaji, Kisah dari Al-Quran, Fardhu Ain, Sirah dan Aktiviti Ustaz. Ada bab untuk terus ke bahagian tertentu, butang ulang 10 saat dan kelajuan perlahan 0.75x.' },
     hebahan: { label: 'Papan hebahan', value: 'Kelas Zoom', sub: 'setiap bulan', tag: 'Papan hebahan',
       title: 'Kelas Zoom bulanan', text: 'Belajar bersama ustaz secara langsung. Peringatan dihantar ke telefon sehari dan 30 minit sebelum kelas.' },
     soalan: { label: 'Peti soalan', value: 'Tanya ustaz', sub: 'bila-bila masa', tag: 'Peti soalan',

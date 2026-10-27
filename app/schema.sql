@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS videos (
   encode_progress INTEGER NOT NULL DEFAULT 0,
   thumb_url     TEXT,                             -- gambar kecil dari Bunny
   chapters      TEXT,                             -- bab dalam video: JSON [{"s": saat, "title": "..."}]
+  donate_clip   INTEGER NOT NULL DEFAULT 0,       -- 1 = klip dipapar di halaman Sumbang (terbuka untuk semua, maks 3)
   created_at    INTEGER NOT NULL
 );
 

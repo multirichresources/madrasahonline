@@ -337,6 +337,7 @@ function videoRow(v) {
   return `<div class="q">
     <div class="top" style="align-items:flex-start"><div style="min-width:0"><b>${esc(v.title)}</b>
       <p class="muted small">${[vMeta(v) ? esc(vMeta(v)) : 'Tiada kategori', v.classMonth ? monthLabel(v.classMonth) : '', v.minutes ? v.minutes + ' minit' : '', v.chapterCount ? v.chapterCount + ' bab' : ''].filter(Boolean).join(' · ')}</p></div>${pill}</div>
+    ${v.donateClip ? '<p class="small"><span class="pill ok">Halaman Sumbang</span></p>' : ''}
     <div class="btn-row">
       ${v.ready ? `<button class="btn ${v.published ? 'btn-ghost' : 'btn-primary'}" data-a="vPublish" data-v="${v.id}">${v.published ? 'Sembunyikan' : 'Terbitkan'}</button>` : ''}
       <button class="btn btn-ghost" data-a="vEdit" data-v="${v.id}">Edit</button>
@@ -895,6 +896,7 @@ function modal() {
       <label class="f" for="eChap">Bab dalam video <span class="muted small">(pilihan · satu bab sebaris: masa, kemudian tajuk)</span>
         <textarea class="input" id="eChap" rows="6" maxlength="5000" placeholder="00:00 Pengenalan&#10;05:30 Hukum mad asli&#10;18:45 Latihan bacaan bersama">${esc(v.chaptersText || '')}</textarea></label>
       <p class="muted small">Pelajar boleh tekan bab untuk terus lompat ke bahagian itu. Masa ikut video, cth. 05:30 atau 1:05:30.</p>
+      <label class="check" for="eClip"><input type="checkbox" id="eClip" ${v.donateClip ? 'checked' : ''}><span>Papar di halaman Sumbang<br><span class="muted small" style="font-weight:400">Untuk klip pendek (1–2 minit) aktiviti ustaz. Boleh ditonton sesiapa tanpa langganan. Maksimum 3 klip. Klip yang tidak diterbitkan tidak masuk senarai video pelajar.</span></span></label>
       <p class="muted small">Perubahan terus dilihat pelajar. Fail video tidak berubah.</p>
       ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
       <button class="btn btn-primary" type="submit">Simpan</button>
@@ -1292,7 +1294,7 @@ document.addEventListener('submit', async e => {
   }
   if (f.id === 'fVEdit') {
     const id = A.editVideo.id;
-    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), categoryId: val('eCat'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth'), chapters: val('eChap') }));
+    const r = await busy(btn, () => api('POST', `/api/admin/videos/${id}`, { title: val('eTitle'), categoryId: val('eCat'), topic: val('eTopic'), arabicLabel: val('eArabic'), classMonth: val('eMonth'), chapters: val('eChap'), donateClip: document.getElementById('eClip').checked }));
     if (r.status === 401) return toLogin();
     if (!r.ok) { A.err = r.error; render(); return; }
     forget('eTitle', 'eCat', 'eTopic', 'eArabic', 'eMonth', 'eChap');

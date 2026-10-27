@@ -10,6 +10,7 @@ import { requireAdmin } from './auth.js';
 import { chip, billingReady, cardEnabled, cardOpen, cardUsable, chipMethods, publicMethods, CARD_METHODS, addMonths, syncPayment, getPlans } from './billing.js';
 import { getOrg } from './content.js';
 import { webBase, setWebUntilStmt } from './store.js';
+import { donateClips } from './videos.js';
 
 const MIN_SEN = 200, MAX_SEN = 1000000;
 const USES = { taja: 'Taja Pelajar', umum: 'Sumbangan Am' };
@@ -40,6 +41,7 @@ export async function donateInfo(env) {
   return json({
     ok: true,
     ready: billingReady(env),
+    clips: await donateClips(env),
     cardEnabled: cardUsable(await cardEnabled(env), cm),
     methods: publicMethods(cm),
     monthPriceSen: await monthlyPriceSen(env),

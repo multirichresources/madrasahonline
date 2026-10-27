@@ -39,6 +39,35 @@ function header() {
   return `<div class="toolbar"><a class="iconbtn" href="/">${I.back} ${t('Kembali')}</a><a href="/" aria-label="Madrasah Online" style="margin-right:auto"><img class="logo-sm" src="/logo.png" alt="Madrasah Online" width="640" height="608"></a>${langBtn()}${themeBtn()}</div>`;
 }
 
+// Klip pendek aktiviti ustaz (dipilih admin, maks 3). Pemain dibuka dalam modal di luar #app
+// supaya video tak bermula semula bila borang dikemas kini.
+function clipsCard() {
+  const C = (D.info && D.info.clips) || [];
+  if (!C.length) return '';
+  return `<div class="card"><span class="eyebrow">${t('Aktiviti ustaz')}</span>
+    <p class="muted small">${t('Tonton klip pendek aktiviti ustaz. Video penuh ada dalam apps Madrasah Online.')}</p>
+    <div class="vlist">${C.map((c, i) => `<button type="button" class="vitem" data-a="clip" data-v="${i}">
+      <span class="thumb-img${c.thumbUrl ? '' : ' noimg'}">${c.thumbUrl ? `<img src="${esc(c.thumbUrl)}" alt="" loading="lazy">` : `<span style="display:flex;width:2.2rem;color:#fff">${I.video}</span>`}</span>
+      <span class="vinfo"><b>${esc(c.title)}</b><span class="muted small">${t('Tonton klip')}${c.minutes ? ' · ' + t('{n} minit', { n: c.minutes }) : ''}</span></span>
+    </button>`).join('')}</div></div>`;
+}
+function closeClip() { document.getElementById('clipModal')?.remove(); }
+function openClip(i) {
+  const c = ((D.info && D.info.clips) || [])[i];
+  if (!c) return;
+  closeClip();
+  const d = document.createElement('div');
+  d.id = 'clipModal'; d.className = 'modal-back'; d.dataset.a = 'clipBack';
+  d.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="clipTitle" style="max-width:640px">
+    <h2 id="clipTitle" style="font-size:1.15rem">${esc(c.title)}</h2>
+    <div class="player-frame"><iframe src="${esc(c.embedUrl)}" loading="eager" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="${esc(c.title)}"></iframe></div>
+    <a class="btn btn-primary" href="/">${t('Tonton video penuh dalam apps')}</a>
+    <button class="btn btn-ghost" type="button" data-a="clipClose">${t('Tutup')}</button>
+  </div>`;
+  document.body.appendChild(d);
+  d.querySelector('[data-a="clipClose"]').focus();
+}
+
 function vForm() {
   const I0 = D.info;
   if (!I0.ready) return `${header()}
@@ -59,6 +88,7 @@ function vForm() {
       <div><b>${I0.stats.studentsSponsored}</b><span>${t('pelajar telah ditaja')}</span></div>
       <div><b>${I0.stats.donors}</b><span>${t('penyumbang')}</span></div>
     </div></div>` : ''}
+    ${clipsCard()}
     <form id="fDonate" class="card" novalidate>
       <span class="eyebrow">${t('1. Tujuan')}</span>
       <div class="vlist" role="radiogroup" aria-label="${t('Tujuan')}">
@@ -166,6 +196,9 @@ document.addEventListener('click', async e => {
   if (!el) return;
   const a = el.dataset.a, v = el.dataset.v;
   switch (a) {
+    case 'clip': openClip(Number(v)); return;
+    case 'clipBack': if (e.target === el) closeClip(); return; // klik di luar kotak
+    case 'clipClose': closeClip(); return;
     case 'theme': toggleTheme(); break;
     case 'lang': setLang(v); break;
     case 'use': D.f.use = v; D.f.amount = null; forget('dAmt'); D.err = ''; break;
@@ -190,6 +223,8 @@ document.addEventListener('click', async e => {
   }
   render();
 });
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeClip(); });
 
 // Kemas kini butang & nota jumlah bila menaip jumlah sendiri / tanda tanpa nama
 document.addEventListener('input', e => {
@@ -223,7 +258,7 @@ document.addEventListener('submit', async e => {
   if (status === 'gagal') { D.view = 'thanks'; D.result = { state: 'failed' }; render(); return; }
   if (D.manageToken && !status) { loadManage(); return; }
   const r = await api('GET', '/api/donate/info');
-  D.info = r.ok ? r : { ready: false, cardEnabled: false, stats: {}, recent: [], monthPriceSen: 1000 };
+  D.info = r.ok ? r : { ready: false, cardEnabled: false, stats: {}, recent: [], clips: [], monthPriceSen: 1000 };
   if (!D.info.cardEnabled) D.f.monthly = false;
   D.view = 'form'; render();
   if (status === 'batal') toast(t('Sumbangan dibatalkan. Tiada caj dibuat.'));

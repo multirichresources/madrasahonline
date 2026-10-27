@@ -1017,6 +1017,32 @@ check('assetlinks.json: JSON sah (kosong selagi cap jari belum diisi)', h.status
 r = await s2.j.req('GET', '/api/plans');
 check('Pakej: ID produk store & status store dihantar', r.data.plans[0].productId === 'madrasah.bulanan' && r.data.storeReady.google === true && r.data.storeReady.apple === true, r.data);
 
+// Klip pendek di halaman Sumbang (awam, maks 3, tak masuk senarai pelajar jika tidak diterbitkan)
+r = await ad.req('GET', '/api/admin/videos');
+const draftV = r.data.videos.find(v => v.title === 'Draf belum terbit');
+check('Klip Sumbang: lalai tidak dipapar', draftV && draftV.donateClip === false, draftV);
+r = await plain0('GET', '/api/donate/info');
+check('Klip Sumbang: tiada klip bila belum dipilih', r.status === 200 && Array.isArray(r.data.clips) && r.data.clips.length === 0, r.data.clips);
+r = await ad.req('POST', `/api/admin/videos/${draftV.id}`, { donateClip: true });
+check('Klip Sumbang: admin tanda video draf', r.status === 200 && r.data.video.donateClip === true && r.data.video.published === false, r.data);
+r = await plain0('GET', '/api/donate/info');
+check('Klip Sumbang: dipapar tanpa log masuk dengan pautan embed', r.data.clips.length === 1 && r.data.clips[0].title === 'Draf belum terbit' && /player\.mediadelivery\.net\/embed\/.+\/def-guid\?/.test(r.data.clips[0].embedUrl) && !('bunnyId' in r.data.clips[0]), r.data.clips);
+r = await e.req('GET', '/api/videos');
+check('Klip Sumbang: draf tidak masuk senarai video pelajar', !r.data.videos.some(v => v.title === 'Draf belum terbit'), r.data.videos.map(v => v.title));
+execSync(`npx wrangler d1 execute madrasah-db --local --command "INSERT INTO videos (title, topic, bunny_id, minutes, published, bunny_status, donate_clip, created_at) VALUES ('Klip A', '', 'k1', 1, 0, 4, 1, ${t0}), ('Klip B', '', 'k2', 1, 0, 4, 1, ${t0}), ('Klip proses', '', 'k3', 1, 0, 1, 0, ${t0})"`, { stdio: 'ignore', cwd: process.cwd() });
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { donateClip: true });
+check('Klip Sumbang: maksimum 3 klip', r.status === 400 && /Maksimum 3 klip/.test(r.data.error), r.data);
+r = await ad.req('GET', '/api/admin/videos');
+const procV = r.data.videos.find(v => v.title === 'Klip proses');
+r = await ad.req('POST', `/api/admin/videos/${procV.id}`, { donateClip: true });
+check('Klip Sumbang: video belum siap ditolak', r.status === 400 && /belum siap diproses/.test(r.data.error), r.data);
+r = await ad.req('POST', `/api/admin/videos/${draftV.id}`, { donateClip: false });
+check('Klip Sumbang: admin buang klip', r.status === 200 && r.data.video.donateClip === false, r.data);
+r = await plain0('GET', '/api/donate/info');
+check('Klip Sumbang: senarai dikemas kini (2 klip)', r.data.clips.length === 2 && !r.data.clips.some(c => c.title === 'Draf belum terbit'), r.data.clips);
+r = await ad.req('POST', `/api/admin/videos/${vid}`, { title: 'Hukum Nun Mati' });
+check('Klip Sumbang: edit tanpa medan donateClip kekalkan status', r.status === 200 && r.data.video.donateClip === false, r.data);
+
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');
 check('Pelajar tanpa sesi admin tak boleh lihat senarai', r.status === 401);

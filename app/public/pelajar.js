@@ -17,7 +17,7 @@ function vLogin() {
   <div class="login">
     <div class="brand">
       <div class="plate"><img class="logo logo-lg" src="/logo.png" alt="Madrasah Online" width="640" height="608"></div>
-      <p class="muted">${t('Kelas mengaji untuk dewasa')}</p>
+      <p class="muted">${t('Kelas Al-Quran & ilmu agama untuk dewasa')}</p>
       ${orn()}
     </div>
     <form id="fLogin" class="card" novalidate>
