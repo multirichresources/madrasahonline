@@ -183,7 +183,8 @@ p { margin: 0; }
 /* kaki */
 .foot { background: #062824; color: #c8d9d5; padding: 3rem 0 3.5rem; font-size: 1rem; }
 .foot-in { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 2rem; }
-.foot a { color: #fff; }
+.foot a { color: #fff; text-decoration: none; }
+.foot a:hover { color: #f3c85c; }
 .foot-brand { display: flex; align-items: center; gap: .6rem; color: #fff; font-weight: 700; font-size: 1.1rem; margin-bottom: .6rem; }
 .foot-brand img { width: 2.2rem; height: 2.2rem; object-fit: contain; background: #f7f4ec; border-radius: 8px; padding: 2px; }
 .foot-h { color: #fff; font-weight: 700; margin-bottom: .4rem; }
