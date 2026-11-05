@@ -204,7 +204,7 @@ function solatHero() {
 
 function quickAccess() {
   const u = S.user, now = Date.now();
-  const c = u.active && S.videos && S.continueId && S.videos.find(v => v.id === S.continueId);
+  const c = S.videos && S.continueId && S.videos.find(v => v.id === S.continueId && (u.active || v.free));
   const n = S.ann && S.ann.nextClass;
   const classBadge = n && n.joinOpen && !n.locked ? `<em class="qa-badge live">${t('LIVE')}</em>`
     : n && n.classAt > now && n.classAt - now < 7 * 864e5 ? '<i class="dot" aria-hidden="true"></i>' : '';
@@ -804,6 +804,7 @@ function vItem(v) {
       : `<span class="thumb">${v.arabicLabel ? esc(v.arabicLabel) : `<span style="font-family:var(--f-body);font-size:.8rem;direction:ltr">${esc(vLabel(v))}</span>`}</span>`}
     <span class="vinfo">
       <b>${esc(v.title)}</b>
+      ${S.user.active ? '' : v.free ? `<span class="pill ok vtag">${t('Percuma')}</span>` : `<span class="pill warn vtag">${t('Untuk pelanggan')}</span>`}
       <span class="muted small">${vLabel(v) ? esc(vLabel(v)) + ' · ' : ''}${t('{n} minit', { n: v.minutes })}${v.classMonth ? ' · ' + monthLabel(v.classMonth) : ''}</span>
       ${pct > 0 ? `<span class="bar" aria-label="${t('Ditonton {p}%', { p: pct })}"><i style="width:${pct}%"></i></span><span class="muted small">${pct >= 95 ? t('Dah habis tonton') : t('Ditonton {p}%', { p: pct })}</span>` : ''}
     </span>
@@ -811,7 +812,8 @@ function vItem(v) {
 }
 
 function lockCard() {
-  return `<div class="card lock">${I.lock}<h2 style="font-size:1.2rem">${t('Video dikunci')}</h2><p class="muted">${t('Langgan untuk tonton semua rakaman kelas.')}</p><button class="btn btn-primary" data-a="subscribe">${t('Langgan sekarang')}</button></div>`;
+  const anyFree = (S.videos || []).some(v => v.free);
+  return `<div class="card lock">${I.lock}<h2 style="font-size:1.2rem">${anyFree ? t('Sebahagian video dikunci') : t('Video dikunci')}</h2><p class="muted">${anyFree ? t('Video bertanda Percuma boleh ditonton sekarang. Langgan untuk tonton semua rakaman kelas.') : t('Langgan untuk tonton semua rakaman kelas.')}</p><button class="btn btn-primary" data-a="subscribe">${t('Langgan sekarang')}</button></div>`;
 }
 
 function tVideo() {
@@ -1307,7 +1309,7 @@ async function stopPlayer() {
 }
 async function openVideo(id) {
   const v = S.videos.find(x => x.id === id);
-  if (!S.user.active) { S.modal = 'subscribe'; if (!S.plans) loadPlans(); render(); return; }
+  if (!S.user.active && !(v && v.free)) { S.modal = 'subscribe'; if (!S.plans) loadPlans(); render(); return; }
   if (AP.el) AP.el.pause(); // jangan bertindih dengan audio zikir
   S.tab = 'video'; S.playing = { video: v, embedUrl: null }; S.vqa = null; window.scrollTo(0, 0); render();
   loadVqa(id);

@@ -190,6 +190,19 @@ r = await ad.req('POST', `/api/admin/users/${rid}/subscription`, { action: 'tama
 check('Admin tamatkan langganan', r.status === 200 && r.data.active === false, r.data);
 r = await e.req('GET', `/api/videos/${vid}/play`);
 check('Tonton ditolak semula selepas tamat', r.status === 402, r.data);
+// ---- kategori percuma (tanpa langganan) ----
+r = await ad.req('POST', `/api/admin/video-categories/${catBQ.id}`, { name: 'Belajar Al-Quran', free: true });
+check('Admin tanda kategori Percuma untuk semua', r.status === 200 && r.data.category.free === true, r.data);
+r = await e.req('GET', '/api/videos');
+check('Senarai video: tanda percuma ikut kategori', r.data.videos[0].free === true && r.data.categories.find(c => c.id === catBQ.id).free === true, r.data.videos[0]);
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Video kategori percuma boleh ditonton tanpa langganan', r.status === 200 && !!r.data.embedUrl, r.data);
+r = await ad.req('POST', `/api/admin/video-categories/${catBQ.id}`, { name: 'Belajar Al-Quran', nameEn: 'Learning the Quran' });
+check('Edit nama tanpa medan free: status percuma kekal', r.status === 200 && r.data.category.free === true, r.data);
+r = await ad.req('POST', `/api/admin/video-categories/${catBQ.id}`, { name: 'Belajar Al-Quran', free: false });
+check('Admin buang tanda percuma', r.status === 200 && r.data.category.free === false, r.data);
+r = await e.req('GET', `/api/videos/${vid}/play`);
+check('Selepas buang tanda percuma, tonton ditolak semula', r.status === 402, r.data);
 
 // ---- polisi, tetapan pengendali, pengumuman & kelas Zoom ----
 let page = await fetch(BASE + '/terma');

@@ -38,7 +38,7 @@ async function uploadTicket(env, guid) {
 
 const STATUS_LABEL = { 0: 'Menunggu upload', 1: 'Dimuat naik', 2: 'Diproses', 3: 'Diproses', 4: 'Sedia', 5: 'Ralat', 6: 'Upload gagal', 7: 'Diproses', 8: 'Diproses' };
 
-const catShape = c => ({ id: c.id, name: c.name, nameEn: c.name_en || '', sort: c.sort });
+const catShape = c => ({ id: c.id, name: c.name, nameEn: c.name_en || '', sort: c.sort, free: !!c.free });
 
 let catsSeeded = false;
 // Kali pertama: cipta kategori asal dan susun video sedia ada mengikut topik lama
@@ -227,6 +227,7 @@ export async function adminDeleteVideo(env, request, id) {
 export async function listVideos(env, request) {
   const u = await requireUser(env, request);
   const categories = await listCategories(env);
+  const freeCats = new Set(categories.filter(c => c.free).map(c => c.id));
   const { results } = await env.DB.prepare(
     `SELECT v.id, v.title, v.topic, v.category_id, v.arabic_label, v.minutes, v.class_month, v.created_at, v.thumb_url,
             p.seconds AS watched, p.updated_at AS watched_at
@@ -235,6 +236,7 @@ export async function listVideos(env, request) {
   const videos = results.map(v => ({
     id: v.id, title: v.title, topic: v.topic || '', categoryId: v.category_id || null, arabicLabel: v.arabic_label || '', minutes: v.minutes, classMonth: v.class_month, thumbUrl: v.thumb_url || null,
     watchedSeconds: v.watched || 0, watchedAt: v.watched_at || null,
+    free: freeCats.has(v.category_id),
   }));
   const last = videos.filter(v => v.watchedAt && v.watchedSeconds < v.minutes * 60 - 30).sort((a, b) => b.watchedAt - a.watchedAt)[0] || null;
   return json({ ok: true, videos, categories, continueId: last ? last.id : null });
@@ -262,8 +264,9 @@ export async function donateClips(env) {
 
 export async function playVideo(env, request, id) {
   const u = await requireUser(env, request);
-  if (!(u.paid_until && u.paid_until > now())) return fail(402, 'Langganan anda tidak aktif. Langgan untuk tonton video.');
-  const v = await env.DB.prepare('SELECT * FROM videos WHERE id = ? AND published = 1').bind(id).first();
+  const v = await env.DB.prepare('SELECT v.*, c.free AS cat_free FROM videos v LEFT JOIN video_categories c ON c.id = v.category_id WHERE v.id = ? AND v.published = 1').bind(id).first();
+  // Video kategori percuma terbuka untuk semua pelajar berdaftar; lain-lain perlu langganan
+  if (!(u.paid_until && u.paid_until > now()) && !(v && v.cat_free)) return fail(402, 'Langganan anda tidak aktif. Langgan untuk tonton video.');
   if (!v || !v.bunny_id) return fail(404, 'Video tidak dijumpai.');
   if (!env.BUNNY_LIBRARY_ID) return fail(503, 'Video belum boleh dimainkan. Sila cuba lagi nanti.');
   const url = await embedUrl(env, v.bunny_id, false);
@@ -347,19 +350,22 @@ function readCategory(b) {
 export async function adminCreateCategory(env, request) {
   await requireAdmin(env, request);
   await seedCategories(env);
-  const c = readCategory(await readJson(request));
+  const raw = await readJson(request);
+  const c = readCategory(raw);
   if (c.error) return fail(400, c.error);
   const sort = ((await env.DB.prepare('SELECT MAX(sort) AS s FROM video_categories').first()).s || 0) + 10;
-  const row = await env.DB.prepare('INSERT INTO video_categories (name, name_en, sort, created_at) VALUES (?, ?, ?, ?) RETURNING *')
-    .bind(c.name, c.nameEn || null, sort, now()).first();
+  const row = await env.DB.prepare('INSERT INTO video_categories (name, name_en, sort, free, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *')
+    .bind(c.name, c.nameEn || null, sort, raw.free ? 1 : 0, now()).first();
   return json({ ok: true, category: catShape(row), categories: await listCategories(env) }, 201);
 }
 
 export async function adminUpdateCategory(env, request, id) {
   await requireAdmin(env, request);
-  const c = readCategory(await readJson(request));
+  const body = await readJson(request);
+  const c = readCategory(body);
   if (c.error) return fail(400, c.error);
-  const row = await env.DB.prepare('UPDATE video_categories SET name = ?, name_en = ? WHERE id = ? RETURNING *').bind(c.name, c.nameEn || null, id).first();
+  const free = body.free === undefined ? null : (body.free ? 1 : 0); // tiada dalam body = kekal
+  const row = await env.DB.prepare('UPDATE video_categories SET name = ?, name_en = ?, free = COALESCE(?, free) WHERE id = ? RETURNING *').bind(c.name, c.nameEn || null, free, id).first();
   if (!row) return fail(404, 'Kategori tidak dijumpai.');
   return json({ ok: true, category: catShape(row), categories: await listCategories(env) });
 }

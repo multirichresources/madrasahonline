@@ -2,6 +2,8 @@
 // Kunci = teks BM yang dipaparkan; {n} = nombor. _sub = cebisan dalam teks gabungan.
 // Tambah terjemahan di sini setiap kali menambah teks admin baharu, kemudian jalankan: node test/i18n-admin.test.mjs
 window.EN_ADMIN = {
+"Percuma untuk semua": "Free for everyone",
+"Pelajar berdaftar yang belum melanggan boleh tonton video dalam kategori ini. Kategori lain kekal untuk pelanggan.": "Registered students without a subscription can watch videos in this category. Other categories stay subscribers-only.",
 "1 bulan": "1 month",
 "+1 bulan": "+1 month",
 "1 hari lagi": "1 day left",

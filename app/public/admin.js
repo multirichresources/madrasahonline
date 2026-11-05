@@ -304,7 +304,7 @@ function catCard() {
     <span class="eyebrow">Kategori video</span>
     <p class="muted small">Pelajar nampak video dikumpul ikut kategori. Topik (cth. Makhraj, Tajwid) dipilih dalam setiap video.</p>
     <div class="rows">${cats.map((c, i) => `<div class="row">
-      <div style="min-width:0"><b>${esc(c.name)}</b><p class="muted small">${c.nameEn && c.nameEn !== c.name ? esc(c.nameEn) + ' · ' : ''}${count(c.id)} video</p></div>
+      <div style="min-width:0"><b>${esc(c.name)}</b><p class="muted small">${c.nameEn && c.nameEn !== c.name ? esc(c.nameEn) + ' · ' : ''}${count(c.id)} video</p>${c.free ? '<p class="small"><span class="pill ok">Percuma untuk semua</span></p>' : ''}</div>
       <div class="btn-row" style="flex:none;gap:.3rem">
         <button class="iconbtn" data-a="catMove" data-v="${c.id}" data-dir="-1" aria-label="Naik" ${i === 0 ? 'disabled' : ''}>↑</button>
         <button class="iconbtn" data-a="catMove" data-v="${c.id}" data-dir="1" aria-label="Turun" ${i === cats.length - 1 ? 'disabled' : ''}>↓</button>
@@ -320,6 +320,7 @@ function catModal() {
     <h2 style="font-size:1.25rem">${c.id ? 'Ubah kategori' : 'Tambah kategori'}</h2>
     <label class="f" for="cName">Nama kategori<input class="input" id="cName" maxlength="40" value="${esc(c.name || '')}" placeholder="Contoh: Kisah dari Al-Quran"></label>
     <label class="f" for="cNameEn">Nama (English) <span class="muted small">(pilihan)</span><input class="input" id="cNameEn" maxlength="40" value="${esc(c.nameEn || '')}" placeholder="Contoh: Stories from the Quran"></label>
+    <label class="check" for="cFree"><input type="checkbox" id="cFree" ${c.free ? 'checked' : ''}><span>Percuma untuk semua<br><span class="muted small" style="font-weight:400">Pelajar berdaftar yang belum melanggan boleh tonton video dalam kategori ini. Kategori lain kekal untuk pelanggan.</span></span></label>
     ${A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : ''}
     <button class="btn btn-primary" type="submit">Simpan</button>
     ${c.id ? `<button class="btn btn-ghost" type="button" data-a="catDel" data-v="${c.id}" style="color:var(--danger)">Padam kategori</button><p class="muted small">Video dalam kategori ini tidak dipadam, cuma jadi "tiada kategori".</p>` : ''}
@@ -1286,7 +1287,7 @@ document.addEventListener('submit', async e => {
   }
   if (f.id === 'fCat') {
     const id = A.editCat && A.editCat.id;
-    const r = await busy(btn, () => api('POST', id ? `/api/admin/video-categories/${id}` : '/api/admin/video-categories', { name: val('cName'), nameEn: val('cNameEn') }));
+    const r = await busy(btn, () => api('POST', id ? `/api/admin/video-categories/${id}` : '/api/admin/video-categories', { name: val('cName'), nameEn: val('cNameEn'), free: !!document.getElementById('cFree')?.checked }));
     if (r.status === 401) return toLogin();
     if (!r.ok) { A.err = r.error; render(); return; }
     forget('cName', 'cNameEn'); A.vmeta.categories = r.categories; A.modal = null; A.err = '';

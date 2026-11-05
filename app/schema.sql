@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS video_categories (
   name        TEXT    NOT NULL,
   name_en     TEXT,
   sort        INTEGER NOT NULL DEFAULT 0,
+  free        INTEGER NOT NULL DEFAULT 0,       -- 1 = video kategori ini boleh ditonton semua pelajar berdaftar (tanpa langganan)
   created_at  INTEGER NOT NULL
 );
 
