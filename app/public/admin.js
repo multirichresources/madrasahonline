@@ -53,7 +53,8 @@ A.annForm = blankAnn();
 const toLocalInput = ms => { if (!ms) return ''; const d = new Date(ms), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const app = document.getElementById('app');
 
-const toWa = phone => '6' + String(phone).replace(/\D/g, '');
+// 012-345 6789 → 60123456789; no. luar negara dipapar +6591234567 → 6591234567
+const toWa = phone => (String(phone).startsWith('+') ? '' : '6') + String(phone).replace(/\D/g, '');
 
 function randomPin() {
   const bad = p => /^(\d)\1{5}$/.test(p) || '0123456789'.includes(p) || '9876543210'.includes(p);

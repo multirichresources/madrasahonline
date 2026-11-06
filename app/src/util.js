@@ -65,14 +65,21 @@ export function safeEqual(a, b) {
 
 // ---------- input ----------
 // Terima "012-345 6789", "+6012 3456789", "60123456789" → "60123456789"
+// No. Malaysia: 012-345 6789 / +60 12-345 6789 → 60123456789 (format asal, tidak berubah).
+// No. luar negara: mesti bermula + atau 00 dengan kod negara, cth +65 9123 4567 → 6591234567.
 export function normalizePhone(input) {
-  let d = String(input || '').replace(/\D/g, '');
-  if (d.startsWith('0')) d = '6' + d;
-  if (!/^601\d{8,9}$/.test(d)) return null;
-  return d;
+  const raw = String(input || '').trim();
+  let d = raw.replace(/\D/g, '');
+  const intl = raw.startsWith('+') || d.startsWith('00');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (!intl && d.startsWith('0')) d = '6' + d;
+  if (d.startsWith('60')) return /^601\d{8,9}$/.test(d) ? d : null;
+  if (intl && /^[1-9]\d{7,14}$/.test(d)) return d;
+  return null;
 }
 
 export function displayPhone(p) {
+  if (!String(p).startsWith('60')) return '+' + p;
   const local = '0' + p.slice(2);
   return local.slice(0, 3) + '-' + local.slice(3, local.length - 4) + ' ' + local.slice(-4);
 }

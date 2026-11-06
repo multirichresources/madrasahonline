@@ -44,6 +44,19 @@ let r = await a.req('POST', '/api/register', { name: 'Rohana Ismail', phone, ema
 check('PIN berturutan ditolak', r.status === 400, r.data);
 r = await a.req('POST', '/api/register', { name: 'Rohana Ismail', phone: '12345', email: 'rohana@contoh.my', pin: '482913' });
 check('No. telefon tak sah ditolak', r.status === 400, r.data);
+// No. luar negara (mesti bermula +), contoh Singapura
+const sgPhone = '+65 9' + String(Date.now()).slice(-7);
+const sg = jar();
+r = await sg.req('POST', '/api/register', { name: 'Selina Salleh', phone: sgPhone, email: 'selina@contoh.sg', pin: '482913' });
+check('Daftar no. Singapura (+65) berjaya', r.status === 201, r.data);
+r = await sg.req('GET', '/api/me');
+check('No. luar negara dipapar dengan +65', r.status === 200 && r.data.user.phone === sgPhone.replace(/\s/g, ''), r.data);
+await sg.req('POST', '/api/logout', {});
+r = await sg.req('POST', '/api/login', { phone: sgPhone.replace(/\s/g, ''), pin: '482913' });
+check('Log masuk no. Singapura berjaya', r.status === 200, r.data);
+await sg.req('POST', '/api/logout', {});
+r = await jar().req('POST', '/api/register', { name: 'X', phone: '6591234567', email: 'x@contoh.sg', pin: '482913' });
+check('No. luar negara tanpa + ditolak (elak salah faham)', r.status === 400, r.data);
 r = await a.req('POST', '/api/register', { name: 'Rohana Ismail', phone, pin: '482913' });
 check('Daftar tanpa emel ditolak', r.status === 400 && /emel/.test(r.data.error), r.data);
 r = { status: 400 };

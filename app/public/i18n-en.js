@@ -437,6 +437,7 @@ window.EN_DICT = {
  "No. telefon atau PIN salah.": "Wrong phone number or PIN.",
  "No. telefon ini sudah berdaftar. Sila log masuk.": "This phone number is already registered. Please log in.",
  "No. telefon tidak sah. Contoh: 012-345 6789.": "Invalid phone number. Example: 012-345 6789.",
+ "No. telefon tidak sah. Contoh: 012-345 6789. Luar negara: mulakan dengan + dan kod negara, cth +65 9123 4567.": "Invalid phone number. Example: 012-345 6789. Outside Malaysia: start with + and the country code, e.g. +65 9123 4567.",
  "No. telefon tidak sah.": "Invalid phone number.",
  "PIN lama salah.": "Your current PIN is wrong.",
  "PIN mesti 6 angka.": "The PIN must be 6 digits.",

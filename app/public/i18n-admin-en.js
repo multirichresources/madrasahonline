@@ -459,6 +459,7 @@ window.EN_ADMIN = {
 "No. telefon ini sudah berdaftar. Sila log masuk.": "This phone no. is already registered. Please sign in.",
 "No. telefon tidak sah.": "Invalid phone no.",
 "No. telefon tidak sah. Contoh: 012-345 6789.": "Invalid phone no. E.g. 012-345 6789.",
+"No. telefon tidak sah. Contoh: 012-345 6789. Luar negara: mulakan dengan + dan kod negara, cth +65 9123 4567.": "Invalid phone no. E.g. 012-345 6789. Outside Malaysia: start with + and the country code, e.g. +65 9123 4567.",
 "PIN lama salah.": "Wrong current PIN.",
 "PIN salah 5 kali. Akaun dikunci 15 minit.": "Wrong PIN 5 times. Account locked for 15 minutes.",
 "PIN salah.": "Wrong PIN.",

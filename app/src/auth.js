@@ -100,7 +100,7 @@ export async function register(env, request) {
   const phone = normalizePhone(body.phone);
   const email = cleanText(body.email, 254).toLowerCase();
   if (name.length < 2) return fail(400, 'Sila isi nama penuh.');
-  if (!phone) return fail(400, 'No. telefon tidak sah. Contoh: 012-345 6789.');
+  if (!phone) return fail(400, 'No. telefon tidak sah. Contoh: 012-345 6789. Luar negara: mulakan dengan + dan kod negara, cth +65 9123 4567.');
   if (!email) return fail(400, 'Sila isi alamat emel. Ia digunakan untuk set semula PIN jika terlupa.');
   if (!validEmail(email)) return fail(400, 'Alamat emel tidak sah.');
   const pinErr = checkPin(body.pin);

@@ -32,7 +32,7 @@ export async function forgotPin(env, request) {
     return fail(429, 'Terlalu banyak permintaan. Cuba lagi dalam sejam.');
   const body = await readJson(request);
   const phone = normalizePhone(body.phone);
-  if (!phone) return fail(400, 'No. telefon tidak sah. Contoh: 012-345 6789.');
+  if (!phone) return fail(400, 'No. telefon tidak sah. Contoh: 012-345 6789. Luar negara: mulakan dengan + dan kod negara, cth +65 9123 4567.');
   const generic = { ok: true, message: 'Jika no. telefon ini berdaftar dengan emel, kod 6 angka telah dihantar ke emel tersebut. Semak juga folder Spam.' };
 
   const u = await env.DB.prepare('SELECT id, name, email FROM users WHERE phone = ?').bind(phone).first();
