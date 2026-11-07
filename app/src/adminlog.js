@@ -13,6 +13,8 @@ const ACTIONS = [
   [/^\/api\/admin\/users\/\d+\/pin$/, 'Set semula PIN pelajar'],
   [/^\/api\/admin\/users\/\d+\/subscription$/, 'Ubah langganan pelajar'],
   [/^\/api\/admin\/users\/\d+\/sponsor$/, 'Taja pelajar dari dana'],
+  [/^\/api\/admin\/users\/\d+\/payments$/, 'Rekod bayaran manual'],
+  [/^\/api\/admin\/payments\/\d+\/cancel$/, 'Batalkan rekod bayaran manual'],
   [/^\/api\/admin\/videos\/import$/, 'Import video dari Bunny'],
   [/^\/api\/admin\/video-categories\/\d+\/delete$/, 'Padam kategori video'],
   [/^\/api\/admin\/video-categories\/\d+\/move$/, 'Susun kategori video'],
@@ -39,6 +41,7 @@ const ACTIONS = [
   [/^\/api\/admin\/doas$/, 'Tambah doa'],
   [/^\/api\/admin\/export\/pelajar\.csv$/, 'Muat turun senarai pelajar (CSV)'],
   [/^\/api\/admin\/export\/sumbangan\.csv$/, 'Muat turun rekod sumbangan (CSV)'],
+  [/^\/api\/admin\/export\/kutipan\.csv$/, 'Muat turun rekod kutipan (CSV)'],
 ];
 
 // Permintaan admin yang direkod: semua POST (kecuali logout) dan muat turun CSV

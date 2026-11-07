@@ -365,5 +365,5 @@ export async function adminPayments(env, request) {
   await requireAdmin(env, request);
   const { results } = await env.DB.prepare(`SELECT p.*, u.name AS user_name FROM payments p LEFT JOIN users u ON u.id = p.user_id
       WHERE p.purpose = 'langganan' AND p.status IN ('completed', 'semak') ORDER BY COALESCE(p.completed_at, p.created_at) DESC LIMIT 50`).all();
-  return json({ ok: true, payments: results.map(p => ({ id: p.id, name: p.user_name || '(akaun dipadam)', plan: p.plan, months: p.months, amountSen: p.amount_sen, status: p.status, auto: p.recurring > 0, ref: p.provider_ref, paidAt: p.completed_at || p.created_at })) });
+  return json({ ok: true, payments: results.map(p => ({ id: p.id, name: p.user_name || '(akaun dipadam)', plan: p.plan, months: p.months, amountSen: p.amount_sen, status: p.status, auto: p.recurring > 0, ref: p.provider_ref, manual: p.provider === 'manual', method: p.pay_method || null, paidAt: p.completed_at || p.created_at })) });
 }

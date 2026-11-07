@@ -19,6 +19,7 @@ import { legalPaths, renderLegal } from './legal.js';
 import { pushKey, pushSubscribe, pushUnsubscribe, pushTest, pushInbox, dispatchPush, internalPush, sendClassReminders } from './push.js';
 import { publicPlans, checkout, confirmPayment, chipCallback, stopAutoRenew, myPayments, runBilling, adminGetPlans, adminSavePlans, adminPayments } from './billing.js';
 import { adminInsights, adminExportUsers } from './insights.js';
+import { adminRecordPayment, adminCancelPayment, adminUserPayments, adminRange, adminExportPayments } from './manualpay.js';
 import { listZones, solatToday, saveSolatPrefs, sendAzan, cleanAzan } from './solat.js';
 import { donateInfo, donateCheckout, donateConfirm, donorManage, donorStop, adminDonations, adminStopDonor, adminTajaBalance, adminSponsor, adminExportDonations } from './donations.js';
 import { listAudios, streamAudio, adminListAudios, adminAudioFile, adminCreateAudio, adminUpdateAudio, adminUploadAudio, adminDeleteAudio } from './audio.js';
@@ -125,6 +126,11 @@ const routes = [
   ['GET', /^\/api\/admin\/plans$/, (env, req) => adminGetPlans(env, req)],
   ['POST', /^\/api\/admin\/plans$/, (env, req) => adminSavePlans(env, req)],
   ['GET', /^\/api\/admin\/payments$/, (env, req) => adminPayments(env, req)],
+  ['POST', /^\/api\/admin\/payments\/(\d+)\/cancel$/, (env, req, m) => adminCancelPayment(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/users\/(\d+)\/payments$/, (env, req, m) => adminUserPayments(env, req, Number(m[1]))],
+  ['POST', /^\/api\/admin\/users\/(\d+)\/payments$/, (env, req, m) => adminRecordPayment(env, req, Number(m[1]))],
+  ['GET', /^\/api\/admin\/dash\/range$/, (env, req) => adminRange(env, req)],
+  ['GET', /^\/api\/admin\/export\/kutipan\.csv$/, (env, req) => adminExportPayments(env, req)],
   ['GET', /^\/api\/donate\/info$/, (env) => donateInfo(env)],
   ['POST', /^\/api\/donate\/checkout$/, (env, req) => donateCheckout(env, req)],
   ['POST', /^\/api\/donate\/confirm$/, (env, req) => donateConfirm(env, req)],

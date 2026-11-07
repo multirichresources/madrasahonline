@@ -198,23 +198,119 @@ const viewSwitch = () => `<div class="viewsw" role="group" aria-label="Jenis pap
     ${A.view3d ? '<button class="iconbtn" data-a="m3dFull" style="margin-left:auto">Skrin penuh</button>' : ''}
   </div>`;
 
+// ---------- Tempoh papan pemuka (tarikh waktu Malaysia) ----------
+const PAY_METHOD = { tunai: 'Tunai', bank: 'Pindahan bank', duitnow: 'DuitNow', lain: 'Lain-lain' };
+const RANGES = [['hari', 'Hari ini'], ['semalam', 'Semalam'], ['7hari', '7 hari'], ['bulan', 'Bulan ini'], ['bulanLepas', 'Bulan lepas'], ['custom', 'Pilih tarikh']];
+const ymdMy = ms => new Date(ms + 8 * 3600e3).toISOString().slice(0, 10);
+const addDays = (ymd, n) => ymdMy(Date.parse(ymd + 'T12:00:00+08:00') + n * 864e5);
+const monthEnd = ym => { const [y, m] = ym.split('-').map(Number); return ymdMy(Date.UTC(y, m, 0) + 12 * 3600e3); };
+const prevYm = ym => { const [y, m] = ym.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
+A.range = (() => { try { const k = localStorage.getItem('mo-admin-range'); return RANGES.some(r => r[0] === k) && k !== 'custom' ? k : 'bulan'; } catch { return 'bulan'; } })();
+A.rangeCustom = null;
+function rangeDates(k = A.range) {
+  const today = ymdMy(Date.now()), ym = today.slice(0, 7);
+  if (k === 'hari') return [today, today];
+  if (k === 'semalam') { const y = addDays(today, -1); return [y, y]; }
+  if (k === '7hari') return [addDays(today, -6), today];
+  if (k === 'bulanLepas') { const p = prevYm(ym); return [p + '-01', monthEnd(p)]; }
+  if (k === 'custom' && A.rangeCustom) return A.rangeCustom;
+  return [ym + '-01', monthEnd(ym)];
+}
+const dmy = ymd => Number(ymd.slice(8, 10)) + ' ' + monthShort(ymd);
+function rangeLabel() {
+  const [f, t] = rangeDates();
+  if (A.range === 'bulan' || A.range === 'bulanLepas') return monthLong(f);
+  if (A.range === 'hari' || A.range === 'semalam') return RANGES.find(r => r[0] === A.range)[1];
+  if (A.range === '7hari') return '7 hari';
+  return f === t ? dmy(f) : `${dmy(f)} – ${dmy(t)}`;
+}
+function cmpLabel() {
+  const R = A.rangeData;
+  if (A.range === 'hari') return 'vs semalam';
+  if (A.range === 'semalam') return 'vs hari sebelumnya';
+  if (A.range === '7hari') return 'vs 7 hari sebelumnya';
+  if (A.range === 'bulan') return R ? `vs ${monthShort(R.prevFrom)}, tempoh sama` : '';
+  if (A.range === 'bulanLepas') return R ? `vs ${monthShort(R.prevFrom)}` : '';
+  return 'vs tempoh sebelumnya';
+}
+async function loadRange() {
+  const [from, to] = rangeDates(), key = from + to;
+  A.rangeKey = key;
+  const r = await api('GET', `/api/admin/dash/range?from=${from}&to=${to}`);
+  if (A.rangeKey !== key) return;
+  if (r.status === 401) return toLogin();
+  A.rangeData = r.ok ? r : null;
+  if (!r.ok) toast(r.error);
+  if (A.tab === 'ringkasan') render();
+}
+const rangeBar = () => {
+  const [f, t] = rangeDates(), today = ymdMy(Date.now());
+  return `<div class="dash-p">
+    <div class="filter-row" role="group" aria-label="Tempoh data">${RANGES.map(([k, l]) => `<button class="chip ${A.range === k ? 'on' : ''}" data-a="range" data-v="${k}" aria-pressed="${A.range === k}">${l}</button>`).join('')}</div>
+    ${A.range === 'custom' ? `<form id="fRange" class="range-f" novalidate>
+      <label class="f" for="rgFrom">Dari<input class="input" type="date" id="rgFrom" value="${f}" max="${today}"></label>
+      <label class="f" for="rgTo">Hingga<input class="input" type="date" id="rgTo" value="${t}" max="${today}"></label>
+      <button class="btn btn-primary" type="submit">Papar</button>
+    </form>` : ''}
+  </div>`;
+};
+// Donut: bahagian setiap sumber daripada jumlah kutipan (SVG, ikut tema)
+function donut({ title, sub, parts, fmt, empty }) {
+  const total = parts.reduce((a, p) => a + p.value, 0);
+  const shown = parts.filter(p => p.value > 0);
+  const gap = shown.length > 1 ? 0.8 : 0;
+  let acc = 0;
+  const segs = shown.map(p => {
+    const len = p.value / total * 100;
+    const seg = `<circle class="seg ${p.cls}" cx="21" cy="21" r="15.915" fill="none" stroke-width="6" pathLength="100"
+      stroke-dasharray="${Math.max(0.01, len - gap)} ${100 - Math.max(0.01, len - gap)}" stroke-dashoffset="${25 - acc}"
+      tabindex="0" data-tip="${esc(p.name)} · ${pct(p.value, total)}%" data-val="${esc(fmt(p.value))}"></circle>`;
+    acc += len;
+    return seg;
+  }).join('');
+  return `<figure class="card vz">
+    <figcaption class="vz-head"><span class="eyebrow">${title}</span>${sub ? `<span class="muted small">${sub}</span>` : ''}</figcaption>
+    <div class="donut-wrap">
+      <div class="donut" role="img" aria-label="${esc(title)}: ${parts.map(p => `${p.name} ${fmt(p.value)}`).join(', ')}">
+        <svg viewBox="0 0 42 42" aria-hidden="true"><circle class="donut-track" cx="21" cy="21" r="15.915" fill="none" stroke-width="6"></circle>${segs}</svg>
+        <div class="donut-c"><b>${total ? fmt(total) : '—'}</b><span class="muted small">${total ? 'Jumlah' : empty}</span></div>
+      </div>
+      <div class="donut-keys">${parts.map(p => `<div class="vz-key"><i class="sw ${p.cls}"></i><span>${p.name}</span><b>${fmt(p.value)}</b><span class="muted small">${pct(p.value, total)}%</span></div>`).join('')}</div>
+    </div>
+  </figure>`;
+}
+function rangeChart(R) {
+  const rows = R.buckets.map(b => R.unit === 'month'
+    ? { label: monthShort(b.key + '-01'), tip: monthLong(b.key + '-01'), values: b }
+    : { label: dmy(b.key), tip: dmy(b.key) + ' ' + b.key.slice(0, 4), values: b });
+  return colChart({ title: 'Kutipan · ' + rangeLabel(), sub: R.unit === 'month' ? 'Setiap bulan' : 'Setiap hari', series: [{ key: 'langganan', name: 'Langganan' }, { key: 'sumbangan', name: 'Sumbangan' }],
+    rows, fmt: rm, tickFmt: compactRm, labelEvery: Math.max(1, Math.ceil(rows.length / (window.innerWidth < 720 ? 4 : 8))) });
+}
+
 function tRingkasan() {
   const s = A.stats, D = A.dash;
   if (!s || !D) return '<div class="loading">Memuatkan statistik...</div>';
   if (A.view3d) return `${viewSwitch()}
     <div class="m3d-wrap" id="m3dWrap"><div class="loading">Memuatkan paparan 3D...</div></div>
     <p class="muted small">Nombor sama seperti papan pemuka. Tekan bangunan atau kad untuk terus ke bahagian berkaitan.</p>`;
-  const rev = D.revenue, cur = rev[rev.length - 1], prev = rev[rev.length - 2];
+  const rev = D.revenue;
   const st = D.status, active = st.aktif + st.hampirTamat;
+  const R = A.rangeData, C = R && R.current, P = R && R.previous, lbl = rangeLabel(), cmp = cmpLabel();
+  const wait = '<span class="kpi-d">Memuatkan...</span>';
   return `${viewSwitch()}<div class="dash">
+    ${rangeBar()}
     <div class="kpis">
       ${kpi('Pelajar aktif', active, `${st.hampirTamat} tamat dalam 7 hari`)}
-      ${kpi(`Kutipan langganan · ${monthShort(cur.month)}`, rm(cur.langganan), '', delta(cur.langganan, D.prevMtd.langganan, `vs ${monthShort(prev.month)}, tempoh sama`))}
-      ${kpi('Pelajar baharu · 30 hari', D.newUsers30, '', delta(D.newUsers30, D.newUsersPrev30, 'vs 30 hari sebelumnya'))}
-      ${kpi(`Sumbangan · ${monthShort(cur.month)}`, rm(cur.sumbangan), '', delta(cur.sumbangan, D.prevMtd.sumbangan, `vs ${monthShort(prev.month)}, tempoh sama`))}
+      ${kpi(`Kutipan langganan · ${lbl}`, C ? rm(C.langganan) : '…', C && C.langgananManual ? `termasuk manual ${rm(C.langgananManual)}` : '', C ? delta(C.langganan, P.langganan, cmp) : wait)}
+      ${kpi(`Pelajar baharu · ${lbl}`, C ? C.newUsers : '…', '', C ? delta(C.newUsers, P.newUsers, cmp) : wait)}
+      ${kpi(`Sumbangan · ${lbl}`, C ? rm(C.sumbangan) : '…', '', C ? delta(C.sumbangan, P.sumbangan, cmp) : wait)}
       ${kpi('Soalan menunggu jawapan', s.unansweredQuestions, '', s.unansweredQuestions ? '<button class="kpi-link" data-a="tab" data-v="soalan">Jawab sekarang →</button>' : '<span class="kpi-d up">Semua dah dijawab</span>')}
     </div>
-    <div class="dash-a">${colChart({ title: 'Kutipan 6 bulan', sub: 'Bayaran web (CHIP)', series: [{ key: 'langganan', name: 'Langganan' }, { key: 'sumbangan', name: 'Sumbangan' }],
+    <div class="dash-i">${R ? rangeChart(R) : '<div class="card"><div class="loading">Memuatkan...</div></div>'}</div>
+    <div class="dash-j">${R ? donut({ title: 'Pecahan kutipan', sub: lbl, fmt: rm, empty: 'Tiada kutipan',
+      parts: [{ name: 'Langganan (CHIP)', value: C.langgananChip, cls: 's1' }, { name: 'Langganan (manual)', value: C.langgananManual, cls: 's3' }, { name: 'Sumbangan', value: C.sumbangan, cls: 's2' }] })
+      : '<div class="card"><div class="loading">Memuatkan...</div></div>'}</div>
+    <div class="dash-a">${colChart({ title: 'Kutipan 6 bulan', sub: 'CHIP + manual', series: [{ key: 'langganan', name: 'Langganan' }, { key: 'sumbangan', name: 'Sumbangan' }],
       rows: rev.map(r => ({ label: monthShort(r.month), tip: monthLong(r.month), values: r })), fmt: rm, tickFmt: compactRm })}</div>
     <div class="dash-b">${colChart({ title: 'Pelajar baharu setiap minggu', sub: '12 minggu terakhir', series: [{ key: 'count', name: 'Pelajar baharu' }],
       rows: D.weeks.map(w => ({ label: dayMonth(w.start), tip: 'Minggu ' + dayMonth(w.start), values: w })), fmt: n => String(n), tickFmt: n => String(Math.round(n * 10) / 10), labelEvery: 3 })}</div>
@@ -237,6 +333,7 @@ function tRingkasan() {
     ${insightCards()}
     <div class="dash-btns">
       <a class="btn btn-ghost" href="/api/admin/export/pelajar.csv" download>Muat turun senarai pelajar (Excel)</a>
+      <a class="btn btn-ghost" href="/api/admin/export/kutipan.csv?from=${rangeDates()[0]}&amp;to=${rangeDates()[1]}" download>Muat turun kutipan tempoh ini (Excel)</a>
       <button class="btn btn-ghost" data-a="refresh">Muat semula</button>
     </div>
   </div>`;
@@ -262,7 +359,7 @@ function insightCards() {
     </div>
     <div class="card dash-h">
       <span class="eyebrow">Bayaran terkini</span>
-      ${!pays ? '<p class="muted">Memuatkan...</p>' : pays.length ? `<div class="rows">${pays.slice(0, 10).map(p => `<div class="row"><div style="min-width:0"><b>${esc(p.name)}</b><p class="muted small">${fmtDate(p.paidAt)} · ${p.months || 1} bulan${p.auto ? ' · kad auto' : ''}</p></div><span class="pill ${p.status === 'completed' ? 'ok' : 'warn'}">${rm(p.amountSen)}${p.status === 'semak' ? ' · semak' : ''}</span></div>`).join('')}</div>` : '<p class="muted">Belum ada bayaran.</p>'}
+      ${!pays ? '<p class="muted">Memuatkan...</p>' : pays.length ? `<div class="rows">${pays.slice(0, 10).map(p => `<div class="row"><div style="min-width:0"><b>${esc(p.name)}</b><p class="muted small">${fmtDate(p.paidAt)} · ${p.months || 1} bulan${p.auto ? ' · kad auto' : ''}${p.manual ? ' · Manual' + (p.method ? ' (' + PAY_METHOD[p.method] + ')' : '') : ''}</p></div><span class="pill ${p.status === 'completed' ? 'ok' : 'warn'}">${rm(p.amountSen)}${p.status === 'semak' ? ' · semak' : ''}</span></div>`).join('')}</div>` : '<p class="muted">Belum ada bayaran.</p>'}
     </div>`;
 }
 
@@ -832,6 +929,51 @@ async function loadLog(more) {
   render();
 }
 
+// Borang langganan manual: tambah tempoh (+ rekod jualan atau ditaja) / rekod bayaran lepas sahaja
+function subForm() {
+  const f = A.subF, rekod = f.mode === 'rekod', manual = rekod || f.kind === 'manual';
+  const price = A.uPrices ? A.uPrices[f.months] : null, today = ymdMy(Date.now());
+  const months = rekod ? [1, 3, 6, 12] : [1, 3, 12];
+  const save = rekod ? 'Rekod bayaran' : manual ? `Aktifkan ${f.months} bulan & rekod jualan` : `Aktifkan ${f.months} bulan (tiada jualan)`;
+  return `<div class="subf">
+    <b>${rekod ? 'Rekod bayaran lepas' : `Tambah ${f.months} bulan langganan`}</b>
+    ${rekod ? '<p class="muted small">Untuk pelajar yang dah diaktifkan manual sebelum ini. Tempoh langganan tidak berubah; hanya jualan direkod.</p>' : ''}
+    <div class="f"><span>Tempoh dibayar</span><div class="filter-row">${months.map(m => `<button class="chip ${f.months === m ? 'on' : ''}" data-a="subMonths" data-v="${m}" aria-pressed="${f.months === m}">${m} bulan</button>`).join('')}</div></div>
+    ${rekod ? '' : `<div class="f"><span>Jenis</span><div class="filter-row">
+      <button class="chip ${manual ? 'on' : ''}" data-a="subKind" data-v="manual" aria-pressed="${manual}">Bayaran manual</button>
+      <button class="chip ${manual ? '' : 'on'}" data-a="subKind" data-v="taja" aria-pressed="${!manual}">Ditaja / percuma</button>
+    </div></div>`}
+    ${manual ? `<div class="btn-row">
+        <label class="f" for="sfAmt" style="flex:1">Jumlah (RM)<input class="input" id="sfAmt" inputmode="decimal" value="${price ? (price / 100).toFixed(2).replace(/\\.00$/, '') : ''}"></label>
+        <label class="f" for="sfMethod" style="flex:1">Cara bayar<select class="input" id="sfMethod">${Object.entries(PAY_METHOD).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      </div>
+      <label class="f" for="sfDate">Tarikh bayar<input class="input" type="date" id="sfDate" value="${today}" max="${today}"></label>
+      <label class="f" for="sfNote">Nota / rujukan <span class="muted small">(pilihan, cth. no. rujukan bank)</span><input class="input" id="sfNote" maxlength="120"></label>` : '<p class="muted small">Langganan diaktifkan tanpa rekod jualan (contoh: pelajar asnaf atau hadiah).</p>'}
+    <div class="btn-row">
+      <button class="btn btn-primary" data-a="subSave" style="flex:1">${save}</button>
+      <button class="btn btn-ghost" data-a="subCancel">Batal</button>
+    </div>
+  </div>`;
+}
+function userPays() {
+  const L = A.uPays;
+  if (!L) return '<p class="muted small">Memuatkan sejarah bayaran...</p>';
+  if (!L.length) return '<span class="eyebrow">Sejarah bayaran</span><p class="muted small">Belum ada bayaran direkod.</p>';
+  return `<span class="eyebrow">Sejarah bayaran</span>
+    <div class="rows">${L.map(p => `<div class="row"><div style="min-width:0"><b>${rm(p.amountSen)}</b>
+      <p class="muted small">${fmtDate(p.paidAt)} · ${p.months || 1} bulan · ${p.manual ? 'Manual' + (p.method ? ' (' + PAY_METHOD[p.method] + ')' : '') : 'CHIP'}${p.note ? ' · ' + esc(p.note) : ''}</p></div>
+      ${p.status === 'batal' ? '<span class="pill">Dibatalkan</span>'
+        : p.manual ? `<button class="iconbtn" data-a="payCancel" data-v="${p.id}" style="white-space:nowrap;flex:none;${A.cancelPay === p.id ? 'color:var(--danger);border-color:var(--danger)' : ''}">${A.cancelPay === p.id ? 'Sahkan batal' : 'Batal rekod'}</button>`
+        : `<span class="pill ${p.status === 'completed' ? 'ok' : 'warn'}">${p.status === 'completed' ? 'Berjaya' : 'Semak'}</span>`}</div>`).join('')}</div>`;
+}
+async function loadUserPays() {
+  const id = A.sel && A.sel.id;
+  const r = await api('GET', `/api/admin/users/${id}/payments`);
+  if (!A.sel || A.sel.id !== id) return;
+  A.uPays = r.ok ? r.payments : []; if (r.ok) A.uPrices = r.prices;
+  if (A.modal === 'user') render();
+}
+
 function modal() {
   if (!A.modal) return '';
   let inner = '';
@@ -846,13 +988,15 @@ function modal() {
         <div class="row"><span class="muted">Daftar</span><b>${fmtDate(u.createdAt)}</b></div>
       </div>
       <span class="eyebrow">Langganan manual</span>
-      <p class="muted small">Untuk pelajar ditaja atau bayaran di luar app.</p>
-      <div class="filter-row">
-        <button class="chip" data-a="sub" data-v="1">+1 bulan</button>
-        <button class="chip" data-a="sub" data-v="3">+3 bulan</button>
-        <button class="chip" data-a="sub" data-v="12">+12 bulan</button>
+      <p class="muted small">Untuk pelajar ditaja atau bayaran di luar app (tunai, pindahan bank, DuitNow).</p>
+      ${A.subF ? subForm() : `<div class="filter-row">
+        <button class="chip" data-a="subOpen" data-v="1">+1 bulan</button>
+        <button class="chip" data-a="subOpen" data-v="3">+3 bulan</button>
+        <button class="chip" data-a="subOpen" data-v="12">+12 bulan</button>
         ${u.active ? '<button class="chip" data-a="sub" data-v="tamat" style="color:var(--danger)">Tamatkan</button>' : ''}
       </div>
+      <button class="link" data-a="subOpen" data-v="rekod" style="align-self:flex-start">Rekod bayaran sahaja (langganan dah diaktifkan)</button>`}
+      ${userPays()}
       <span class="eyebrow">Taja dari dana</span>
       <p class="muted small">${A.taja ? `Baki dana taja: <b>${rm(A.taja.balanceSen)}</b> (${rm(A.taja.monthPriceSen)} sebulan).` : 'Memuatkan baki...'}</p>
       ${A.taja && A.taja.balanceSen >= A.taja.monthPriceSen ? `<div class="filter-row">${[1, 3, 6, 12].filter(m => m * A.taja.monthPriceSen <= A.taja.balanceSen).map(m => `<button class="chip" data-a="sponsor" data-v="${m}">Taja ${m} bulan</button>`).join('')}</div>` : A.taja ? '<p class="muted small">Baki belum mencukupi untuk menaja.</p>' : ''}
@@ -971,6 +1115,7 @@ document.addEventListener('focusin', e => {
 document.addEventListener('scroll', () => { vizTip.hidden = true; }, true);
 
 async function loadStats() {
+  loadRange();
   api('GET', '/api/admin/insights').then(x => { A.insights = x.ok ? x : { videos: [], expiring: [], idle: [] }; if (A.tab === 'ringkasan') render(); });
   api('GET', '/api/admin/payments').then(x => { A.payments = x.ok ? x.payments : []; if (A.tab === 'ringkasan') render(); });
   const r = await api('GET', '/api/admin/stats');
@@ -1068,7 +1213,11 @@ document.addEventListener('click', async e => {
     case 'theme': toggleTheme(); render(); return;
     case 'install': doInstall(); return;
     case 'tab': openTab(v); return;
-    case 'refresh': A.stats = null; A.dash = null; A.insights = null; A.payments = null; render(); loadStats(); return;
+    case 'refresh': A.stats = null; A.dash = null; A.insights = null; A.payments = null; A.rangeData = null; render(); loadStats(); return;
+    case 'range':
+      A.range = v; try { localStorage.setItem('mo-admin-range', v); } catch {}
+      if (v === 'custom') { A.rangeCustom = A.rangeCustom || rangeDates('7hari'); forget('rgFrom', 'rgTo'); }
+      A.rangeData = null; render(); loadRange(); return;
     case 'filter': A.filter = v; loadUsers(); return;
     case 'showAll': A.showAll = v; break;
     case 'view3d': A.view3d = v === '1'; try { localStorage.setItem('mo-admin-3d', v); } catch {} break;
@@ -1076,6 +1225,7 @@ document.addEventListener('click', async e => {
     case 'filterGo': A.filter = v; A.q = ''; openTab('pelajar'); return;
     case 'user':
       A.sel = A.users.find(u => String(u.id) === v); A.newPin = null; A.err = ''; A.modal = 'user'; A.taja = null;
+      A.subF = null; A.uPays = null; A.cancelPay = null; loadUserPays();
       api('GET', '/api/admin/taja-balance').then(r => { if (r.ok) { A.taja = r; if (A.modal === 'user') render(); } });
       break;
     case 'sponsor': {
@@ -1103,6 +1253,46 @@ document.addEventListener('click', async e => {
       const r = await busy(el, () => api('POST', `/api/admin/users/${A.sel.id}/pin`, { pin }));
       if (r.status === 401) return toLogin();
       if (r.ok) { A.newPin = pin; A.err = ''; } else A.err = r.error;
+      break;
+    }
+    case 'subOpen':
+      A.subF = v === 'rekod' ? { mode: 'rekod', months: 1, kind: 'manual' } : { mode: 'tambah', months: Number(v), kind: 'manual' };
+      A.err = ''; forget('sfAmt', 'sfMethod', 'sfDate', 'sfNote'); break;
+    case 'subMonths': A.subF.months = Number(v); forget('sfAmt'); break;
+    case 'subKind': A.subF.kind = v; break;
+    case 'subCancel': A.subF = null; A.err = ''; break;
+    case 'subSave': {
+      const f = A.subF, manual = f.mode === 'rekod' || f.kind === 'manual';
+      let payment = null;
+      if (manual) {
+        const amt = parseFloat(val('sfAmt').replace(/[^\d.,]/g, '').replace(',', '.'));
+        if (!(amt > 0)) { A.err = 'Sila masukkan jumlah bayaran.'; break; }
+        payment = { amountSen: Math.round(amt * 100), method: val('sfMethod'), paidOn: val('sfDate'), note: val('sfNote') };
+      }
+      const r = await busy(el, () => f.mode === 'rekod'
+        ? api('POST', `/api/admin/users/${A.sel.id}/payments`, { months: f.months, ...payment })
+        : api('POST', `/api/admin/users/${A.sel.id}/subscription`, payment ? { months: f.months, payment } : { months: f.months }));
+      if (r.status === 401) return toLogin();
+      if (!r.ok) { A.err = r.error; break; }
+      A.err = ''; A.subF = null;
+      if (f.mode === 'rekod') toast(`Bayaran ${rm(payment.amountSen)} direkod.`);
+      else {
+        Object.assign(A.sel, { paidUntil: r.paidUntil, active: r.active });
+        toast(payment ? `Langganan aktif hingga ${fmtDate(r.paidUntil)}. Jualan ${rm(payment.amountSen)} direkod.` : 'Langganan aktif hingga ' + fmtDate(r.paidUntil));
+        loadUsers();
+      }
+      A.uPays = null; A.stats = null; A.dash = null; A.payments = null; A.rangeData = null; loadUserPays();
+      break;
+    }
+    case 'payCancel': {
+      const id = Number(v);
+      if (A.cancelPay !== id) { A.cancelPay = id; break; }
+      const r = await busy(el, () => api('POST', `/api/admin/payments/${id}/cancel`, {}));
+      if (r.status === 401) return toLogin();
+      A.cancelPay = null;
+      if (!r.ok) { A.err = r.error; break; }
+      toast('Rekod bayaran dibatalkan. Tempoh langganan tidak berubah.');
+      A.uPays = null; A.stats = null; A.dash = null; A.payments = null; A.rangeData = null; loadUserPays();
       break;
     }
     case 'sub': {
@@ -1230,6 +1420,11 @@ document.addEventListener('click', async e => {
 document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, btn = f.querySelector('button[type="submit"]');
+  if (f.id === 'fRange') {
+    const a = val('rgFrom'), b = val('rgTo');
+    if (!a || !b || a > b) return toast('Sila pilih tarikh mula dan tarikh akhir yang betul.');
+    A.rangeCustom = [a, b]; A.rangeData = null; render(); loadRange(); return;
+  }
   if (f.id === 'fSetup') {
     const r = await busy(btn, async () => {
       const res = await fetch('/api/admin/admins', {

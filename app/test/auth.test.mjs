@@ -1069,6 +1069,62 @@ check('Klip Sumbang: senarai dikemas kini (2 klip)', r.data.clips.length === 2 &
 r = await ad.req('POST', `/api/admin/videos/${vid}`, { title: 'Hukum Nun Mati' });
 check('Klip Sumbang: edit tanpa medan donateClip kekalkan status', r.status === 200 && r.data.video.donateClip === false, r.data);
 
+// ---------- Bayaran manual (di luar CHIP) + data kutipan ikut tempoh ----------
+{
+  const myd = ms => new Date(ms + 8 * 3600e3).toISOString().slice(0, 10);
+  const today = myd(Date.now()), yest = myd(Date.now() - 864e5), tomorrow = myd(Date.now() + 864e5);
+  const range = async () => (await ad.req('GET', `/api/admin/dash/range?from=${today}&to=${today}`)).data;
+  const before = await range();
+  check('Tempoh: data kutipan hari ini', before.ok && before.unit === 'day' && before.buckets.length === 1 && typeof before.current.langgananManual === 'number', before);
+  const mu = (await ad.req('GET', '/api/admin/users?q=Salmah')).data.users[0];
+  r = await ad.req('GET', `/api/admin/users/${mu.id}/payments`);
+  check('Manual: harga cadangan ikut pakej', r.status === 200 && r.data.prices[1] > 0 && r.data.prices[3] > 0 && r.data.prices[12] > 0, r.data);
+  r = await ad.req('POST', `/api/admin/users/${mu.id}/subscription`, { months: 1, payment: { amountSen: 3000, method: 'xyz' } });
+  check('Manual: cara bayar tak sah ditolak', r.status === 400 && /cara bayar/.test(r.data.error), r.data);
+  r = await ad.req('POST', `/api/admin/users/${mu.id}/subscription`, { months: 1, payment: { amountSen: 0, method: 'tunai' } });
+  check('Manual: jumlah RM0 ditolak', r.status === 400, r.data);
+  r = await ad.req('POST', `/api/admin/users/${mu.id}/subscription`, { months: 1, payment: { amountSen: 3000, method: 'tunai', paidOn: tomorrow } });
+  check('Manual: tarikh esok ditolak', r.status === 400 && /selepas hari ini/.test(r.data.error), r.data);
+  const until0 = (await ad.req('GET', '/api/admin/users?q=Salmah')).data.users[0].paidUntil;
+  r = await ad.req('POST', `/api/admin/users/${mu.id}/subscription`, { months: 1, payment: { amountSen: 3000, method: 'tunai', note: 'Bayar terus kepada ustaz' } });
+  check('Manual: +1 bulan & rekod jualan', r.status === 200 && r.data.active && r.data.paidUntil > until0, r.data);
+  let after = await range();
+  check('Manual: jualan masuk kutipan hari ini', after.current.langgananManual - before.current.langgananManual === 3000 && after.current.langganan - before.current.langganan === 3000 && after.buckets[0].langganan - before.buckets[0].langganan === 3000, after.current);
+  r = await ad.req('GET', '/api/admin/payments');
+  const mp = r.data.payments.find(p => p.manual && p.amountSen === 3000);
+  check('Manual: keluar dalam Bayaran terkini (label manual)', mp && mp.method === 'tunai', r.data.payments.slice(0, 3));
+  const untilA = (await ad.req('GET', '/api/admin/users?q=Salmah')).data.users[0].paidUntil;
+  r = await ad.req('POST', `/api/admin/users/${mu.id}/payments`, { months: 12, amountSen: 29900, method: 'bank', paidOn: yest, note: 'Rujukan 123' });
+  check('Manual: rekod bayaran lepas (semalam)', r.status === 200, r.data);
+  check('Manual: rekod sahaja tak ubah tempoh', (await ad.req('GET', '/api/admin/users?q=Salmah')).data.users[0].paidUntil === untilA);
+  r = await ad.req('GET', `/api/admin/dash/range?from=${yest}&to=${yest}`);
+  check('Manual: bayaran semalam masuk tarikh semalam', r.data.current.langgananManual >= 29900, r.data.current);
+  r = await ad.req('GET', `/api/admin/users/${mu.id}/payments`);
+  const recs = r.data.payments.filter(p => p.manual);
+  check('Manual: sejarah bayaran pelajar ada 2 rekod manual', recs.length === 2 && recs.some(p => p.note === 'Rujukan 123' && p.months === 12), recs);
+  const cancelId = recs.find(p => p.amountSen === 3000).id;
+  r = await ad.req('POST', `/api/admin/payments/${cancelId}/cancel`, {});
+  check('Manual: batalkan rekod', r.status === 200, r.data);
+  r = await ad.req('POST', `/api/admin/payments/${cancelId}/cancel`, {});
+  check('Manual: batal dua kali ditolak', r.status === 400, r.data);
+  after = await range();
+  check('Manual: rekod batal tidak dikira', after.current.langgananManual === before.current.langgananManual, after.current);
+  r = await ad.req('GET', `/api/admin/users/${mu.id}/payments`);
+  check('Manual: rekod batal ditanda Dibatalkan', r.data.payments.find(p => p.id === cancelId).status === 'batal');
+  const chipPay = (await ad.req('GET', '/api/admin/payments')).data.payments.find(p => !p.manual);
+  if (chipPay) { r = await ad.req('POST', `/api/admin/payments/${chipPay.id}/cancel`, {}); check('Manual: bayaran CHIP tak boleh dibatalkan', r.status === 400, r.data); }
+  r = await ad.req('POST', `/api/admin/users/${mu.id}/subscription`, { months: 1 });
+  check('Manual: ditaja/percuma (tanpa jualan) masih berfungsi', r.status === 200 && r.data.active, r.data);
+  r = await ad.req('GET', `/api/admin/dash/range?from=${today}&to=${yest}`);
+  check('Tempoh: tarikh terbalik ditolak', r.status === 400, r.data);
+  r = await ad.req('GET', `/api/admin/dash/range?from=2026-10-01&to=2026-12-31`);
+  check('Tempoh: lebih 62 hari = lajur bulanan', r.data.unit === 'month' && r.data.buckets.length === 3, r.data.buckets);
+  const csv = await ad.raw(`/api/admin/export/kutipan.csv?from=${yest}&to=${today}`).then(x => x.text());
+  check('Eksport kutipan: ada rekod manual (bank)', csv.includes('Manual') && csv.includes('Pindahan bank') && csv.includes('Rujukan 123'), csv.slice(0, 300));
+  r = await e.req('GET', `/api/admin/dash/range?from=${today}&to=${today}`);
+  check('Tempoh: pelajar tak boleh akses', r.status === 401);
+}
+
 const plain = jar();
 r = await plain.req('GET', '/api/admin/users');
 check('Pelajar tanpa sesi admin tak boleh lihat senarai', r.status === 401);

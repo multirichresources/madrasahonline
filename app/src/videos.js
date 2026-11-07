@@ -3,6 +3,7 @@
 import { now, json, fail, readJson, sha256Hex, cleanText } from './util.js';
 import { requireUser, requireAdmin } from './auth.js';
 import { webBase, setWebUntilStmt } from './store.js';
+import { readManualPayment, manualPaymentStmt } from './manualpay.js';
 
 const API = 'https://video.bunnycdn.com';
 // Cadangan topik dalam borang admin (topik boleh ditaip bebas)
@@ -290,16 +291,20 @@ export async function adminSetSubscription(env, request, userId) {
   const body = await readJson(request);
   const u = await env.DB.prepare('SELECT id, paid_until, web_paid_until FROM users WHERE id = ?').bind(userId).first();
   if (!u) return fail(404, 'Pelajar tidak dijumpai.');
-  let until;
+  let until, pay = null;
+  const months = Number(body.months);
   if (body.action === 'tamat') until = now() - 1000;
   else {
-    const months = Number(body.months);
     if (![1, 3, 6, 12].includes(months)) return fail(400, 'Pilih 1, 3, 6 atau 12 bulan.');
+    // Bayaran di luar CHIP (tunai / bank / DuitNow): rekod sebagai jualan supaya masuk papan pemuka
+    if (body.payment) { pay = readManualPayment(body.payment, months); if (pay.error) return fail(400, pay.error); }
     const base = new Date(Math.max(now(), webBase(u)));
     base.setMonth(base.getMonth() + months);
     until = base.getTime();
   }
-  await setWebUntilStmt(env, userId, until, 'plan = COALESCE(plan, ?)', ['manual']).run();
+  const stmts = [setWebUntilStmt(env, userId, until, 'plan = COALESCE(plan, ?)', ['manual'])];
+  if (pay) stmts.push(manualPaymentStmt(env, userId, months, pay));
+  await env.DB.batch(stmts);
   // Langganan Google Play / App Store yang masih sah tetap kekal (diurus oleh store)
   const fresh = await env.DB.prepare('SELECT paid_until FROM users WHERE id = ?').bind(userId).first();
   return json({ ok: true, paidUntil: fresh.paid_until, active: fresh.paid_until > now(), storeActive: fresh.paid_until > until });

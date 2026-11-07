@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS payments (
   amount_sen    INTEGER NOT NULL,
   provider      TEXT    NOT NULL DEFAULT 'hitpay',
   provider_ref  TEXT    UNIQUE,                   -- payment_request id / recurring billing id
-  status        TEXT    NOT NULL DEFAULT 'pending', -- 'pending' | 'completed' | 'failed' | 'semak' (jumlah tak sepadan)
+  status        TEXT    NOT NULL DEFAULT 'pending', -- 'pending' | 'completed' | 'failed' | 'semak' (jumlah tak sepadan) | 'batal' (rekod manual dibatalkan admin)
   donor_name    TEXT,
   donation_use  TEXT,                             -- 'taja' | 'umum'
   donor_email   TEXT,
@@ -135,7 +135,8 @@ CREATE TABLE IF NOT EXISTS payments (
   access_hash   TEXT,                             -- token halaman terima kasih (penyumbang tiada login)
   recurring     INTEGER NOT NULL DEFAULT 0,         -- 0 sekali bayar, 1 daftar auto-renew, 2 caj auto-renew
   created_at    INTEGER NOT NULL,
-  completed_at  INTEGER
+  completed_at  INTEGER,
+  pay_method    TEXT                              -- bayaran manual: 'tunai' | 'bank' | 'duitnow' | 'lain' (provider = 'manual')
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
 
